@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: complete
-stopped_at: Completed Phase 7
-last_updated: "2026-04-19T07:25:00.000Z"
-last_activity: 2026-04-19 -- Phase 7 npm package identity complete
+status: shipped
+stopped_at: Shipped v1 via PR #1
+last_updated: "2026-04-19T07:45:00.000Z"
+last_activity: 2026-04-19 -- v1 shipped via PR #1
 progress:
   total_phases: 7
   completed_phases: 7
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-18)
 
 **Core value:** A developer can install GSD for Hermes and use the standard get-shit-done workflow inside Hermes with near-parity to the upstream experience.
-**Current focus:** v1.0 complete — npm package identity ready for release prep
+**Current focus:** v1.0 shipped in PR #1 — ready for review, merge, and release prep
 
 ## Current Position
 
 Phase: 07 (npm-package-identity) — COMPLETE
 Plan: 1 of 1
 Status: Phase 7 complete
-Last activity: 2026-04-19 -- Phase 7 npm package identity complete
+Last activity: 2026-04-19 -- v1 shipped via PR #1
 
 Progress: [██████████] 100%
 
@@ -83,6 +83,7 @@ Recent decisions affecting current work:
 - Phase 2 Plan 02: Treat Hermes as a no-settings runtime in Phase 2 while preserving the inherited non-Claude `~/.gsd/defaults.json` `resolve_model_ids: "omit"` side effect
 - Phase 2 Plan 03: Lock Hermes runtime selection and install-path semantics behind focused tests without adding project-linked, lifecycle, workflow parity, or converter coverage
 - Phase 7: Publish downstream package identity as `gsd-hermes`, keep `get-shit-done-cc` as compatibility bin, and document `npx gsd-hermes` as the primary Hermes install path
+- Ship: v1 shipped as PR #1 from `ship/v1-complete` to `main`
 
 ### Pending Todos
 
@@ -101,5 +102,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-19T07:07:26.313Z
-Stopped at: Completed Phase 7
+Stopped at: Shipped v1 via PR #1
 Resume file: .planning/phases/07-npm-package-identity/07-01-SUMMARY.md
