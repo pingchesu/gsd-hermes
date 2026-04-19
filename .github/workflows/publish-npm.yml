@@ -74,12 +74,15 @@ jobs:
           fi
 
           if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
+            echo "PACKAGE_ALREADY_PUBLISHED=true" >> "$GITHUB_ENV"
             if [ "${{ inputs.dry_run }}" = "true" ]; then
               echo "::warning::${PACKAGE_NAME}@${PACKAGE_VERSION} is already published. Continuing because this is a dry run."
             else
               echo "::error::${PACKAGE_NAME}@${PACKAGE_VERSION} is already published. Bump package.json version before publishing."
               exit 1
             fi
+          else
+            echo "PACKAGE_ALREADY_PUBLISHED=false" >> "$GITHUB_ENV"
           fi
 
           echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> "$GITHUB_ENV"
@@ -97,6 +100,10 @@ jobs:
           NPM_DIST_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
+          if [ "${PACKAGE_ALREADY_PUBLISHED:-false}" = "true" ]; then
+            echo "::notice::Skipping npm publish --dry-run because ${PACKAGE_NAME}@${PACKAGE_VERSION} is already published."
+            exit 0
+          fi
           npm publish --dry-run --access public --tag "$NPM_DIST_TAG"
 
       - name: Publish with Trusted Publishing
