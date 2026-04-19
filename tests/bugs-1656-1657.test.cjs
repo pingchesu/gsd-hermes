@@ -103,6 +103,22 @@ describe('#1657 / #2385: SDK install must be wired into installer source', () =>
     );
   });
 
+  test('install.js rejects stale gsd-sdk binaries without query support', () => {
+    src = src || fs.readFileSync(INSTALL_SRC, 'utf-8');
+    assert.ok(
+      src.includes("spawnSync('gsd-sdk', ['--help']") || src.includes('spawnSync("gsd-sdk", ["--help"]'),
+      'installer must inspect the existing gsd-sdk binary instead of trusting PATH presence alone'
+    );
+    assert.ok(
+      src.includes('supportsQuery') && src.includes('\\bquery\\s+<[^>]+>'),
+      'installer must require query support before skipping bundled SDK rebuild'
+    );
+    assert.ok(
+      src.includes('Existing GSD SDK lacks query support'),
+      'installer should explain when it rebuilds over a stale SDK'
+    );
+  });
+
   test('package.json ships sdk source in published tarball (#2385)', () => {
     const rootPkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf-8'));
     const files = rootPkg.files || [];

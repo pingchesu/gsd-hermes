@@ -7227,7 +7227,8 @@ function promptLocation(runtimes) {
  * npm-published package lags the source tree and shipping a stale SDK breaks
  * every /gsd-* command that depends on newer query handlers.
  *
- * Skip if --no-sdk. Skip if already on PATH (unless --sdk was explicit).
+ * Skip if --no-sdk. Skip if a query-capable SDK is already on PATH (unless
+ * --sdk was explicit).
  * Failures are warnings, not fatal.
  */
 function installSdkIfNeeded() {
@@ -7240,11 +7241,30 @@ function installSdkIfNeeded() {
   const path = require('path');
   const fs = require('fs');
 
+  const probeSdk = () => {
+    const resolverCmd = process.platform === 'win32' ? 'where' : 'which';
+    const resolved = spawnSync(resolverCmd, ['gsd-sdk'], { encoding: 'utf-8' });
+    if (resolved.status !== 0 || !resolved.stdout.trim()) {
+      return { found: false, supportsQuery: false, path: null };
+    }
+
+    const help = spawnSync('gsd-sdk', ['--help'], { encoding: 'utf-8' });
+    const helpOutput = `${help.stdout || ''}\n${help.stderr || ''}`;
+    return {
+      found: true,
+      supportsQuery: help.status === 0 && /\bquery\s+<[^>]+>/.test(helpOutput),
+      path: resolved.stdout.trim().split('\n')[0],
+    };
+  };
+
   if (!hasSdk) {
-    const probe = spawnSync(process.platform === 'win32' ? 'where' : 'which', ['gsd-sdk'], { stdio: 'ignore' });
-    if (probe.status === 0) {
-      console.log(`  ${green}✓${reset} GSD SDK already installed (gsd-sdk on PATH)`);
+    const probe = probeSdk();
+    if (probe.found && probe.supportsQuery) {
+      console.log(`  ${green}✓${reset} GSD SDK already installed with query support (${probe.path})`);
       return;
+    }
+    if (probe.found && !probe.supportsQuery) {
+      console.log(`  ${yellow}↻${reset} Existing GSD SDK lacks query support; rebuilding bundled SDK (${probe.path})`);
     }
   }
 
