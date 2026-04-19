@@ -10,6 +10,11 @@ The upstream maintainers [declined Hermes Agent support in core GSD](https://git
 
 That is why this project exists: preserve the upstream GSD workflow, track upstream closely, and add first-class Hermes Agent support where the official project reasonably chooses not to carry that maintenance cost.
 
+> [!NOTE]
+> **Version identity:** `gsd-hermes` uses its own npm version line starting at `1.0.0`.
+> This release is based on upstream `get-shit-done-cc@1.37.1`.
+> Future upstream syncs should bump `gsd-hermes` independently, for example `gsd-hermes@1.0.1` based on `get-shit-done-cc@1.37.2`, instead of mirroring upstream package versions.
+
 ---
 
 <div align="center">
