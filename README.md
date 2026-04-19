@@ -1,3 +1,17 @@
+## Why This Fork Exists
+
+I am a big fan of upstream GSD. The workflow has been one of the most effective ways I have found to turn an idea into a planned, executed, and verified coding session.
+
+In daily use, though, I sometimes still hit friction around remembering exactly which GSD command to run next. This gets worse when I switch sessions or runtimes: the agent may no longer recognize the project state, the available `/gsd-*` commands, or the way I normally use the workflow. My goal with this fork is to make GSD available directly inside Hermes Agent so I can keep using the same GSD process while letting Hermes become a better fit for my coding habits over time.
+
+This is not intended as a replacement for upstream GSD. It is a Hermes-focused downstream fork.
+
+The upstream maintainers [declined Hermes Agent support in core GSD](https://github.com/gsd-build/get-shit-done/issues/2272#issuecomment-4254178547) because they want to keep the core installer intentionally lean and avoid the long-term maintenance burden of another runtime: more testing debt, more path-finding logic, and more install/update behavior to keep current as agents evolve. They also noted that a community-maintained Hermes-specific fork or installer wrapper is a good fit for this kind of integration.
+
+That is why this project exists: preserve the upstream GSD workflow, track upstream closely, and add first-class Hermes Agent support where the official project reasonably chooses not to carry that maintenance cost.
+
+---
+
 <div align="center">
 
 # GSD Hermes
@@ -44,22 +58,6 @@ npx gsd-hermes@latest
 [Why I Built This](#why-i-built-this) · [How It Works](#how-it-works) · [Commands](#commands) · [Why It Works](#why-it-works) · [User Guide](docs/USER-GUIDE.md)
 
 </div>
-
----
-
-## Why This Fork Exists
-
-I am a big fan of upstream GSD. The workflow has been one of the most effective ways I have found to turn an idea into a planned, executed, and verified coding session.
-
-In daily use, though, I sometimes still hit friction around remembering exactly which GSD command to run next. This gets worse when I switch sessions or runtimes: the agent may no longer recognize the project state, the available `/gsd-*` commands, or the way I normally use the workflow. My goal with this fork is to make GSD available directly inside Hermes Agent so I can keep using the same GSD process while letting Hermes become a better fit for my coding habits over time.
-
-This is not intended as a replacement for upstream GSD. It is a Hermes-focused downstream fork.
-
-The upstream maintainers [declined Hermes Agent support in core GSD](https://github.com/gsd-build/get-shit-done/issues/2272#issuecomment-4254178547) because they want to keep the core installer intentionally lean and avoid the long-term maintenance burden of another runtime: more testing debt, more path-finding logic, and more install/update behavior to keep current as agents evolve. They also noted that a community-maintained Hermes-specific fork or installer wrapper is a good fit for this kind of integration.
-
-That is why this project exists: preserve the upstream GSD workflow, track upstream closely, and add first-class Hermes Agent support where the official project reasonably chooses not to carry that maintenance cost.
-
----
 
 > [!IMPORTANT]
 > ### Welcome Back to GSD
