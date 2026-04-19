@@ -14,6 +14,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **`init` query agents-installed check looks at the correct directory** — `checkAgentsInstalled` in `sdk/src/query/init.ts` defaulted to `~/.claude/get-shit-done/agents/`, but the installer writes GSD agents to `~/.claude/agents/`. Every init query therefore reported `agents_installed: false` on clean installs, which made workflows refuse to spawn `gsd-executor` and other parallel subagents. The default now matches `sdk/src/init-runner.ts` and the installer (#2400)
 - **Installer now installs `@gsd-build/sdk` automatically** so `gsd-sdk` lands on PATH. Resolves `command not found: gsd-sdk` errors that affected every `/gsd-*` command after a fresh install or `/gsd-update` to 1.36+. Adds `--no-sdk` to opt out and `--sdk` to force reinstall. Implements the `--sdk` flag that was previously documented in README but never wired up (#2385)
 
+## [1.37.2] - 2026-04-19
+
+### Fixed
+- **GSD Hermes installer rebuilds stale SDK binaries** — Based on upstream GSD `1.37.1`. The installer now checks whether an existing `gsd-sdk` on `PATH` supports `gsd-sdk query ...` before skipping SDK installation. This fixes Hermes sessions that found an old global `@gsd-build/sdk@0.1.0` binary and fell back to filesystem-only workflow checks.
+
 ## [1.37.1] - 2026-04-17
 
 ### Fixed
