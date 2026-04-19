@@ -44,6 +44,24 @@ git merge upstream/main
 Merges are required per D-05, and visible merge history is preserved per D-06
 so future Hermes-specific conflicts stay reviewable.
 
+## Version Policy for Upstream Syncs
+
+`gsd-hermes` has an independent npm version line. Upstream GSD versions are
+recorded as compatibility metadata, not copied into the downstream npm version.
+
+Use this mapping when preparing a release after an upstream sync:
+
+| Scenario | Downstream release | Release note wording |
+|----------|-------------------|----------------------|
+| Upstream patch sync, no downstream breaking change | Patch bump, for example `gsd-hermes@1.0.1` | `Based on get-shit-done-cc@1.37.2` |
+| Upstream minor sync or new Hermes capability | Minor bump, for example `gsd-hermes@1.1.0` | `Based on get-shit-done-cc@1.38.0` |
+| Downstream breaking installer/config behavior | Major bump, for example `gsd-hermes@2.0.0` | Include upstream base and migration notes |
+
+Do not publish `gsd-hermes@1.37.2` just because upstream releases
+`get-shit-done-cc@1.37.2`. The package identity is the Hermes fork; the
+upstream base is documented separately in README, CHANGELOG, release notes, and
+sync PRs.
+
 ## Post-Sync Validation Checklist
 
 Run this checklist after every routine sync from `upstream/main`:
@@ -73,6 +91,10 @@ Run this checklist after every routine sync from `upstream/main`:
    ```
 7. Review `docs/hermes-compatibility.md` when the sync changes runtime
    behavior, support status, install paths, lifecycle behavior, or known gaps.
+8. Update release metadata:
+   - README version identity banner, if the upstream base changed.
+   - CHANGELOG release heading with both `gsd-hermes` version and upstream base.
+   - GitHub Release notes with the same two-version wording.
 
 `npm run test:hermes` is the targeted Hermes compatibility gate. `npm test` is
 the full-suite release gate when feasible.

@@ -1,12 +1,17 @@
 # Changelog
 
-All notable changes to GSD will be documented in this file.
+All notable changes to GSD Hermes will be documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+GSD Hermes uses an independent downstream package version line. Each release should
+record both the `gsd-hermes` package version and the upstream GSD base version it
+syncs from.
 
 ## [Unreleased]
 
 ### Added
+- **Downstream version policy docs** — README and release docs now state that `gsd-hermes` starts at `1.0.0` and records the upstream `get-shit-done-cc` base separately instead of mirroring upstream package versions.
 - **`/gsd-ingest-docs` command** — Scan a repo containing mixed ADRs, PRDs, SPECs, and DOCs and bootstrap or merge the full `.planning/` setup from them in a single pass. Parallel classification (`gsd-doc-classifier`), synthesis with precedence rules and cycle detection (`gsd-doc-synthesizer`), three-bucket conflicts report (`INGEST-CONFLICTS.md`: auto-resolved, competing-variants, unresolved-blockers), and hard-block on LOCKED-vs-LOCKED ADR contradictions in both new and merge modes. Supports directory-convention discovery and `--manifest <file>` YAML override with per-doc precedence. v1 caps at 50 docs per invocation; `--resolve interactive` is reserved. Extracts shared conflict-detection contract into `references/doc-conflict-engine.md` which `/gsd-import` now also consumes (#2387)
 
 ### Fixed
@@ -15,6 +20,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Installer now installs `@gsd-build/sdk` automatically** so `gsd-sdk` lands on PATH. Resolves `command not found: gsd-sdk` errors that affected every `/gsd-*` command after a fresh install or `/gsd-update` to 1.36+. Adds `--no-sdk` to opt out and `--sdk` to force reinstall. Implements the `--sdk` flag that was previously documented in README but never wired up (#2385)
 
 ## [1.0.0] - 2026-04-19
+
+GSD Hermes package version: `1.0.0`
+Upstream GSD base: `get-shit-done-cc@1.37.1`
 
 ### Added
 - **Initial public GSD Hermes release** — Independent `gsd-hermes` package line for a Hermes-focused downstream fork. Based on upstream `get-shit-done-cc@1.37.1`, with first-class Hermes Agent install support and the upstream GSD workflow preserved.
