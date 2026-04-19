@@ -1,0 +1,138 @@
+name: Publish npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: npm dist-tag to publish
+        required: true
+        type: choice
+        default: latest
+        options:
+          - latest
+          - next
+      auth_mode:
+        description: Publish auth mode
+        required: true
+        type: choice
+        default: trusted-publishing
+        options:
+          - trusted-publishing
+          - npm-token
+      dry_run:
+        description: Validate package without publishing
+        required: true
+        type: boolean
+        default: true
+
+concurrency:
+  group: publish-npm-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  NODE_VERSION: 24
+  PACKAGE_NAME: gsd-hermes
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm-publish
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f  # v6.3.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Show toolchain
+        run: |
+          node --version
+          npm --version
+
+      - name: Validate package metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACKAGE_JSON_NAME="$(node -p "require('./package.json').name")"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+
+          if [ "$PACKAGE_JSON_NAME" != "$PACKAGE_NAME" ]; then
+            echo "::error::package.json name is $PACKAGE_JSON_NAME, expected $PACKAGE_NAME"
+            exit 1
+          fi
+
+          if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
+            echo "::error::${PACKAGE_NAME}@${PACKAGE_VERSION} is already published. Bump package.json version before publishing."
+            exit 1
+          fi
+
+          echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> "$GITHUB_ENV"
+
+      - name: Run tests
+        run: npm test
+
+      - name: Pack validation
+        run: npm pack --dry-run
+
+      - name: Publish dry run
+        if: ${{ inputs.dry_run }}
+        shell: bash
+        env:
+          NPM_DIST_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          npm publish --dry-run --access public --tag "$NPM_DIST_TAG"
+
+      - name: Publish with Trusted Publishing
+        if: ${{ !inputs.dry_run && inputs.auth_mode == 'trusted-publishing' }}
+        shell: bash
+        env:
+          NPM_DIST_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          npm publish --access public --tag "$NPM_DIST_TAG"
+
+      - name: Publish with npm token
+        if: ${{ !inputs.dry_run && inputs.auth_mode == 'npm-token' }}
+        shell: bash
+        env:
+          NPM_DIST_TAG: ${{ inputs.tag }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::error::auth_mode=npm-token requires a repository secret named NPM_TOKEN."
+            exit 1
+          fi
+          npm publish --access public --tag "$NPM_DIST_TAG"
+
+      - name: Verify published package
+        if: ${{ !inputs.dry_run }}
+        shell: bash
+        env:
+          NPM_DIST_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          sleep 20
+          PUBLISHED_VERSION="$(npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version)"
+          if [ "$PUBLISHED_VERSION" != "$PACKAGE_VERSION" ]; then
+            echo "::error::Expected ${PACKAGE_VERSION}, got ${PUBLISHED_VERSION}"
+            exit 1
+          fi
+
+          echo "## Published ${PACKAGE_NAME}@${PACKAGE_VERSION}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Dist tag: \`${NPM_DIST_TAG}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Install: \`npx ${PACKAGE_NAME}@${NPM_DIST_TAG}\`" >> "$GITHUB_STEP_SUMMARY"

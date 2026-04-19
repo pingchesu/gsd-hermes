@@ -115,6 +115,14 @@ Built-in quality gates catch real problems: schema drift detection flags ORM cha
 npx gsd-hermes@latest
 ```
 
+If the npm package is not published yet, install directly from GitHub:
+
+```bash
+npx --yes github:pingchesu/gsd-hermes
+```
+
+Release maintainers can publish through GitHub Actions; see [docs/npm-publishing.md](docs/npm-publishing.md).
+
 The installer prompts you to choose:
 1. **Runtime** — Hermes Agent, Claude Code, OpenCode, Gemini, Kilo, Codex, Copilot, Cursor, Windsurf, Antigravity, Augment, Trae, Qwen Code, CodeBuddy, Cline, or all (interactive multi-select — pick multiple runtimes in a single install session)
 2. **Location** — Global (all projects) or local (current project only)
