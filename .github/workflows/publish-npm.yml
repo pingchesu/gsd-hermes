@@ -74,8 +74,12 @@ jobs:
           fi
 
           if npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" version >/dev/null 2>&1; then
-            echo "::error::${PACKAGE_NAME}@${PACKAGE_VERSION} is already published. Bump package.json version before publishing."
-            exit 1
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              echo "::warning::${PACKAGE_NAME}@${PACKAGE_VERSION} is already published. Continuing because this is a dry run."
+            else
+              echo "::error::${PACKAGE_NAME}@${PACKAGE_VERSION} is already published. Bump package.json version before publishing."
+              exit 1
+            fi
           fi
 
           echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> "$GITHUB_ENV"
