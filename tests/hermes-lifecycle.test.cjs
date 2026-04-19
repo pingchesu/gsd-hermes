@@ -15,7 +15,11 @@ const { spawnSync } = require('node:child_process');
 const { createTempDir, cleanup } = require('./helpers.cjs');
 
 const installPath = path.join(__dirname, '..', 'bin', 'install.js');
-const { doctorHermesInstall, removeHermesExternalDir } = require('../bin/install.js');
+const {
+  doctorHermesInstall,
+  normalizeHermesExternalDir,
+  removeHermesExternalDir,
+} = require('../bin/install.js');
 
 function countOccurrences(haystack, needle) {
   return haystack.split(needle).length - 1;
@@ -50,8 +54,8 @@ describe('Hermes external_dirs cleanup', () => {
     const configPath = path.join(tmpDir, '.hermes', 'config.yaml');
     const matchingDir = path.join(tmpDir, 'project', '.gsd-hermes', 'skills');
     const otherDir = path.join(tmpDir, 'other-project', '.gsd-hermes', 'skills');
-    const normalizedMatchingDir = path.resolve(matchingDir).replace(/\\/g, '/');
-    const normalizedOtherDir = path.resolve(otherDir).replace(/\\/g, '/');
+    const normalizedMatchingDir = normalizeHermesExternalDir(matchingDir);
+    const normalizedOtherDir = normalizeHermesExternalDir(otherDir);
 
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
     fs.writeFileSync(
@@ -92,7 +96,7 @@ describe('Hermes external_dirs cleanup', () => {
 
     assert.deepStrictEqual(result, {
       removed: false,
-      path: path.resolve(missingDir).replace(/\\/g, '/'),
+      path: normalizeHermesExternalDir(missingDir),
     });
     assert.match(content, /provider: test/);
     assert.match(content, /\/tmp\/other/);
@@ -169,8 +173,8 @@ describe('Hermes lifecycle update and uninstall', () => {
     const skillsDir = path.join(tmpProject, '.gsd-hermes', 'skills');
     const unrelatedDir = path.join(tmpProject, 'other-skills');
     const configPath = path.join(tmpHome, '.hermes', 'config.yaml');
-    const normalizedSkillsDir = path.resolve(skillsDir).replace(/\\/g, '/');
-    const normalizedUnrelatedDir = path.resolve(unrelatedDir).replace(/\\/g, '/');
+    const normalizedSkillsDir = normalizeHermesExternalDir(skillsDir);
+    const normalizedUnrelatedDir = normalizeHermesExternalDir(unrelatedDir);
     fs.appendFileSync(configPath, `    - "${normalizedUnrelatedDir}"\n`);
 
     const result = runInstaller(['--hermes', '--local', '--uninstall'], {
@@ -262,7 +266,7 @@ describe('Hermes doctor diagnostics', () => {
 
     const skillsDir = path.join(tmpProject, '.gsd-hermes', 'skills');
     const configPath = path.join(tmpHome, '.hermes', 'config.yaml');
-    fs.appendFileSync(configPath, `    - "${path.resolve(skillsDir).replace(/\\/g, '/')}"\n`);
+    fs.appendFileSync(configPath, `    - "${normalizeHermesExternalDir(skillsDir)}"\n`);
 
     const result = doctorHermesInstall({
       isGlobal: false,
@@ -372,9 +376,9 @@ describe('Hermes lifecycle end-to-end', () => {
     const skillsDir = path.join(projectRoot, 'skills');
     const skillPath = path.join(skillsDir, 'gsd-help', 'SKILL.md');
     const configPath = path.join(tmpHome, '.hermes', 'config.yaml');
-    const normalizedSkillsDir = path.resolve(skillsDir).replace(/\\/g, '/');
+    const normalizedSkillsDir = normalizeHermesExternalDir(skillsDir);
     const unrelatedExternalDir = path.join(tmpProject, 'unrelated external dir');
-    const normalizedUnrelatedExternalDir = path.resolve(unrelatedExternalDir).replace(/\\/g, '/');
+    const normalizedUnrelatedExternalDir = normalizeHermesExternalDir(unrelatedExternalDir);
 
     assert.ok(fs.existsSync(skillPath), 'project-linked gsd-help skill exists');
     let config = fs.readFileSync(configPath, 'utf8');

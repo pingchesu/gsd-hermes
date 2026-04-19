@@ -4208,7 +4208,30 @@ function copyCommandsAsHermesSkills(srcDir, skillsDir, prefix, pathPrefix, isGlo
 }
 
 function normalizeHermesExternalDir(externalDir) {
-  return path.resolve(externalDir).replace(/\\/g, '/');
+  const resolved = path.resolve(externalDir);
+
+  try {
+    return fs.realpathSync.native(resolved).replace(/\\/g, '/');
+  } catch {
+    // macOS temp paths often resolve /var to /private/var. If the final
+    // skills directory does not exist yet, canonicalize the nearest existing
+    // ancestor and append the missing suffix so config entries still compare
+    // consistently across install, doctor, and uninstall flows.
+    let existing = resolved;
+    const missing = [];
+    while (!fs.existsSync(existing)) {
+      const parent = path.dirname(existing);
+      if (parent === existing) break;
+      missing.unshift(path.basename(existing));
+      existing = parent;
+    }
+
+    try {
+      return path.join(fs.realpathSync.native(existing), ...missing).replace(/\\/g, '/');
+    } catch {
+      return resolved.replace(/\\/g, '/');
+    }
+  }
 }
 
 function lineIndent(line) {
@@ -4325,9 +4348,16 @@ function removeHermesExternalDir(configPath, externalDir) {
     }
 
     const itemMatch = trimmed.match(/^-\s+(.+?)\s*$/);
-    if (itemMatch && (itemMatch[1] === normalizedPath || itemMatch[1] === quotedPath)) {
-      removed = true;
-      continue;
+    if (itemMatch) {
+      let value = itemMatch[1];
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      const normalizedValue = normalizeHermesExternalDir(value);
+      if (normalizedValue === normalizedPath || itemMatch[1] === quotedPath) {
+        removed = true;
+        continue;
+      }
     }
 
     nextLines.push(line);
@@ -4367,7 +4397,7 @@ function readHermesExternalDirs(configPath) {
     if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
       value = value.slice(1, -1);
     }
-    entries.push(value.replace(/\\/g, '/'));
+    entries.push(normalizeHermesExternalDir(value));
   }
 
   return entries;
@@ -7372,6 +7402,7 @@ if (process.env.GSD_TEST_MODE) {
     copyCommandsAsClaudeSkills,
     copyCommandsAsHermesSkills,
     ensureHermesExternalDir,
+    normalizeHermesExternalDir,
     removeHermesExternalDir,
     convertClaudeToWindsurfMarkdown,
     convertClaudeCommandToWindsurfSkill,

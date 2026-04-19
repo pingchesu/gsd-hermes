@@ -15,7 +15,7 @@ const { spawnSync } = require('node:child_process');
 const { createTempDir, cleanup } = require('./helpers.cjs');
 
 const installPath = path.join(__dirname, '..', 'bin', 'install.js');
-const { ensureHermesExternalDir } = require('../bin/install.js');
+const { ensureHermesExternalDir, normalizeHermesExternalDir } = require('../bin/install.js');
 
 function countOccurrences(haystack, needle) {
   return haystack.split(needle).length - 1;
@@ -49,7 +49,7 @@ describe('Hermes external_dirs config mutation', () => {
   test('writes missing config with skills.external_dirs', () => {
     const configPath = path.join(tmpDir, '.hermes', 'config.yaml');
     const skillsDir = path.join(tmpDir, 'project', '.gsd-hermes', 'skills');
-    const absoluteSkillsDir = path.resolve(skillsDir).replace(/\\/g, '/');
+    const absoluteSkillsDir = normalizeHermesExternalDir(skillsDir);
 
     const result = ensureHermesExternalDir(configPath, skillsDir);
     const content = fs.readFileSync(configPath, 'utf8');
@@ -63,7 +63,7 @@ describe('Hermes external_dirs config mutation', () => {
   test('is idempotent when called twice', () => {
     const configPath = path.join(tmpDir, '.hermes', 'config.yaml');
     const skillsDir = path.join(tmpDir, 'project', '.gsd-hermes', 'skills');
-    const absoluteSkillsDir = path.resolve(skillsDir).replace(/\\/g, '/');
+    const absoluteSkillsDir = normalizeHermesExternalDir(skillsDir);
 
     assert.equal(ensureHermesExternalDir(configPath, skillsDir).added, true);
     assert.equal(ensureHermesExternalDir(configPath, skillsDir).added, false);
@@ -95,7 +95,7 @@ describe('Hermes external_dirs config mutation', () => {
     assert.match(content, /# keep me/);
     assert.match(content, /enabled: true/);
     assert.match(content, /external_dirs:/);
-    assert.strictEqual(countOccurrences(content, path.resolve(skillsDir).replace(/\\/g, '/')), 1);
+    assert.strictEqual(countOccurrences(content, normalizeHermesExternalDir(skillsDir)), 1);
   });
 });
 
@@ -125,7 +125,7 @@ describe('Hermes project-linked installer behavior', () => {
     assert.ok(fs.existsSync(helpSkillPath), 'project-linked gsd-help skill exists');
 
     const configPath = path.join(tmpHome, '.hermes', 'config.yaml');
-    const absoluteSkillsDir = path.resolve(skillsDir).replace(/\\/g, '/');
+    const absoluteSkillsDir = normalizeHermesExternalDir(skillsDir);
     let config = fs.readFileSync(configPath, 'utf8');
     assert.match(config, /external_dirs:/);
     assert.strictEqual(countOccurrences(config, absoluteSkillsDir), 1);
