@@ -7280,8 +7280,44 @@ function installSdkIfNeeded() {
     console.warn(`  ${yellow}⚠${reset}  ${reason}`);
     console.warn(`     Build manually from the repo sdk/ directory:`);
     console.warn(`       ${cyan}cd ${sdkDir} && npm install && npm run build && npm install -g .${reset}`);
+    console.warn(`     If your npm global prefix is not writable, use a user prefix instead:`);
+    console.warn(`       ${cyan}cd ${sdkDir} && npm install && npm run build && npm install -g --prefix ~/.local .${reset}`);
+    console.warn(`       ${cyan}export PATH="$HOME/.local/bin:$PATH"${reset}`);
     console.warn(`     Then restart your shell so the updated PATH is picked up.`);
     console.warn(`     Without it, /gsd-* commands will fail with "command not found: gsd-sdk".`);
+  };
+
+  const userPrefix = process.env.GSD_NPM_PREFIX || path.join(os.homedir(), '.local');
+  const userBinDir = process.platform === 'win32' ? userPrefix : path.join(userPrefix, 'bin');
+  const userSdkBin = path.join(userBinDir, process.platform === 'win32' ? 'gsd-sdk.cmd' : 'gsd-sdk');
+  const isOnPath = (dir) => {
+    const currentPath = process.env.PATH || '';
+    return currentPath
+      .split(path.delimiter)
+      .filter(Boolean)
+      .some((entry) => path.resolve(entry) === path.resolve(dir));
+  };
+
+  const installSdkPackage = () => {
+    const globalResult = spawnSync(npmCmd, ['install', '-g', '.'], { cwd: sdkDir, stdio: 'inherit' });
+    if (globalResult.status === 0) {
+      return { ok: true, mode: 'global' };
+    }
+
+    console.warn(`  ${yellow}⚠${reset}  Global SDK install failed. Retrying with user npm prefix: ${userPrefix}`);
+    fs.mkdirSync(userBinDir, { recursive: true });
+    const userResult = spawnSync(npmCmd, ['install', '-g', '--prefix', userPrefix, '.'], { cwd: sdkDir, stdio: 'inherit' });
+    if (userResult.status !== 0) {
+      return { ok: false, mode: 'user-prefix' };
+    }
+
+    if (!isOnPath(userBinDir)) {
+      console.warn(`  ${yellow}⚠${reset}  Installed gsd-sdk to ${userSdkBin}, but ${userBinDir} is not on PATH.`);
+      console.warn(`     Add it before using /gsd-* commands:`);
+      console.warn(`       ${cyan}export PATH="${userBinDir}:$PATH"${reset}`);
+    }
+
+    return { ok: true, mode: 'user-prefix', bin: userSdkBin };
   };
 
   if (!fs.existsSync(sdkPackageJson)) {
@@ -7306,10 +7342,12 @@ function installSdkIfNeeded() {
     return;
   }
 
-  // 3. Install the built package globally so `gsd-sdk` lands on PATH.
-  const globalResult = spawnSync(npmCmd, ['install', '-g', '.'], { cwd: sdkDir, stdio: 'inherit' });
-  if (globalResult.status !== 0) {
-    warnManual('Failed to `npm install -g .` from sdk/.');
+  // 3. Install the built package so `gsd-sdk` lands on PATH. Prefer npm's
+  // global prefix, but fall back to a user-writable prefix for machines where
+  // the global prefix is /usr or another root-owned location.
+  const packageInstall = installSdkPackage();
+  if (!packageInstall.ok) {
+    warnManual('Failed to install built SDK package from sdk/.');
     return;
   }
 
@@ -7321,6 +7359,8 @@ function installSdkIfNeeded() {
   const verify = spawnSync(resolverCmd, ['gsd-sdk'], { encoding: 'utf-8' });
   if (verify.status === 0 && verify.stdout && verify.stdout.trim()) {
     console.log(`  ${green}✓${reset} Built and installed GSD SDK from source (gsd-sdk resolved at ${verify.stdout.trim().split('\n')[0]})`);
+  } else if (packageInstall.bin && fs.existsSync(packageInstall.bin)) {
+    console.log(`  ${green}✓${reset} Built and installed GSD SDK from source (${packageInstall.bin})`);
   } else {
     warnManual('Built and installed GSD SDK from source but gsd-sdk is not on PATH — npm global bin may not be in your PATH.');
     if (verify.stderr) console.warn(`     resolver stderr: ${verify.stderr.trim()}`);

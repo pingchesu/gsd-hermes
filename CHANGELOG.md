@@ -19,6 +19,14 @@ syncs from.
 - **`init` query agents-installed check looks at the correct directory** — `checkAgentsInstalled` in `sdk/src/query/init.ts` defaulted to `~/.claude/get-shit-done/agents/`, but the installer writes GSD agents to `~/.claude/agents/`. Every init query therefore reported `agents_installed: false` on clean installs, which made workflows refuse to spawn `gsd-executor` and other parallel subagents. The default now matches `sdk/src/init-runner.ts` and the installer (#2400)
 - **Installer now installs `@gsd-build/sdk` automatically** so `gsd-sdk` lands on PATH. Resolves `command not found: gsd-sdk` errors that affected every `/gsd-*` command after a fresh install or `/gsd-update` to 1.36+. Adds `--no-sdk` to opt out and `--sdk` to force reinstall. Implements the `--sdk` flag that was previously documented in README but never wired up (#2385)
 
+## [1.0.1] - 2026-04-20
+
+GSD Hermes package version: `1.0.1`
+Upstream GSD base: `get-shit-done-cc@1.37.1`
+
+### Fixed
+- **SDK install no longer requires sudo on root-owned npm prefixes** — When `npm install -g .` fails while building the bundled SDK, the installer now retries with a user-writable npm prefix at `~/.local`. This fixes `EACCES: permission denied, mkdir '/usr/lib/node_modules/@gsd-build'` during `npx gsd-hermes --hermes --global` on machines whose npm global prefix points to `/usr`.
+
 ## [1.0.0] - 2026-04-19
 
 GSD Hermes package version: `1.0.0`
