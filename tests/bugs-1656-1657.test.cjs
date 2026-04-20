@@ -83,10 +83,9 @@ describe('#1657 / #2385: SDK install must be wired into installer source', () =>
   test('install.js builds gsd-sdk from in-repo sdk/ source (#2385)', () => {
     src = src || fs.readFileSync(INSTALL_SRC, 'utf-8');
     // The installer must locate the in-repo sdk/ directory, run the build,
-    // and install it globally. We intentionally do NOT install
-    // @gsd-build/sdk from npm because that published version lags the source
-    // tree and shipping it breaks query handlers added since the last
-    // publish.
+    // and install it as a CLI. We intentionally do NOT install @gsd-build/sdk
+    // from npm because that published version lags the source tree and
+    // shipping it breaks query handlers added since the last publish.
     assert.ok(
       src.includes("path.resolve(__dirname, '..', 'sdk')") ||
       src.includes('path.resolve(__dirname, "..", "sdk")'),
@@ -116,6 +115,26 @@ describe('#1657 / #2385: SDK install must be wired into installer source', () =>
     assert.ok(
       src.includes('Existing GSD SDK lacks query support'),
       'installer should explain when it rebuilds over a stale SDK'
+    );
+  });
+
+  test('install.js falls back to a user npm prefix when global SDK install is not writable', () => {
+    src = src || fs.readFileSync(INSTALL_SRC, 'utf-8');
+    assert.ok(
+      src.includes('GSD_NPM_PREFIX') && src.includes("path.join(os.homedir(), '.local')"),
+      'installer must support a user-writable npm prefix for machines where the global prefix is root-owned'
+    );
+    assert.ok(
+      src.includes("['install', '-g', '--prefix', userPrefix, '.']"),
+      'installer must retry SDK installation with npm --prefix instead of requiring sudo'
+    );
+    assert.ok(
+      src.includes('Global SDK install failed. Retrying with user npm prefix'),
+      'installer should explain the fallback path when global SDK install fails'
+    );
+    assert.ok(
+      src.includes('export PATH=') && src.includes('not on PATH'),
+      'installer must tell users how to add the user-prefix bin directory to PATH'
     );
   });
 
