@@ -70,6 +70,7 @@ describe('runtime-model contract', () => {
     const { SUPPORTED_RUNTIMES } = await import('./helpers.js');
     expect(Object.keys(RUNTIME_CAPABILITIES).sort()).toEqual([...SUPPORTED_RUNTIMES].sort());
     expect(RUNTIME_CAPABILITIES.codex.supportsCrossAiExecution).toBe(true);
+    expect(RUNTIME_CAPABILITIES.codex.explicitModelFamilies).toContain('openai');
   });
 
   it('supports inherit as a compatibility profile input while keeping adaptive valid', async () => {
@@ -125,6 +126,98 @@ describe('runtime-model contract', () => {
     expect(result.bindingKind).toBe('profile');
     expect(result.rejectionReason).toBe('unknown-agent');
     expect(result.suggestedFix).toContain('supported agent');
+  });
+});
+
+describe('strict runtime-model validation', () => {
+  it('rejects profile-derived Anthropic bindings on codex with actionable diagnostics', async () => {
+    const { validateAgentBinding, formatBindingValidationError } = await import('./config-query.js');
+    const result = validateAgentBinding({
+      runtime: 'codex',
+      model_profile: 'balanced',
+      workflow: { cross_ai_execution: false },
+    }, 'gsd-planner');
+
+    expect(result.ok).toBe(false);
+    expect(result.issue?.agent).toBe('gsd-planner');
+    expect(result.issue?.runtime).toBe('codex');
+    expect(result.issue?.bindingKind).toBe('profile');
+    expect(result.issue?.resolvedModel).toBe('opus');
+    expect(result.issue?.rejectionReason).toBe('runtime-model-unsupported');
+    expect(result.issue?.reason).toContain('does not support Anthropic model bindings');
+    expect(result.issue?.suggestedFix).toContain('resolve_model_ids to "omit"');
+    expect(result.issue?.crossAiExecutionRecommended).toBe(true);
+    expect(result.issue?.crossAiExecutionSuggestion).toContain('workflow.cross_ai_execution is currently disabled');
+
+    const message = formatBindingValidationError({
+      ok: false,
+      runtime: result.runtime,
+      agents: ['gsd-planner'],
+      results: [result],
+      issues: result.issue ? [result.issue] : [],
+    }, 'plan execution');
+
+    expect(message).toContain('Agent: gsd-planner');
+    expect(message).toContain('Runtime: codex');
+    expect(message).toContain('Resolved model: opus');
+    expect(message).toContain('Suggested fix:');
+    expect(message).toContain('Cross-AI suggestion:');
+  });
+
+  it('rejects explicit unsupported overrides but keeps cross_ai_execution as recommendation only', async () => {
+    const { validateAgentBinding } = await import('./config-query.js');
+    const result = validateAgentBinding({
+      runtime: 'codex',
+      model_profile: 'inherit',
+      resolve_model_ids: 'omit',
+      model_overrides: { 'gsd-planner': 'claude-opus-4-7' },
+      workflow: { cross_ai_execution: true },
+    }, 'gsd-planner');
+
+    expect(result.ok).toBe(false);
+    expect(result.issue?.bindingKind).toBe('explicit');
+    expect(result.issue?.configuredModel).toBe('claude-opus-4-7');
+    expect(result.issue?.resolvedModel).toBe('claude-opus-4-7');
+    expect(result.issue?.crossAiExecutionConfigured).toBe(true);
+    expect(result.issue?.crossAiExecutionRecommended).toBe(true);
+    expect(result.issue?.crossAiExecutionSuggestion).toContain('will not auto-route into it');
+  });
+
+  it('keeps inherit and runtime-default bindings valid on codex', async () => {
+    const { validateAgentBinding } = await import('./config-query.js');
+
+    const inherit = validateAgentBinding({
+      runtime: 'codex',
+      model_profile: 'inherit',
+      workflow: {},
+    }, 'gsd-planner');
+    expect(inherit.ok).toBe(true);
+    expect(inherit.bindingKind).toBe('inherit');
+
+    const runtimeDefault = validateAgentBinding({
+      runtime: 'codex',
+      model_profile: 'balanced',
+      resolve_model_ids: 'omit',
+      workflow: {},
+    }, 'gsd-planner');
+    expect(runtimeDefault.ok).toBe(true);
+    expect(runtimeDefault.bindingKind).toBe('runtime-default');
+  });
+
+  it('keeps runtime-compatible explicit openai overrides valid on codex', async () => {
+    const { validateAgentBinding } = await import('./config-query.js');
+    const result = validateAgentBinding({
+      runtime: 'codex',
+      model_profile: 'balanced',
+      resolve_model_ids: 'omit',
+      model_overrides: { 'gsd-planner': 'openai/o3' },
+      workflow: {},
+    }, 'gsd-planner');
+
+    expect(result.ok).toBe(true);
+    expect(result.bindingKind).toBe('explicit');
+    expect(result.resolvedModel).toBe('openai/o3');
+    expect(result.issue).toBeNull();
   });
 });
 

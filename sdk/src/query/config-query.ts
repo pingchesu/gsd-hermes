@@ -36,6 +36,13 @@ export {
   VALID_PROFILES,
   getAgentToModelMapForProfile,
 } from './runtime-model-contract.js';
+export {
+  assertAgentBindingsSupported,
+  formatBindingValidationError,
+  validateAgentBinding,
+  validateAgentBindings,
+  validateResolvedAgentBinding,
+} from './runtime-model-validation.js';
 
 // ─── configGet ──────────────────────────────────────────────────────────────
 

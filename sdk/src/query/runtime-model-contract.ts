@@ -42,7 +42,8 @@ export type AcceptedModelProfile = (typeof ACCEPTED_MODEL_PROFILES)[number];
 
 export type BindingKind = 'explicit' | 'profile' | 'inherit' | 'runtime-default';
 export type BindingSource = 'override' | 'profile' | 'inherit-profile' | 'resolve-model-omit';
-export type RejectionReason = 'unknown-agent' | 'missing-contract-coverage';
+export type RejectionReason = 'unknown-agent' | 'missing-contract-coverage' | 'runtime-model-unsupported';
+export type ModelFamily = 'anthropic' | 'openai' | 'google' | 'unknown';
 
 export interface RuntimeCapability {
   runtime: Runtime;
@@ -50,6 +51,17 @@ export interface RuntimeCapability {
   supportsInheritBinding: boolean;
   supportsRuntimeDefaultBinding: boolean;
   supportsCrossAiExecution: boolean;
+  explicitModelFamilies: readonly ModelFamily[];
+}
+
+const OPENAI_COMPATIBLE_RUNTIMES: Runtime[] = ['codex', 'copilot', 'cursor', 'windsurf', 'cline'];
+const GOOGLE_COMPATIBLE_RUNTIMES: Runtime[] = ['gemini'];
+
+function explicitModelFamiliesForRuntime(runtime: Runtime): readonly ModelFamily[] {
+  if (runtime === 'claude') return ['anthropic'];
+  if (OPENAI_COMPATIBLE_RUNTIMES.includes(runtime)) return ['openai'];
+  if (GOOGLE_COMPATIBLE_RUNTIMES.includes(runtime)) return ['google'];
+  return ['openai', 'google', 'unknown'];
 }
 
 export const RUNTIME_CAPABILITIES: Record<Runtime, RuntimeCapability> = Object.fromEntries(
@@ -59,6 +71,7 @@ export const RUNTIME_CAPABILITIES: Record<Runtime, RuntimeCapability> = Object.f
     supportsInheritBinding: true,
     supportsRuntimeDefaultBinding: true,
     supportsCrossAiExecution: true,
+    explicitModelFamilies: explicitModelFamiliesForRuntime(runtime),
   }]),
 ) as Record<Runtime, RuntimeCapability>;
 
@@ -100,6 +113,71 @@ export const MODEL_ALIAS_MAP: Record<string, string> = {
   sonnet: 'claude-sonnet-4-6',
   haiku: 'claude-haiku-4-5',
 };
+
+function isAnthropicModel(model: string): boolean {
+  return /^(?:claude(?:-|$)|anthropic\/claude-|opus$|sonnet$|haiku$)/i.test(model);
+}
+
+function isOpenAiModel(model: string): boolean {
+  return /^(?:openai\/|gpt-|o[134](?:$|[-.])|o3(?:$|[-.])|o4(?:$|[-.]))/i.test(model);
+}
+
+function isGoogleModel(model: string): boolean {
+  return /^(?:gemini(?:$|[-.])|google\/)/i.test(model);
+}
+
+export function detectModelFamily(model: string | null | undefined): ModelFamily {
+  if (!model) return 'unknown';
+  const normalized = model.trim();
+  if (normalized === '') return 'unknown';
+  if (isAnthropicModel(normalized)) return 'anthropic';
+  if (isOpenAiModel(normalized)) return 'openai';
+  if (isGoogleModel(normalized)) return 'google';
+  return 'unknown';
+}
+
+export interface RuntimeCompatibilityResult {
+  supported: boolean;
+  runtime: Runtime;
+  model: string | null;
+  family: ModelFamily;
+  reason: string | null;
+}
+
+export function evaluateRuntimeModelCompatibility(runtime: Runtime, model: string | null): RuntimeCompatibilityResult {
+  const family = detectModelFamily(model);
+  const runtimeCapability = RUNTIME_CAPABILITIES[runtime];
+
+  if (!model) {
+    return { supported: true, runtime, model, family, reason: null };
+  }
+
+  if (runtimeCapability.explicitModelFamilies.includes(family)) {
+    return { supported: true, runtime, model, family, reason: null };
+  }
+
+  if (runtime !== 'claude' && family === 'anthropic') {
+    return {
+      supported: false,
+      runtime,
+      model,
+      family,
+      reason: `runtime '${runtime}' does not support Anthropic model bindings`,
+    };
+  }
+
+  if (runtime === 'claude') {
+    return {
+      supported: false,
+      runtime,
+      model,
+      family,
+      reason: `runtime '${runtime}' only supports Anthropic model bindings`,
+    };
+  }
+
+  return { supported: true, runtime, model, family, reason: null };
+}
 
 function normalizeString(value: unknown): string | null {
   if (typeof value !== 'string') return null;

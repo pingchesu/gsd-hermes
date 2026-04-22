@@ -26,6 +26,7 @@ import { homedir } from 'node:os';
 import { loadConfig, type GSDConfig } from '../config.js';
 import { MODEL_PROFILES } from './config-query.js';
 import { resolveAgentBinding, toInitModelToken } from './runtime-model-contract.js';
+import { assertAgentBindingsSupported } from './runtime-model-validation.js';
 import { findPhase } from './phase.js';
 import { roadmapGetPhase, getMilestoneInfo } from './roadmap.js';
 import { planningPaths, normalizePhaseName, toPosixPath, resolveAgentsDir, detectRuntime } from './helpers.js';
@@ -45,6 +46,22 @@ function getInitModelContract(
     token: toInitModelToken(binding),
     binding,
   };
+}
+
+function assertPlanPhaseBindingsSupported(config: GSDConfig): void {
+  const agents = ['gsd-phase-researcher', 'gsd-planner'];
+  if (config.workflow.plan_check !== false) {
+    agents.push('gsd-plan-checker');
+  }
+  assertAgentBindingsSupported(config, agents, 'plan execution');
+}
+
+function assertExecutePhaseBindingsSupported(config: GSDConfig): void {
+  const agents = ['gsd-executor'];
+  if (config.workflow.verifier !== false) {
+    agents.push('gsd-verifier');
+  }
+  assertAgentBindingsSupported(config, agents, 'execute execution');
 }
 
 /**
@@ -277,6 +294,7 @@ export const initExecutePhase: QueryHandler = async (args, projectDir) => {
   }
 
   const config = await loadConfig(projectDir);
+  assertExecutePhaseBindingsSupported(config);
   const planningDir = join(projectDir, '.planning');
 
   const { phaseInfo, roadmapPhase } = await getPhaseInfoWithFallback(phase, projectDir);
@@ -354,6 +372,7 @@ export const initPlanPhase: QueryHandler = async (args, projectDir) => {
   }
 
   const config = await loadConfig(projectDir);
+  assertPlanPhaseBindingsSupported(config);
   const planningDir = join(projectDir, '.planning');
 
   const { phaseInfo, roadmapPhase } = await getPhaseInfoWithFallback(phase, projectDir);
