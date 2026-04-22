@@ -409,6 +409,10 @@ function getGlobalDir(runtime, explicitDir = null) {
   return path.join(os.homedir(), '.claude');
 }
 
+function getSkillsRoot(runtime, explicitDir = null) {
+  return path.join(getGlobalDir(runtime, explicitDir), 'skills');
+}
+
 const banner = '\n' +
   cyan + '   ██████╗ ███████╗██████╗\n' +
   '  ██╔════╝ ██╔════╝██╔══██╗\n' +
@@ -448,6 +452,17 @@ function parseConfigDirArg() {
 const explicitConfigDir = parseConfigDirArg();
 const hasHelp = args.includes('--help') || args.includes('-h');
 const forceStatusline = args.includes('--force-statusline');
+
+const skillsRootIndex = args.indexOf('--skills-root');
+if (skillsRootIndex !== -1) {
+  const runtime = args[skillsRootIndex + 1];
+  if (!runtime || runtime.startsWith('-')) {
+    console.error('Usage: install.js --skills-root <runtime>');
+    process.exit(1);
+  }
+  console.log(getSkillsRoot(runtime, explicitConfigDir));
+  process.exit(0);
+}
 
 console.log(banner);
 
@@ -1128,11 +1143,11 @@ function convertClaudeAgentToCopilotAgent(content, isGlobal = false) {
 function convertClaudeToAntigravityContent(content, isGlobal = false) {
   let c = content;
   if (isGlobal) {
-    c = c.replace(/\$HOME\/\.claude\//g, '$HOME/.gemini/antigravity/');
-    c = c.replace(/~\/\.claude\//g, '~/.gemini/antigravity/');
+    c = c.replace(/\$HOME\/\.claude(?=\/|\b)/g, '$HOME/.gemini/antigravity');
+    c = c.replace(/~\/\.claude(?=\/|\b)/g, '~/.gemini/antigravity');
   } else {
-    c = c.replace(/\$HOME\/\.claude\//g, '.agent/');
-    c = c.replace(/~\/\.claude\//g, '.agent/');
+    c = c.replace(/\$HOME\/\.claude(?=\/|\b)/g, '.agent');
+    c = c.replace(/~\/\.claude(?=\/|\b)/g, '.agent');
   }
   c = c.replace(/\.\/\.claude\//g, './.agent/');
   c = c.replace(/\.claude\//g, '.agent/');
@@ -5823,7 +5838,7 @@ function writeManifest(configDir, runtime = 'claude') {
 
   // Track hook files so saveLocalPatches() can detect user modifications
   // Hooks are only installed for runtimes that use settings.json (not Codex/Copilot/Cline)
-  if (!isCodex && !isHermes && !isCopilot && !isCline) {
+  if (!isCodex && !isCopilot && !isHermes && !isCline) {
     const hooksDir = path.join(configDir, 'hooks');
     if (fs.existsSync(hooksDir)) {
       for (const file of fs.readdirSync(hooksDir)) {
@@ -5979,7 +5994,8 @@ function install(isGlobal, runtime = 'claude') {
   // For local installs: use resolved absolute path (may be outside $HOME).
   const resolvedTarget = path.resolve(targetDir).replace(/\\/g, '/');
   const homeDir = os.homedir().replace(/\\/g, '/');
-  const pathPrefix = isGlobal && resolvedTarget.startsWith(homeDir)
+  const isWindowsHost = process.platform === 'win32';
+  const pathPrefix = isGlobal && resolvedTarget.startsWith(homeDir) && !(isOpencode && isWindowsHost)
     ? '$HOME' + resolvedTarget.slice(homeDir.length) + '/'
     : `${resolvedTarget}/`;
 
@@ -6347,7 +6363,7 @@ function install(isGlobal, runtime = 'claude') {
     failures.push('VERSION');
   }
 
-  if (!isCodex && !isHermes && !isCopilot && !isCursor && !isWindsurf && !isTrae && !isCline) {
+  if (!isCodex && !isCopilot && !isHermes && !isCursor && !isWindsurf && !isTrae && !isCline) {
     // Write package.json to force CommonJS mode for GSD scripts
     // Prevents "require is not defined" errors when project has "type": "module"
     // Node.js walks up looking for package.json - this stops inheritance from project
@@ -6942,7 +6958,8 @@ function finishInstall(settingsPath, settings, statuslineCommand, shouldInstallS
   }
 
   // Write settings when runtime supports settings.json
-  if (!isCodex && !isHermes && !isCopilot && !isKilo && !isCursor && !isWindsurf && !isTrae && !isCline) {
+  const skipsKiloStyleSettings = !isCodex && !isCopilot && !isKilo && !isCursor && !isWindsurf;
+  if (!isCodex && !isHermes && !isCopilot && skipsKiloStyleSettings && !isTrae && !isCline) {
     writeSettings(settingsPath, settings);
   }
 
@@ -7349,6 +7366,16 @@ function installSdkIfNeeded() {
   if (!packageInstall.ok) {
     warnManual('Failed to install built SDK package from sdk/.');
     return;
+  }
+
+  // Ensure sdk/dist/cli.js remains executable when npm links from this local tree.
+  const cliPath = path.join(sdkDir, 'dist', 'cli.js');
+  try {
+    if (fs.existsSync(cliPath)) {
+      fs.chmodSync(cliPath, 0o755);
+    }
+  } catch (error) {
+    console.warn(`  ${yellow}⚠${reset}  Failed to chmod SDK CLI at ${cliPath}: ${error.message}`);
   }
 
   // Verify gsd-sdk is actually resolvable on PATH. npm's global bin dir is
