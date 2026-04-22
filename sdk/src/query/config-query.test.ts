@@ -265,6 +265,9 @@ describe('resolveModel', () => {
     expect(data.profile).toBe('balanced');
     expect(data.binding_kind).toBe('profile');
     expect(data.runtime).toBe('claude');
+    const runtimeModel = data.runtime_model as Record<string, unknown>;
+    expect(runtimeModel.runtime).toBe('claude');
+    expect((runtimeModel.binding as Record<string, unknown>).binding_kind).toBe('profile');
   });
 
   it('respects explicit model_overrides before all other paths', async () => {
@@ -282,6 +285,7 @@ describe('resolveModel', () => {
     expect(data.model).toBe('openai/gpt-5.4');
     expect(data.binding_kind).toBe('explicit');
     expect(data.source).toBe('override');
+    expect(((data.runtime_model as Record<string, unknown>).binding as Record<string, unknown>).configured_model).toBe('openai/gpt-5.4');
   });
 
   it('preserves runtime-default binding when resolve_model_ids is omit', async () => {
@@ -298,6 +302,9 @@ describe('resolveModel', () => {
     expect(data.model).toBe('');
     expect(data.binding_kind).toBe('runtime-default');
     expect(data.resolved_model).toBeNull();
+    const runtimeModel = data.runtime_model as Record<string, unknown>;
+    expect(runtimeModel.resolve_model_ids).toBe('omit');
+    expect(((runtimeModel.binding as Record<string, unknown>).binding_kind)).toBe('runtime-default');
   });
 
   it('preserves fully-qualified model_overrides when resolve_model_ids is omit', async () => {
@@ -357,6 +364,7 @@ describe('resolveModel', () => {
     expect(data.runtime).toBe('claude');
     expect(data.rejection_reason).toBe('unknown-agent');
     expect(data.suggested_fix).toBeTruthy();
+    expect((((data.runtime_model as Record<string, unknown>).binding as Record<string, unknown>).rejection_reason)).toBe('unknown-agent');
   });
 
   it('captures cross_ai_execution capability/config without implementing routing', async () => {
@@ -373,6 +381,10 @@ describe('resolveModel', () => {
     expect(data.cross_ai_execution_supported).toBe(true);
     expect(data.cross_ai_execution_configured).toBe(true);
     expect(data.model).toBe('opus');
+    const runtimeModel = data.runtime_model as Record<string, unknown>;
+    expect(((runtimeModel.cross_ai as Record<string, unknown>).execution_configured)).toBe(true);
+    expect(((runtimeModel.cross_ai as Record<string, unknown>).command_configured)).toBe(true);
+    expect(((runtimeModel.cross_ai as Record<string, unknown>).timeout_seconds)).toBe(15);
   });
 
   it('throws GSDError when no agent type provided', async () => {

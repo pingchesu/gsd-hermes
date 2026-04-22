@@ -110,6 +110,32 @@ export interface UnsupportedAgentBinding extends RuntimeModelDiagnostic {
 
 export type RuntimeModelResolution = ResolvedAgentBinding | UnsupportedAgentBinding;
 
+export interface SerializedRuntimeModelResolution {
+  agent: string;
+  status: RuntimeModelResolution['kind'];
+  known_agent: boolean;
+  runtime: Runtime;
+  profile: AcceptedModelProfile;
+  binding_kind: BindingKind;
+  source: BindingSource;
+  configured_model: string | null;
+  resolved_model: string | null;
+  model_token: string | null;
+  resolve_model_ids: ResolveModelIdsSetting | undefined;
+  suggested_fix: string;
+  cross_ai: {
+    execution_supported: boolean;
+    execution_configured: boolean;
+  };
+  runtime_capability: {
+    supports_explicit_model: boolean;
+    supports_inherit_binding: boolean;
+    supports_runtime_default_binding: boolean;
+  };
+  rejection_reason?: RejectionReason;
+  message?: string;
+}
+
 export const MODEL_ALIAS_MAP: Record<string, string> = {
   opus: 'claude-opus-4-6',
   sonnet: 'claude-sonnet-4-6',
@@ -447,6 +473,42 @@ export function toLegacyResolveModelResult(resolution: RuntimeModelResolution): 
     cross_ai_execution_supported: resolution.runtimeCapability.supportsCrossAiExecution,
     cross_ai_execution_configured: resolution.crossAiExecutionConfigured,
   };
+}
+
+export function serializeRuntimeModelResolution(resolution: RuntimeModelResolution): SerializedRuntimeModelResolution {
+  const base: SerializedRuntimeModelResolution = {
+    agent: resolution.agent,
+    status: resolution.kind,
+    known_agent: resolution.knownAgent,
+    runtime: resolution.runtime,
+    profile: resolution.profile,
+    binding_kind: resolution.bindingKind,
+    source: resolution.source,
+    configured_model: resolution.configuredModel,
+    resolved_model: resolution.resolvedModel,
+    model_token: resolution.modelToken,
+    resolve_model_ids: resolution.resolveModelIds,
+    suggested_fix: resolution.suggestedFix,
+    cross_ai: {
+      execution_supported: resolution.runtimeCapability.supportsCrossAiExecution,
+      execution_configured: resolution.crossAiExecutionConfigured,
+    },
+    runtime_capability: {
+      supports_explicit_model: resolution.runtimeCapability.supportsExplicitModel,
+      supports_inherit_binding: resolution.runtimeCapability.supportsInheritBinding,
+      supports_runtime_default_binding: resolution.runtimeCapability.supportsRuntimeDefaultBinding,
+    },
+  };
+
+  if (resolution.kind === 'unsupported') {
+    return {
+      ...base,
+      rejection_reason: resolution.rejectionReason,
+      message: resolution.message,
+    };
+  }
+
+  return base;
 }
 
 export function toLegacyModelToken(resolution: RuntimeModelResolution, fallback = ''): string {

@@ -26,7 +26,9 @@ import {
   initListWorkspaces,
   initRemoveWorkspace,
   initIngestDocs,
+  buildRuntimeModelMetadata,
 } from './init.js';
+import { initProgress } from './init-complex.js';
 
 let tmpDir: string;
 
@@ -502,6 +504,27 @@ describe('initRemoveWorkspace', () => {
 });
 
 describe('init binding serialization', () => {
+  it('serializes shared runtime-model metadata alongside legacy init tokens', async () => {
+    const metadata = buildRuntimeModelMetadata({
+      runtime: 'hermes',
+      model_profile: 'inherit',
+      resolve_model_ids: 'omit',
+      workflow: { cross_ai_execution: true, cross_ai_command: 'external-ai', cross_ai_timeout: 45 },
+      model_overrides: { 'gsd-planner': 'openai/gpt-5.4' },
+    } as any, ['gsd-planner']);
+
+    expect(metadata.runtime_model).toBeDefined();
+    const runtimeModel = metadata.runtime_model as Record<string, unknown>;
+    expect(runtimeModel.runtime).toBe('hermes');
+    expect(runtimeModel.resolve_model_ids).toBe('omit');
+    expect((runtimeModel.cross_ai as Record<string, unknown>).execution_configured).toBe(true);
+    expect((runtimeModel.cross_ai as Record<string, unknown>).command_configured).toBe(true);
+    const planner = ((runtimeModel.agents as Record<string, unknown>)['gsd-planner']) as Record<string, unknown>;
+    expect(planner.binding_kind).toBe('explicit');
+    expect(planner.resolved_model).toBe('openai/gpt-5.4');
+    expect((planner.cross_ai as Record<string, unknown>).execution_configured).toBe(true);
+  });
+
   it('fails fast for unsupported profile-derived planner bindings before returning init plan payload', async () => {
     await writeFile(join(tmpDir, '.planning', 'config.json'), JSON.stringify({
       runtime: 'codex',
@@ -571,6 +594,10 @@ describe('init binding serialization', () => {
     expect(data.researcher_model).toBe('claude-opus-4-7');
     expect(data.planner_model).toBe('claude-opus-4-7');
     expect(data.checker_model).toBe('openai/gpt-5.4');
+    const runtimeModel = data.runtime_model as Record<string, unknown>;
+    expect(runtimeModel.runtime).toBe('hermes');
+    expect(((runtimeModel.agents as Record<string, unknown>)['gsd-planner'] as Record<string, unknown>).binding_kind).toBe('explicit');
+    expect(((runtimeModel.agents as Record<string, unknown>)['gsd-plan-checker'] as Record<string, unknown>).resolved_model).toBe('openai/gpt-5.4');
   });
 
   it('accepts mixed-provider execute bindings when runtime is hermes', async () => {
@@ -597,6 +624,9 @@ describe('init binding serialization', () => {
     expect(data.phase_found).toBe(true);
     expect(data.executor_model).toBe('openai/gpt-5.4');
     expect(data.verifier_model).toBe('claude-opus-4-7');
+    const runtimeModel = data.runtime_model as Record<string, unknown>;
+    expect(((runtimeModel.agents as Record<string, unknown>)['gsd-executor'] as Record<string, unknown>).resolved_model).toBe('openai/gpt-5.4');
+    expect(((runtimeModel.agents as Record<string, unknown>)['gsd-verifier'] as Record<string, unknown>).resolved_model).toBe('claude-opus-4-7');
   });
 
   it('skips optional checker and verifier validation when their workflow toggles are disabled', async () => {
@@ -674,6 +704,20 @@ describe('init binding serialization', () => {
     const data = result.data as Record<string, unknown>;
     expect(data.executor_model).toBe('');
     expect(data.verifier_model).toBe('');
+  });
+});
+
+describe('initProgress', () => {
+  it('returns additive runtime-model metadata for progress visibility', async () => {
+    const result = await initProgress([], tmpDir);
+    const data = result.data as Record<string, unknown>;
+    expect(data.planner_model).toBeDefined();
+    expect(data.executor_model).toBeDefined();
+    const runtimeModel = data.runtime_model as Record<string, unknown>;
+    expect(runtimeModel.runtime).toBe('claude');
+    const agents = runtimeModel.agents as Record<string, unknown>;
+    expect((agents['gsd-planner'] as Record<string, unknown>).binding_kind).toBe('profile');
+    expect((agents['gsd-executor'] as Record<string, unknown>).resolved_model).toBe('sonnet');
   });
 });
 
