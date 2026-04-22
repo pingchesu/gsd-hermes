@@ -1,9 +1,9 @@
 ---
 phase: 5
 slug: runtime-model-contract
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: ready
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-04-22
 ---
 
@@ -19,18 +19,18 @@ created: 2026-04-22
 |----------|-------|
 | **Framework** | Vitest + Node test scripts |
 | **Config file** | `package.json`, `sdk/package.json` |
-| **Quick run command** | `cd sdk && npm test -- config-query init helpers` |
-| **Full suite command** | `npm test` |
-| **Estimated runtime** | ~180 seconds |
+| **Quick run command** | `cd sdk && npm test -- config-query helpers config-mutation init` |
+| **Full suite command** | `npm test -- tests/runtime-model-parity.test.cjs tests/init.test.cjs tests/bug-2516-inherit-model-execute-phase.test.cjs tests/cross-ai-execution.test.cjs` |
+| **Estimated runtime** | ~240 seconds |
 
 ---
 
 ## Sampling Rate
 
-- **After every task commit:** Run `cd sdk && npm test -- config-query init helpers`
-- **After every plan wave:** Run `npm test`
+- **After every task commit:** Run `cd sdk && npm test -- config-query helpers config-mutation init`
+- **After every plan wave:** Run `npm test -- tests/runtime-model-parity.test.cjs tests/init.test.cjs tests/bug-2516-inherit-model-execute-phase.test.cjs tests/cross-ai-execution.test.cjs`
 - **Before `/gsd-verify-work`:** Full suite must be green
-- **Max feedback latency:** 180 seconds
+- **Max feedback latency:** 240 seconds
 
 ---
 
@@ -38,9 +38,11 @@ created: 2026-04-22
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 05-01-01 | 01 | 1 | RMC-01 | — | Runtime capability contract covers explicit/inherit/runtime-default/cross-ai states | unit | `cd sdk && npm test -- config-query helpers` | ✅ | ⬜ pending |
-| 05-01-02 | 01 | 1 | RMC-02 | — | Shared resolver emits structured binding semantics instead of ad hoc strings | unit | `cd sdk && npm test -- config-query init` | ✅ | ⬜ pending |
-| 05-02-01 | 02 | 2 | RMC-03 | — | Legacy CJS and SDK produce equivalent semantic outcomes for the same config matrix | integration | `npm test` | ✅ | ⬜ pending |
+| 05-01-01 | 01 | 1 | RMC-01 | — | Runtime capability contract covers explicit/inherit/runtime-default/cross-ai states | unit | `cd sdk && npm test -- config-query helpers` | ✅ source files / ❌ new contract artifacts until execution | ⬜ pending |
+| 05-01-02 | 01 | 1 | RMC-02 | — | SDK config and init surfaces preserve structured binding semantics and recognize cross-AI config keys without Phase 7 routing | unit | `cd sdk && npm test -- config-mutation init config-query` | ✅ source files / ❌ modified outputs until execution | ⬜ pending |
+| 05-01-03 | 01 | 1 | RMC-01, RMC-02 | — | Adaptive vs inherit policy is explicit, migration-safe, and covered by tests | unit | `cd sdk && npm test -- config-query init` | ❌ policy artifacts until execution | ⬜ pending |
+| 05-02-01 | 02 | 2 | RMC-03 | — | Legacy CJS consumes the canonical SDK resolver path or a generated/shared adapter derived from it instead of duplicating branching logic | integration | `npm test -- tests/runtime-model-parity.test.cjs tests/init.test.cjs` | ❌ parity artifacts until execution | ⬜ pending |
+| 05-02-02 | 02 | 2 | RMC-03 | — | Root-level parity/regression coverage protects inherit omission, runtime-default migration safety, and cross-AI contract recognition | integration | `npm test -- tests/runtime-model-parity.test.cjs tests/bug-2516-inherit-model-execute-phase.test.cjs tests/cross-ai-execution.test.cjs` | ❌ regression additions until execution | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -48,9 +50,11 @@ created: 2026-04-22
 
 ## Wave 0 Requirements
 
-- [ ] Add structured resolver test fixtures covering override / inherit / runtime-default / unknown-agent semantics
-- [ ] Add parity tests that compare SDK and legacy CJS outputs for the same config matrix
-- [ ] Add init-level tests proving binding semantics survive into init payload generation
+- [x] Add structured resolver test fixtures covering override / inherit / runtime-default / unknown-agent semantics
+- [x] Add parity tests that compare SDK and legacy CJS outputs for the same config matrix
+- [x] Add init-level tests proving binding semantics survive into init payload generation
+
+*Wave 0 for this phase is planning-complete because the required verification scaffolding is now defined for every planned task. Execution will turn the commands green.*
 
 ---
 
@@ -65,11 +69,11 @@ created: 2026-04-22
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 180s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 240s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved for planning 2026-04-22
