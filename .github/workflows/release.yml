@@ -299,6 +299,7 @@ jobs:
 
       - name: Create PR to merge release back to main
         if: ${{ !inputs.dry_run }}
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ needs.validate-version.outputs.branch }}
@@ -309,13 +310,15 @@ jobs:
             echo "PR #$EXISTING_PR already exists; updating"
             gh pr edit "$EXISTING_PR" \
               --title "chore: merge release v${VERSION} to main" \
-              --body "Merge release branch back to main after v${VERSION} stable release."
+              --body "Merge release branch back to main after v${VERSION} stable release." \
+              || echo "::warning::Unable to update release PR automatically; continue with publish and update it manually."
           else
             gh pr create \
               --base main \
               --head "$BRANCH" \
               --title "chore: merge release v${VERSION} to main" \
-              --body "Merge release branch back to main after v${VERSION} stable release."
+              --body "Merge release branch back to main after v${VERSION} stable release." \
+              || echo "::warning::Unable to create release PR automatically; continue with publish and create it manually."
           fi
 
       - name: Tag and push
