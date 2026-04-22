@@ -45,6 +45,18 @@
 - `get-shit-done/bin/lib/model-profiles.cjs`
 - `sdk/src/query/config-query.test.ts`
 
+**Wave 1** *(foundational planning wave)*
+- Plan `05-01` — SDK-first runtime model contract foundation
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- Plan `05-02` — legacy CJS parity and regression coverage
+
+**Cross-cutting constraints:**
+- Preserve the semantic difference between explicit model binding, inherited binding, and runtime-default binding.
+- Treat `resolve_model_ids: "omit"` as valid runtime-default behavior, not missing configuration.
+- Recognize `cross_ai_execution` in the contract surface without claiming Phase 7 hardening is complete.
+- Avoid silent fallback for unknown or partially covered agents.
+
 ## Phase 6: Strict Binding Enforcement
 
 **Goal:** Add fail-fast validation so unsupported runtime/model combinations are rejected before agent execution with actionable diagnostics.
