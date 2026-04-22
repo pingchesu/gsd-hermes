@@ -159,6 +159,8 @@ Research, plan, and verify a phase.
 **Prerequisites:** `.planning/ROADMAP.md` exists
 **Produces:** `{phase}-RESEARCH.md`, `{phase}-{N}-PLAN.md`, `{phase}-VALIDATION.md`
 
+Runtime-model semantics for this command follow the canonical four-path model in [`CONFIGURATION.md`](CONFIGURATION.md#canonical-runtime-model-semantics): explicit binding, `inherit`, runtime-default omission, and explicit `cross_ai_execution` fallback.
+
 ```bash
 /gsd-plan-phase 1                   # Research + plan + verify phase 1
 /gsd-plan-phase 3 --skip-research   # Plan without research (familiar domain)
@@ -221,6 +223,8 @@ Execute all plans in a phase with wave-based parallelization, or run a specific 
 **Prerequisites:** Phase has PLAN.md files
 **Produces:** per-plan `{phase}-{N}-SUMMARY.md`, git commits, and `{phase}-VERIFICATION.md` when the phase is fully complete
 
+This command prefers direct runtime support when available. `--cross-ai` and `workflow.cross_ai_execution` opt into the explicit external fallback path; they do not imply automatic provider translation.
+
 ```bash
 /gsd-execute-phase 1                # Execute phase 1
 /gsd-execute-phase 1 --wave 2       # Execute only Wave 2
@@ -240,6 +244,8 @@ User acceptance testing with auto-diagnosis.
 
 **Prerequisites:** Phase has been executed
 **Produces:** `{phase}-UAT.md`, fix plans if issues found
+
+Any follow-up fix planning should keep the same four runtime-model paths visible instead of treating `inherit`, runtime-default omission, and external fallback as equivalent “unset model” states.
 
 ```bash
 /gsd-verify-work 1                  # UAT for phase 1

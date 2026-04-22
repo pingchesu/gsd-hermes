@@ -27,6 +27,11 @@ const { runGsdTools, createTempProject, cleanup } = require('./helpers.cjs');
 const { resolveModelInternal } = require('../get-shit-done/bin/lib/core.cjs');
 const { pathToFileURL } = require('url');
 
+const USER_GUIDE_PATH = path.join(__dirname, '..', 'docs', 'USER-GUIDE.md');
+const KO_USER_GUIDE_PATH = path.join(__dirname, '..', 'docs', 'ko-KR', 'USER-GUIDE.md');
+const JA_USER_GUIDE_PATH = path.join(__dirname, '..', 'docs', 'ja-JP', 'USER-GUIDE.md');
+const KO_CONFIGURATION_PATH = path.join(__dirname, '..', 'docs', 'ko-KR', 'CONFIGURATION.md');
+
 const SDK_RUNTIME_MODEL_VALIDATION_PATH = pathToFileURL(
   path.join(__dirname, '..', 'sdk', 'dist', 'query', 'runtime-model-validation.js')
 ).href;
@@ -260,5 +265,23 @@ describe('Phase 6 migration-safe omit and inherit behavior', () => {
     assert.deepStrictEqual(summary.issues, []);
     assert.ok(summary.results.every(result => result.ok));
     assert.ok(summary.results.every(result => result.binding.bindingKind === 'inherit'));
+  });
+});
+
+describe('Phase 8 migration guidance docs', () => {
+  test('user guide states migration guidance is non-mutating', () => {
+    const userGuide = fs.readFileSync(USER_GUIDE_PATH, 'utf8');
+    assert.match(userGuide, /do not auto-rewrite/i);
+    assert.match(userGuide, /cross_ai_execution/);
+  });
+
+  test('translated docs mention the migrated runtime-model choices', () => {
+    const koUserGuide = fs.readFileSync(KO_USER_GUIDE_PATH, 'utf8');
+    const jaUserGuide = fs.readFileSync(JA_USER_GUIDE_PATH, 'utf8');
+    const koConfiguration = fs.readFileSync(KO_CONFIGURATION_PATH, 'utf8');
+
+    assert.match(koUserGuide, /cross_ai_execution/);
+    assert.match(jaUserGuide, /resolve_model_ids/);
+    assert.match(koConfiguration, /cross_ai_execution/);
   });
 });

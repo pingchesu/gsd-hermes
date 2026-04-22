@@ -744,6 +744,12 @@ budget プロファイルに切り替えてください：`/gsd-set-profile budg
 
 完全な説明は[設定リファレンス](../CONFIGURATION.md#non-claude-runtimes-codex-opencode-gemini-cli-kilo)をご覧ください。
 
+### 移行時にランタイムモデル経路を選ぶ
+
+厳格な検証で以前より明確な設定エラーが見えるようになった場合は、4つのランタイムモデル経路から意図的に選んでください。直接の明示バインディング、`inherit`、`resolve_model_ids: "omit"` によるランタイム既定値、そして明示的な `cross_ai_execution` フォールバックです。
+
+GSD は失敗を早期に示して移行ガイダンスを出しますが、設定を自動で書き換えることはありません。有効な omit / inherit 構成はそのまま維持し、直接のランタイムサポートがない場合にだけ `cross_ai_execution` を使ってください。
+
 ### 非 Anthropic プロバイダーでの Claude Code の使用（OpenRouter、ローカル）
 
 GSD サブエージェントが Anthropic モデルを呼び出し、OpenRouter やローカルプロバイダーを通じて支払っている場合は、`inherit` プロファイルに切り替えてください：`/gsd-set-profile inherit`。これにより、すべてのエージェントが特定の Anthropic モデルの代わりに現在のセッションモデルを使用します。`/gsd-settings` → モデルプロファイル → Inherit も参照してください。

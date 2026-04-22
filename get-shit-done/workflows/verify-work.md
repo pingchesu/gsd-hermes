@@ -37,6 +37,10 @@ AGENT_SKILLS_CHECKER=$(gsd-sdk query agent-skills gsd-checker 2>/dev/null)
 ```
 
 Parse JSON for: `planner_model`, `checker_model`, `commit_docs`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `has_verification`, `uat_path`.
+
+`init.verify-work` also emits additive `runtime_model` metadata. Treat that metadata as the canonical visibility surface for the four runtime-model paths: explicit binding, `inherit`, runtime-default omission via `resolve_model_ids: "omit"`, and explicit `cross_ai_execution` fallback. Verification workflows should preserve those distinctions when presenting or replanning work.
+
+**Model resolution:** When a spawned agent model token is empty, omit the `model=` parameter from the corresponding `Task()` call. Empty init tokens now intentionally represent either `inherit` or runtime-default omission, and verify-work should not collapse those meanings into an ad hoc empty-string model choice.
 </step>
 
 <step name="check_active_session">
