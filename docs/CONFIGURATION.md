@@ -163,6 +163,18 @@ All workflow toggles follow the **absent = enabled** pattern. If a key is missin
 | `workflow.subagent_timeout` | number | `600` | Timeout in seconds for individual subagent invocations. Increase for long-running research or execution phases |
 | `workflow.inline_plan_threshold` | number | `3` | Maximum number of tasks in a phase before the planner generates a separate PLAN.md file instead of inlining tasks in the prompt |
 
+### Provider-switching paths
+
+There are two distinct supported ways to run mixed-provider work:
+
+1. Direct mixed-provider binding under `runtime: "hermes"`.
+   Hermes is the preferred direct path when the configured provider/model bindings are actually supported. In that case, keep using normal execution and do not enable cross-AI just to translate providers.
+
+2. Explicit external delegation via `workflow.cross_ai_execution`.
+   Use this only for provider-restricted runtimes that cannot honor the configured binding directly. The external command produces candidate execution output, but the orchestrator remains the source of truth for accepting SUMMARY output and updating shared planning state.
+
+Unsupported direct bindings still fail fast. GSD does not do silent provider translation or automatic fallback from an invalid direct binding into `cross_ai_execution`.
+
 ### Recommended Presets
 
 | Scenario | mode | granularity | profile | research | plan_check | verifier |

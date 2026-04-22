@@ -324,8 +324,10 @@ Missing `workflow.cross_ai_command` is a fail-fast error whenever routing requir
    - Read `$CANDIDATE_SUMMARY` and validate it against the minimum accepted SUMMARY contract.
    - Accepted output must include a completion summary, what changed, and verification results.
    - If the external result reports failures, deviations, or partial execution, it must say so explicitly.
+   - External AI output is candidate execution output, not authoritative shared-state mutation.
    - Successful cross-AI execution still depends on orchestrator-side acceptance of the resulting SUMMARY artifact.
-   - Write it as the plan's SUMMARY.md file
+   - The external command may propose code changes and summary text, but the orchestrator remains the source of truth for SUMMARY.md finalization and any subsequent STATE.md / ROADMAP.md updates.
+   - Write the accepted candidate as the plan's SUMMARY.md file
    - Update STATE.md plan status to complete
    - Update ROADMAP.md progress
    - Mark plan as handled — skip it in execute_waves

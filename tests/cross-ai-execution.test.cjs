@@ -269,15 +269,20 @@ describe('cross-AI execution contract surface', () => {
       assert.match(workflow, /Missing `workflow\.cross_ai_command` is a fail-fast error whenever routing requires cross-AI/i);
       assert.match(workflow, /timeout, non-zero exit, malformed summary, and partial execution/i);
       assert.match(workflow, /Hermes mixed-provider direct bindings remain on the normal direct execution path unless cross-AI is explicitly forced/i);
+      assert.match(workflow, /External AI output is candidate execution output, not authoritative shared-state mutation/i);
+      assert.match(workflow, /orchestrator remains the source of truth for SUMMARY\.md finalization and any subsequent STATE\.md \/ ROADMAP\.md updates/i);
     });
 
-    test('configuration docs describe explicit command requirement and minimum SUMMARY contract', () => {
+    test('configuration docs describe explicit command requirement and the two provider-switching paths', () => {
       const docs = fsNative.readFileSync(CONFIGURATION_DOC_PATH, 'utf-8');
 
       assert.match(docs, /CLI flags > config > plan frontmatter/i);
       assert.match(docs, /Required when cross-AI routing is enabled or forced/i);
       assert.match(docs, /completion summary, what changed, verification results/i);
       assert.match(docs, /Hermes mixed-provider direct bindings remain a direct runtime path/i);
+      assert.match(docs, /Direct mixed-provider binding under `runtime: "hermes"`/i);
+      assert.match(docs, /Explicit external delegation via `workflow\.cross_ai_execution`/i);
+      assert.match(docs, /does not do silent provider translation or automatic fallback/i);
     });
   });
 });
