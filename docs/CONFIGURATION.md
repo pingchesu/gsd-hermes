@@ -587,7 +587,7 @@ The flagship `gsd-hermes` v1.2.0 capability is direct mixed-provider execution u
 - If the configured direct binding is unsupported, GSD fails fast with an actionable error.
 - GSD does **not** silently rewrite an invalid direct binding into `cross_ai_execution`.
 
-That separation keeps runtime truthfulness intact: Hermes can act as a multi-provider runtime adapter, while `cross_ai_execution` stays an explicit external fallback rather than an invisible downgrade.
+That separation keeps runtime truthfulness intact: Hermes can serve as a multi-provider runtime adapter, while `cross_ai_execution` stays an explicit external fallback rather than an invisible downgrade.
 
 ### Profile Philosophy
 
