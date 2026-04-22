@@ -274,6 +274,7 @@ executor skips them.
 
 Routing precedence is explicit and deterministic: CLI flags override config, and config overrides plan frontmatter.
 Hermes mixed-provider direct bindings remain on the normal direct execution path unless cross-AI is explicitly forced.
+That direct path is the direct runtime support path when the active runtime can honor the configured binding.
 Cross-AI is only the explicit fallback when direct runtime binding is unavailable or the operator forces it.
 
 1. If `CROSS_AI_DISABLED` is true (`--no-cross-ai` flag): skip this step entirely.

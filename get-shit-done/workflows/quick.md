@@ -148,6 +148,10 @@ AGENT_SKILLS_VERIFIER=$(gsd-sdk query agent-skills gsd-verifier 2>/dev/null)
 
 Parse JSON for: `planner_model`, `executor_model`, `checker_model`, `verifier_model`, `commit_docs`, `branch_name`, `quick_id`, `slug`, `date`, `timestamp`, `quick_dir`, `task_dir`, `roadmap_exists`, `planning_exists`.
 
+`init.quick` also emits additive `runtime_model` metadata. Treat that metadata as the canonical visibility surface for the four runtime-model paths: explicit binding, `inherit`, runtime-default omission via `resolve_model_ids: "omit"`, and explicit `cross_ai_execution` fallback. Quick mode should propagate those semantics consistently instead of inferring them from token strings alone.
+
+**Model resolution:** When a spawned agent model token is empty, omit the `model=` parameter from the corresponding `Task()` call. Empty init tokens now intentionally represent either `inherit` or runtime-default omission, so the runtime should keep the distinction visible through `runtime_model` rather than flattening it into a fake empty-model binding.
+
 ```bash
 USE_WORKTREES=$(gsd-sdk query config-get workflow.use_worktrees 2>/dev/null || echo "true")
 ```

@@ -175,6 +175,19 @@ There are two distinct supported ways to run mixed-provider work:
 
 Unsupported direct bindings still fail fast. GSD does not do silent provider translation or automatic fallback from an invalid direct binding into `cross_ai_execution`.
 
+### Canonical runtime-model semantics
+
+Use this document as the canonical operator reference for runtime-model behavior. Adjacent docs should summarize or link here instead of redefining the contract.
+
+The supported four-path model is:
+
+1. Explicit binding — a specific model is requested directly, either from `model_overrides` or a resolved profile token.
+2. `inherit` — GSD intentionally omits the per-agent model token so the current session/runtime model is inherited.
+3. Runtime-default omission — `resolve_model_ids: "omit"` intentionally omits model IDs so the active runtime chooses its configured default model.
+4. Explicit `cross_ai_execution` fallback — an external command is used only when direct runtime support is unavailable or the operator explicitly forces that route.
+
+Migration guidance is additive, not mutating. GSD will fail fast on unsupported explicit bindings, but it does not auto-rewrite your config. Keep valid legacy `inherit` and `resolve_model_ids: "omit"` setups when they match your runtime, switch to explicit binding only when the runtime can honor it directly, and enable `workflow.cross_ai_execution` only when you need an explicit external fallback.
+
 ### Recommended Presets
 
 | Scenario | mode | granularity | profile | research | plan_check | verifier |
@@ -523,6 +536,8 @@ Valid override values: `opus`, `sonnet`, `haiku`, `inherit`, or any fully-qualif
 ### Non-Claude Runtimes (Codex, OpenCode, Gemini CLI, Kilo, Hermes)
 
 When GSD is installed for a non-Claude runtime, the installer automatically sets `resolve_model_ids: "omit"` in `~/.gsd/defaults.json`. This causes GSD to return an empty model parameter for all agents, so each agent uses whatever model the runtime is configured with. No additional setup is needed for the default case.
+
+That installer default is the runtime-default omission path from the canonical four-path model above. It is a valid steady-state configuration, not a missing setting.
 
 If you want different agents to use different models, use `model_overrides` with fully-qualified model IDs that your runtime recognizes:
 

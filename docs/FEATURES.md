@@ -282,6 +282,8 @@
 
 **Purpose:** Research the implementation domain and produce verified, atomic execution plans.
 
+Runtime-model semantics for planning follow the canonical four-path model in `docs/CONFIGURATION.md`: explicit binding, `inherit`, runtime-default omission, and explicit `cross_ai_execution` fallback.
+
 **Requirements:**
 - REQ-PLAN-01: System MUST spawn a phase researcher to investigate implementation approaches
 - REQ-PLAN-02: System MUST produce plans with 2-3 tasks each, sized for a single context window
@@ -332,6 +334,8 @@
 
 **Purpose:** Execute all plans in a phase using wave-based parallelization with fresh context windows per executor.
 
+Execution keeps direct runtime support and explicit external fallback distinct: direct bindings stay direct when supported, while `cross_ai_execution` is the explicit fallback path rather than an automatic provider translation layer.
+
 **Requirements:**
 - REQ-EXEC-01: System MUST analyze plan dependencies and group into execution waves
 - REQ-EXEC-02: System MUST spawn independent plans in parallel within each wave
@@ -375,6 +379,8 @@
 **Command:** `/gsd-verify-work [N]`
 
 **Purpose:** User acceptance testing — walk the user through testing each deliverable and auto-diagnose failures.
+
+Verification and any follow-up replanning should preserve the same four runtime-model paths documented in `docs/CONFIGURATION.md` instead of collapsing `inherit`, runtime-default omission, and explicit fallback into one generic “no model” state.
 
 **Requirements:**
 - REQ-VERIFY-01: System MUST extract testable deliverables from the phase
@@ -2361,6 +2367,8 @@ Test suite that scans all agent, workflow, and command files for embedded inject
 - REQ-CROSSAI-05: On failure, user chooses: retry, skip (fall back to normal executor), or abort
 
 **Configuration:** `workflow.cross_ai_execution`, `workflow.cross_ai_command`, `workflow.cross_ai_timeout`
+
+This feature is the fourth path in the canonical runtime-model model: explicit external fallback after explicit binding, `inherit`, and runtime-default omission.
 
 ---
 

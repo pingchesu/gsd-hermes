@@ -541,6 +541,8 @@ For a focused assessment without full `/gsd-map-codebase` overhead:
 
 This guide intentionally does not re-document commands or config settings: maintaining two copies previously produced drift (`workflow.discuss_mode`'s default, `claude_md_path`'s default, the model-profile table's agent coverage). The single-source-of-truth rule is enforced mechanically by the drift-guard tests anchored on `docs/INVENTORY.md`.
 
+For runtime-model behavior specifically, treat [`docs/CONFIGURATION.md`](CONFIGURATION.md) as canonical. The short version is the same four runtime-model paths used throughout the workflows: explicit binding, `inherit`, runtime-default omission via `resolve_model_ids: "omit"`, and explicit `cross_ai_execution` fallback.
+
 <!-- The Command Reference table previously here duplicated docs/COMMANDS.md; removed to stop drift. -->
 <!-- The Configuration Reference subsection (core settings, planning, workflow toggles, hooks, git branching, model profiles) previously here duplicated docs/CONFIGURATION.md; removed to stop drift. The `resolve_model_ids` ghost key that appeared only in this file's abbreviated schema is retired with the duplicate. -->
 
@@ -741,6 +743,17 @@ To assign different models to different agents on a non-Claude runtime, add `mod
 The installer auto-configures `resolve_model_ids: "omit"` for Gemini CLI, OpenCode, Kilo, Codex, and Hermes. If you're manually setting up a non-Claude runtime, add it to `.planning/config.json` yourself.
 
 See the [Configuration Reference](CONFIGURATION.md#non-claude-runtimes-codex-opencode-gemini-cli-kilo-hermes) for the full explanation.
+
+### Choosing a runtime-model path during migration
+
+If stricter validation surfaces a config that used to limp along, choose one of the four runtime-model paths intentionally:
+
+- Keep explicit binding when your runtime has direct support for the configured provider/model.
+- Use `inherit` when you want Claude Code to follow the current session model.
+- Keep `resolve_model_ids: "omit"` when a non-Claude runtime should keep using its own default model.
+- Use `cross_ai_execution` only as an explicit external fallback when direct runtime support is unavailable.
+
+GSD gives fail-fast errors and upgrade guidance, but it does not auto-rewrite your config. In other words: do not auto-rewrite existing config as part of migration. Review the canonical guidance in [`docs/CONFIGURATION.md`](CONFIGURATION.md#canonical-runtime-model-semantics), make the change yourself, and keep valid legacy omit/inherit setups if they still match your runtime.
 
 ### Installing for Cline
 

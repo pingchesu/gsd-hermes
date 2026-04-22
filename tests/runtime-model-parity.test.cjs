@@ -9,6 +9,11 @@ const { createTempProject, cleanup } = require('./helpers.cjs');
 const { resolveModelBindingInternal, resolveModelInternal } = require('../get-shit-done/bin/lib/core.cjs');
 const { toInitModelToken } = require('../get-shit-done/bin/lib/model-profiles.cjs');
 
+const PLAN_PHASE_WORKFLOW_PATH = path.join(__dirname, '..', 'get-shit-done', 'workflows', 'plan-phase.md');
+const QUICK_WORKFLOW_PATH = path.join(__dirname, '..', 'get-shit-done', 'workflows', 'quick.md');
+const VERIFY_WORKFLOW_PATH = path.join(__dirname, '..', 'get-shit-done', 'workflows', 'verify-work.md');
+const EXECUTE_PHASE_WORKFLOW_PATH = path.join(__dirname, '..', 'get-shit-done', 'workflows', 'execute-phase.md');
+
 const SDK_RUNTIME_MODEL_CONTRACT_PATH = pathToFileURL(
   path.join(__dirname, '..', 'sdk', 'dist', 'query', 'runtime-model-contract.js')
 ).href;
@@ -140,4 +145,16 @@ describe('runtime-model parity', () => {
       assert.strictEqual(cjsInitToken, entry.expectedInitToken);
     });
   }
+
+  test('workflow docs align on the four runtime-model paths', () => {
+    const planWorkflow = fsNative.readFileSync(PLAN_PHASE_WORKFLOW_PATH, 'utf8');
+    const quickWorkflow = fsNative.readFileSync(QUICK_WORKFLOW_PATH, 'utf8');
+    const verifyWorkflow = fsNative.readFileSync(VERIFY_WORKFLOW_PATH, 'utf8');
+    const executeWorkflow = fsNative.readFileSync(EXECUTE_PHASE_WORKFLOW_PATH, 'utf8');
+
+    assert.match(planWorkflow, /four runtime-model paths/i);
+    assert.match(quickWorkflow, /four runtime-model paths/i);
+    assert.match(verifyWorkflow, /four runtime-model paths/i);
+    assert.match(executeWorkflow, /direct runtime support/i);
+  });
 });
