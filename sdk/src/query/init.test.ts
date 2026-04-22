@@ -545,6 +545,34 @@ describe('init binding serialization', () => {
     await expect(initExecutePhase(['9'], tmpDir)).rejects.toThrow(/cross_ai_execution recommendation: explicit alternative available/);
   });
 
+  it('accepts mixed-provider planner bindings when runtime is hermes', async () => {
+    await writeFile(join(tmpDir, '.planning', 'config.json'), JSON.stringify({
+      runtime: 'hermes',
+      model_profile: 'inherit',
+      resolve_model_ids: 'omit',
+      model_overrides: {
+        'gsd-phase-researcher': 'claude-opus-4-7',
+        'gsd-planner': 'claude-opus-4-7',
+        'gsd-plan-checker': 'openai/gpt-5.4',
+      },
+      commit_docs: false,
+      git: {
+        branching_strategy: 'none',
+        phase_branch_template: 'gsd/phase-{phase}-{slug}',
+        milestone_branch_template: 'gsd/{milestone}-{slug}',
+        quick_branch_template: null,
+      },
+      workflow: { research: true, plan_check: true, verifier: true, nyquist_validation: true, cross_ai_execution: false },
+    }));
+
+    const result = await initPlanPhase(['9'], tmpDir);
+    const data = result.data as Record<string, unknown>;
+    expect(data.phase_found).toBe(true);
+    expect(data.researcher_model).toBe('claude-opus-4-7');
+    expect(data.planner_model).toBe('claude-opus-4-7');
+    expect(data.checker_model).toBe('openai/gpt-5.4');
+  });
+
   it('skips optional checker and verifier validation when their workflow toggles are disabled', async () => {
     await writeFile(join(tmpDir, '.planning', 'config.json'), JSON.stringify({
       runtime: 'codex',
