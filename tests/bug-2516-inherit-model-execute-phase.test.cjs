@@ -19,6 +19,7 @@ const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
+const { runGsdTools, createTempProject, cleanup } = require('./helpers.cjs');
 
 const WORKFLOW_PATH = path.join(
   __dirname,
@@ -110,5 +111,23 @@ describe('bug #2516: executor_model "inherit" must not be passed literally to Ta
       'inherit the current orchestrator model — this is the mechanism that makes ' +
       '"inherit" work correctly.'
     );
+  });
+
+  test('init execute-phase emits empty executor_model when binding is inherit', () => {
+    const tmpDir = createTempProject();
+    try {
+      const phaseDir = path.join(tmpDir, '.planning', 'phases', '01-foundation');
+      fs.mkdirSync(phaseDir, { recursive: true });
+      fs.writeFileSync(path.join(phaseDir, '01-01-PLAN.md'), '# Plan');
+      fs.writeFileSync(path.join(tmpDir, '.planning', 'config.json'), JSON.stringify({ model_profile: 'inherit' }));
+
+      const result = runGsdTools('init execute-phase 1 --raw', tmpDir, { HOME: tmpDir });
+      assert.ok(result.success, `Command failed: ${result.error}`);
+
+      const output = JSON.parse(result.output);
+      assert.strictEqual(output.executor_model, '', 'executor_model must be omitted for inherit binding');
+    } finally {
+      cleanup(tmpDir);
+    }
   });
 });
