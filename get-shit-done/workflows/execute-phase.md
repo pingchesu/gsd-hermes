@@ -272,10 +272,19 @@ executor skips them.
 
 **Activation logic:**
 
+Routing precedence is explicit and deterministic: CLI flags override config, and config overrides plan frontmatter.
+Hermes mixed-provider direct bindings remain on the normal direct execution path unless cross-AI is explicitly forced.
+That direct path is the direct runtime support path when the active runtime can honor the configured binding.
+Cross-AI is only the explicit fallback when direct runtime binding is unavailable or the operator forces it.
+
 1. If `CROSS_AI_DISABLED` is true (`--no-cross-ai` flag): skip this step entirely.
 2. If `CROSS_AI_FORCE` is true (`--cross-ai` flag): mark ALL incomplete plans for cross-AI execution.
-3. Otherwise: check each plan's frontmatter for `cross_ai: true` AND verify config
-   `workflow.cross_ai_execution` is `true`. Plans matching both conditions are marked for cross-AI.
+3. Otherwise, prefer direct execution whenever the active runtime can honor the configured provider/model directly.
+4. If direct execution is not valid, `workflow.cross_ai_execution` is the next routing authority.
+   - `true` => mark eligible incomplete plans for cross-AI execution.
+   - `false` => do not route into cross-AI, even if a plan frontmatter requests `cross_ai: true`.
+5. Plan frontmatter `cross_ai: true` is lower priority than CLI and config. It only requests cross-AI
+   when neither CLI flags nor config already decided otherwise.
 
 ```bash
 CROSS_AI_ENABLED=$(gsd-sdk query config-get workflow.cross_ai_execution 2>/dev/null || echo "false")
@@ -287,6 +296,7 @@ CROSS_AI_TIMEOUT=$(gsd-sdk query config-get workflow.cross_ai_timeout 2>/dev/nul
 
 **If plans are marked but `cross_ai_command` is empty:** Error — tell user to set
 `workflow.cross_ai_command` via `gsd-sdk query config-set workflow.cross_ai_command "<command>"`.
+Missing `workflow.cross_ai_command` is a fail-fast error whenever routing requires cross-AI.
 
 **For each cross-AI plan (sequentially):**
 
@@ -312,17 +322,22 @@ CROSS_AI_TIMEOUT=$(gsd-sdk query config-get workflow.cross_ai_timeout 2>/dev/nul
 4. **Evaluate the result:**
 
    **Success (exit 0 + valid summary):**
-   - Read `$CANDIDATE_SUMMARY` and validate it contains meaningful content
-     (not empty, has at least a heading and description — a valid SUMMARY.md structure)
-   - Write it as the plan's SUMMARY.md file
+   - Read `$CANDIDATE_SUMMARY` and validate it against the minimum accepted SUMMARY contract.
+   - Accepted output must include a completion summary, what changed, and verification results.
+   - If the external result reports failures, deviations, or partial execution, it must say so explicitly.
+   - External AI output is candidate execution output, not authoritative shared-state mutation.
+   - Successful cross-AI execution still depends on orchestrator-side acceptance of the resulting SUMMARY artifact.
+   - The external command may propose code changes and summary text, but the orchestrator remains the source of truth for SUMMARY.md finalization and any subsequent STATE.md / ROADMAP.md updates.
+   - Write the accepted candidate as the plan's SUMMARY.md file
    - Update STATE.md plan status to complete
    - Update ROADMAP.md progress
    - Mark plan as handled — skip it in execute_waves
 
-   **Failure (non-zero exit or invalid summary):**
+   **Failure (timeout, non-zero exit, malformed summary, and partial execution are all explicit failure classes):**
    - Display the error output and exit code
    - Warn: "The external command may have left uncommitted changes or partial edits
      in the working tree. Review `git status` and `git diff` before proceeding."
+   - None of these failure classes may silently mark the plan complete.
    - Offer three choices:
      - **retry** — run the same plan through cross-AI again
      - **skip** — fall back to normal executor for this plan (re-add to execute_waves list)

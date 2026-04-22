@@ -12,7 +12,7 @@
  * // { data: true }
  *
  * const model = await resolveModel(['gsd-planner'], '/project');
- * // { data: { model: 'opus', profile: 'balanced' } }
+ * // { data: { model: 'opus', profile: 'balanced', binding_kind: 'profile' } }
  * ```
  */
 
@@ -20,51 +20,30 @@ import { readFile } from 'node:fs/promises';
 import { GSDError, ErrorClassification } from '../errors.js';
 import { loadConfig } from '../config.js';
 import { planningPaths } from './helpers.js';
+import {
+  ACCEPTED_MODEL_PROFILES,
+  MODEL_PROFILES,
+  VALID_PROFILES,
+  getAgentToModelMapForProfile,
+  resolveAgentBinding,
+  serializeRuntimeModelResolution,
+  toLegacyResolveModelResult,
+} from './runtime-model-contract.js';
 import type { QueryHandler } from './utils.js';
 
-// ─── MODEL_PROFILES ─────────────────────────────────────────────────────────
-
-/**
- * Mapping of GSD agent type to model alias for each profile tier.
- *
- * Ported from get-shit-done/bin/lib/model-profiles.cjs.
- */
-export const MODEL_PROFILES: Record<string, Record<string, string>> = {
-  'gsd-planner': { quality: 'opus', balanced: 'opus', budget: 'sonnet', adaptive: 'opus' },
-  'gsd-roadmapper': { quality: 'opus', balanced: 'sonnet', budget: 'sonnet', adaptive: 'sonnet' },
-  'gsd-executor': { quality: 'opus', balanced: 'sonnet', budget: 'sonnet', adaptive: 'sonnet' },
-  'gsd-phase-researcher': { quality: 'opus', balanced: 'sonnet', budget: 'haiku', adaptive: 'sonnet' },
-  'gsd-project-researcher': { quality: 'opus', balanced: 'sonnet', budget: 'haiku', adaptive: 'sonnet' },
-  'gsd-research-synthesizer': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'haiku' },
-  'gsd-debugger': { quality: 'opus', balanced: 'sonnet', budget: 'sonnet', adaptive: 'opus' },
-  'gsd-codebase-mapper': { quality: 'sonnet', balanced: 'haiku', budget: 'haiku', adaptive: 'haiku' },
-  'gsd-verifier': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'sonnet' },
-  'gsd-plan-checker': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'haiku' },
-  'gsd-integration-checker': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'haiku' },
-  'gsd-nyquist-auditor': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'haiku' },
-  'gsd-pattern-mapper': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'haiku' },
-  'gsd-ui-researcher': { quality: 'opus', balanced: 'sonnet', budget: 'haiku', adaptive: 'sonnet' },
-  'gsd-ui-checker': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'haiku' },
-  'gsd-ui-auditor': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'haiku' },
-  'gsd-doc-writer': { quality: 'opus', balanced: 'sonnet', budget: 'haiku', adaptive: 'sonnet' },
-  'gsd-doc-verifier': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'haiku' },
-};
-
-/** Valid model profile names. */
-export const VALID_PROFILES: string[] = Object.keys(MODEL_PROFILES['gsd-planner']);
-
-/**
- * Flat map of agent name → model alias for one profile tier (matches `model-profiles.cjs`).
- */
-export function getAgentToModelMapForProfile(normalizedProfile: string): Record<string, string> {
-  const profile = VALID_PROFILES.includes(normalizedProfile) ? normalizedProfile : 'balanced';
-  const agentToModelMap: Record<string, string> = {};
-  for (const [agent, profileToModelMap] of Object.entries(MODEL_PROFILES)) {
-    const mapped = profileToModelMap[profile] ?? profileToModelMap.balanced;
-    agentToModelMap[agent] = mapped ?? 'sonnet';
-  }
-  return agentToModelMap;
-}
+export {
+  ACCEPTED_MODEL_PROFILES,
+  MODEL_PROFILES,
+  VALID_PROFILES,
+  getAgentToModelMapForProfile,
+} from './runtime-model-contract.js';
+export {
+  assertAgentBindingsSupported,
+  formatBindingValidationError,
+  validateAgentBinding,
+  validateAgentBindings,
+  validateResolvedAgentBinding,
+} from './runtime-model-validation.js';
 
 // ─── configGet ──────────────────────────────────────────────────────────────
 
@@ -137,12 +116,13 @@ export const configPath: QueryHandler = async (_args, projectDir, _workstream) =
 /**
  * Query handler for resolve-model command.
  *
- * Resolves the model alias for a given agent type based on the current profile.
- * Uses loadConfig (with defaults) and MODEL_PROFILES for lookup.
+ * Resolves a structured runtime-model binding for the requested agent, then
+ * adapts it to the legacy query payload shape while preserving explicit,
+ * inherit, runtime-default, and unsupported outcomes in metadata.
  *
  * @param args - args[0] is the agent type (e.g., 'gsd-planner')
  * @param projectDir - Project root directory
- * @returns QueryResult with { model, profile } or { model, profile, unknown_agent: true }
+ * @returns QueryResult with a legacy-compatible model payload plus structured metadata
  * @throws GSDError with Validation classification if agent type not provided
  */
 export const resolveModel: QueryHandler = async (args, projectDir) => {
@@ -152,39 +132,24 @@ export const resolveModel: QueryHandler = async (args, projectDir) => {
   }
 
   const config = await loadConfig(projectDir);
-  const profile = String(config.model_profile || 'balanced').toLowerCase();
+  const resolution = resolveAgentBinding(config, agentType);
+  const legacy = toLegacyResolveModelResult(resolution);
+  const workflow = (config.workflow ?? {}) as unknown as Record<string, unknown>;
 
-  // Check per-agent override first
-  const overrides = (config as Record<string, unknown>).model_overrides as Record<string, string> | undefined;
-  const override = overrides?.[agentType];
-  if (override) {
-    const agentModels = MODEL_PROFILES[agentType];
-    const result = agentModels
-      ? { model: override, profile }
-      : { model: override, profile, unknown_agent: true };
-    return { data: result };
-  }
-
-  // resolve_model_ids: "omit" -- return empty string
-  const resolveModelIds = (config as Record<string, unknown>).resolve_model_ids;
-  if (resolveModelIds === 'omit') {
-    const agentModels = MODEL_PROFILES[agentType];
-    const result = agentModels
-      ? { model: '', profile }
-      : { model: '', profile, unknown_agent: true };
-    return { data: result };
-  }
-
-  // Fall back to profile lookup
-  const agentModels = MODEL_PROFILES[agentType];
-  if (!agentModels) {
-    return { data: { model: 'sonnet', profile, unknown_agent: true } };
-  }
-
-  if (profile === 'inherit') {
-    return { data: { model: 'inherit', profile } };
-  }
-
-  const alias = agentModels[profile] || agentModels['balanced'] || 'sonnet';
-  return { data: { model: alias, profile } };
+  return {
+    data: {
+      ...legacy,
+      runtime_model: {
+        runtime: resolution.runtime,
+        model_profile: resolution.profile,
+        resolve_model_ids: resolution.resolveModelIds ?? null,
+        cross_ai: {
+          execution_configured: workflow.cross_ai_execution === true,
+          command_configured: typeof workflow.cross_ai_command === 'string' && workflow.cross_ai_command.trim() !== '',
+          timeout_seconds: typeof workflow.cross_ai_timeout === 'number' ? workflow.cross_ai_timeout : null,
+        },
+        binding: serializeRuntimeModelResolution(resolution),
+      },
+    },
+  };
 };

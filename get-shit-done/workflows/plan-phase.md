@@ -46,6 +46,10 @@ When `CONTEXT_WINDOW >= 500000`, the planner prompt includes the 3 most recent p
 
 Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_enabled`, `plan_checker_enabled`, `nyquist_validation_enabled`, `commit_docs`, `text_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded_phase`, `has_research`, `has_context`, `has_reviews`, `has_plans`, `plan_count`, `planning_exists`, `roadmap_exists`, `phase_req_ids`, `response_language`.
 
+`init.plan-phase` also emits additive `runtime_model` metadata. Treat that metadata as the canonical visibility surface for the four runtime-model paths: explicit binding, `inherit`, runtime-default omission via `resolve_model_ids: "omit"`, and explicit `cross_ai_execution` fallback. This workflow should reflect those semantics, not reconstruct competing runtime logic from token strings alone.
+
+**Model resolution:** When a spawned agent model token is empty, omit the `model=` parameter from the corresponding `Task()` call. Empty init tokens now intentionally represent either `inherit` or runtime-default omission, so passing an empty string would blur the semantic difference that `runtime_model` already reports.
+
 **If `response_language` is set:** Include `response_language: {value}` in all spawned subagent prompts so any user-facing output stays in the configured language.
 
 **File paths (for <files_to_read> blocks):** `state_path`, `roadmap_path`, `requirements_path`, `context_path`, `research_path`, `verification_path`, `uat_path`, `reviews_path`. These are null if files don't exist.

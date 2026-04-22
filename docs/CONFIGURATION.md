@@ -154,14 +154,39 @@ All workflow toggles follow the **absent = enabled** pattern. If a key is missin
 | `workflow.plan_chunked` | boolean | `false` | Enable chunked planning mode. When `true` (or when `--chunked` flag is passed to `/gsd-plan-phase`), the orchestrator splits the single long-lived planner Task into a short outline Task followed by N short per-plan Tasks (~3-5 min each). Each plan is committed individually for crash resilience. If a Task hangs and the terminal is force-killed, rerunning with `--chunked` resumes from the last completed plan. Particularly useful on Windows where long-lived Tasks may hang on stdio. Added in v1.38 |
 | `workflow.code_review_command` | string | (none) | Shell command for external code review integration in `/gsd-ship`. Receives changed file paths via stdin. Non-zero exit blocks the ship workflow. Added in v1.36 |
 | `workflow.tdd_mode` | boolean | `false` | Enable TDD pipeline as a first-class execution mode. When `true`, the planner aggressively applies `type: tdd` to eligible tasks (business logic, APIs, validations, algorithms) and the executor enforces RED/GREEN/REFACTOR gate sequence. An end-of-phase collaborative review checkpoint verifies gate compliance. Added in v1.36 |
-| `workflow.cross_ai_execution` | boolean | `false` | Delegate phase execution to an external AI CLI instead of spawning local executor agents. Useful for leveraging a different model's strengths for specific phases. Added in v1.36 |
-| `workflow.cross_ai_command` | string | (none) | Shell command template for cross-AI execution. Receives the phase prompt via stdin. Must produce SUMMARY.md-compatible output. Required when `cross_ai_execution` is `true`. Added in v1.36 |
-| `workflow.cross_ai_timeout` | number | `300` | Timeout in seconds for cross-AI execution commands. Prevents runaway external processes. Added in v1.36 |
+| `workflow.cross_ai_execution` | boolean | `false` | Enable explicit external cross-AI routing when direct runtime binding is unavailable. Routing precedence is `CLI flags > config > plan frontmatter`, so this config setting overrides plan-level `cross_ai: true` requests unless `--cross-ai` or `--no-cross-ai` is passed. Hermes mixed-provider direct bindings remain a direct runtime path and are not forced through cross-AI unless the operator explicitly forces it. Added in v1.36 |
+| `workflow.cross_ai_command` | string | (none) | Shell command template for cross-AI execution. Receives the phase prompt via stdin. Required when cross-AI routing is enabled or forced. Successful output must satisfy the minimum accepted SUMMARY contract with a completion summary, what changed, verification results, and an explicit failure/deviation section whenever the result is not a clean full completion. Added in v1.36 |
+| `workflow.cross_ai_timeout` | number | `300` | Timeout in seconds for cross-AI execution commands. Prevents runaway external processes. Timeout, non-zero exit, malformed summary, and partial execution are all treated as explicit failures rather than silent success. Added in v1.36 |
 | `workflow.ai_integration_phase` | boolean | `true` | Enable the `/gsd-ai-integration-phase` command. When `false`, the command exits with a configuration gate message |
 | `workflow.auto_prune_state` | boolean | `false` | When `true`, automatically prune stale entries from STATE.md at phase boundaries instead of prompting |
 | `workflow.pattern_mapper` | boolean | `true` | Run the `gsd-pattern-mapper` agent between research and planning to map new files to existing codebase analogs |
 | `workflow.subagent_timeout` | number | `600` | Timeout in seconds for individual subagent invocations. Increase for long-running research or execution phases |
 | `workflow.inline_plan_threshold` | number | `3` | Maximum number of tasks in a phase before the planner generates a separate PLAN.md file instead of inlining tasks in the prompt |
+
+### Provider-switching paths
+
+There are two distinct supported ways to run mixed-provider work:
+
+1. Direct mixed-provider binding under `runtime: "hermes"`.
+   Hermes is the preferred direct path when the configured provider/model bindings are actually supported. In that case, keep using normal execution and do not enable cross-AI just to translate providers.
+
+2. Explicit external delegation via `workflow.cross_ai_execution`.
+   Use this only for provider-restricted runtimes that cannot honor the configured binding directly. The external command produces candidate execution output, but the orchestrator remains the source of truth for accepting SUMMARY output and updating shared planning state.
+
+Unsupported direct bindings still fail fast. GSD does not do silent provider translation or automatic fallback from an invalid direct binding into `cross_ai_execution`.
+
+### Canonical runtime-model semantics
+
+Use this document as the canonical operator reference for runtime-model behavior. Adjacent docs should summarize or link here instead of redefining the contract.
+
+The supported four-path model is:
+
+1. Explicit binding — a specific model is requested directly, either from `model_overrides` or a resolved profile token.
+2. `inherit` — GSD intentionally omits the per-agent model token so the current session/runtime model is inherited.
+3. Runtime-default omission — `resolve_model_ids: "omit"` intentionally omits model IDs so the active runtime chooses its configured default model.
+4. Explicit `cross_ai_execution` fallback — an external command is used only when direct runtime support is unavailable or the operator explicitly forces that route.
+
+Migration guidance is additive, not mutating. GSD will fail fast on unsupported explicit bindings, but it does not auto-rewrite your config. Keep valid legacy `inherit` and `resolve_model_ids: "omit"` setups when they match your runtime, switch to explicit binding only when the runtime can honor it directly, and enable `workflow.cross_ai_execution` only when you need an explicit external fallback.
 
 ### Recommended Presets
 
@@ -511,6 +536,8 @@ Valid override values: `opus`, `sonnet`, `haiku`, `inherit`, or any fully-qualif
 ### Non-Claude Runtimes (Codex, OpenCode, Gemini CLI, Kilo, Hermes)
 
 When GSD is installed for a non-Claude runtime, the installer automatically sets `resolve_model_ids: "omit"` in `~/.gsd/defaults.json`. This causes GSD to return an empty model parameter for all agents, so each agent uses whatever model the runtime is configured with. No additional setup is needed for the default case.
+
+That installer default is the runtime-default omission path from the canonical four-path model above. It is a valid steady-state configuration, not a missing setting.
 
 If you want different agents to use different models, use `model_overrides` with fully-qualified model IDs that your runtime recognizes:
 

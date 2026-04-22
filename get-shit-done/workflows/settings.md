@@ -60,6 +60,9 @@ On non-Claude runtimes (Codex, Gemini CLI, etc.) these profiles have no effect o
 model selection — GSD agents will use the runtime's default model.
 Choose "Inherit" to use the session model for all agents, or configure model_overrides
 manually in .planning/config.json to target specific models for this runtime.
+Use direct binding only when your active runtime truly supports the configured model family.
+Otherwise prefer Inherit, runtime-default omission via resolve_model_ids: "omit", or
+explicit cross_ai_execution fallback.
 ```
 
 Use AskUserQuestion with current values pre-selected:
@@ -199,6 +202,24 @@ AskUserQuestion([
   }
 ])
 ```
+</step>
+
+<step name="runtime_model_visibility">
+Before saving, use canonical query surfaces for runtime/model/cross-AI visibility instead of inferring semantics locally:
+
+```bash
+gsd-sdk query init.progress
+# inspect `runtime_model` for runtime, direct binding vs inherit vs runtime-default, and cross-AI state
+
+gsd-sdk query resolve-model gsd-planner
+gsd-sdk query resolve-model gsd-executor
+```
+
+When explaining the current setup to the user, use the canonical terms from these queries:
+- direct binding
+- inherit
+- runtime-default omission (`resolve_model_ids: "omit"`)
+- explicit cross_ai_execution fallback
 </step>
 
 <step name="update_config">

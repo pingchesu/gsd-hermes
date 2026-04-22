@@ -16,7 +16,7 @@ INIT=$(gsd-sdk query init.progress)
 if [[ "$INIT" == @file:* ]]; then INIT=$(cat "${INIT#@file:}"); fi
 ```
 
-Extract from init JSON: `project_exists`, `roadmap_exists`, `state_exists`, `phases`, `current_phase`, `next_phase`, `milestone_version`, `completed_count`, `phase_count`, `paused_at`, `state_path`, `roadmap_path`, `project_path`, `config_path`.
+Extract from init JSON: `project_exists`, `roadmap_exists`, `state_exists`, `phases`, `current_phase`, `next_phase`, `milestone_version`, `completed_count`, `phase_count`, `paused_at`, `state_path`, `roadmap_path`, `project_path`, `config_path`, `runtime_model`.
 
 ```bash
 DISCUSS_MODE=$(gsd-sdk query config-get workflow.discuss_mode 2>/dev/null || echo "discuss")
@@ -104,6 +104,13 @@ Present:
 **Progress:** {PROGRESS_BAR}
 **Profile:** [quality/balanced/budget/inherit]
 **Discuss mode:** {DISCUSS_MODE}
+
+## Runtime/model/cross-AI
+- Runtime: {runtime_model.runtime}
+- Planner: {runtime_model.agents["gsd-planner"].binding_kind} — {runtime_model.agents["gsd-planner"].resolved_model or "runtime default / inherit"}
+- Executor: {runtime_model.agents["gsd-executor"].binding_kind} — {runtime_model.agents["gsd-executor"].resolved_model or "runtime default / inherit"}
+- Cross-AI: configured={runtime_model.cross_ai.execution_configured}, command={runtime_model.cross_ai.command_configured}, timeout={runtime_model.cross_ai.timeout_seconds or "default"}
+- Treat this section as the canonical runtime/model/cross-AI visibility surface for debugging whether you are on direct binding, inherit, runtime-default omission, or explicit cross-AI fallback.
 
 ## Recent Work
 - [Phase X, Plan Y]: [what was accomplished - 1 line from summary-extract]

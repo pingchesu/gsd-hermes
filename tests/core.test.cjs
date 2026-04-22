@@ -328,14 +328,14 @@ describe('resolveModelInternal', () => {
   });
 
   describe('edge cases', () => {
-    test('returns sonnet for unknown agent type', () => {
+    test('returns empty string for unknown agent type instead of silent sonnet fallback', () => {
       writeConfig({ model_profile: 'balanced' });
-      assert.strictEqual(resolveModelInternal(tmpDir, 'gsd-nonexistent'), 'sonnet');
+      assert.strictEqual(resolveModelInternal(tmpDir, 'gsd-nonexistent'), '');
     });
 
-    test('returns sonnet for unknown agent type even with inherit profile', () => {
+    test('returns empty string for unknown agent type even with inherit profile', () => {
       writeConfig({ model_profile: 'inherit' });
-      assert.strictEqual(resolveModelInternal(tmpDir, 'gsd-nonexistent'), 'sonnet');
+      assert.strictEqual(resolveModelInternal(tmpDir, 'gsd-nonexistent'), '');
     });
 
     test('defaults to balanced profile when model_profile missing', () => {
