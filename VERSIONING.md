@@ -26,7 +26,7 @@ users which upstream GSD base it contains.
 | Tier | What ships | Version format | npm tag | Branch | Install |
 |------|-----------|---------------|---------|--------|---------|
 | **Patch** | Bug fixes, docs, upstream patch syncs | `1.0.1` | `latest` | `hotfix/1.0.1` | `npx gsd-hermes@latest` |
-| **Minor** | Non-breaking Hermes support improvements or upstream minor syncs | `1.1.0` | `latest` (after RC) | `release/1.1.0` | `npx gsd-hermes@next` (RC) |
+| **Minor** | Non-breaking Hermes support improvements, downstream feature milestones, or upstream minor syncs | `1.2.0` | `latest` (after RC) | `release/1.2.0` | `npx gsd-hermes@next` (RC) |
 | **Major** | Breaking downstream CLI, install, or config behavior | `2.0.0` | `latest` (after beta) | `release/2.0.0` | `npx gsd-hermes@next` (beta) |
 
 ## npm Dist-Tags
@@ -53,7 +53,7 @@ The version string (`-rc.1` vs `-beta.1`) communicates stability level. Users ne
 Major and minor releases use different pre-release types:
 
 ```
-Minor: 1.1.0-rc.1   →  1.1.0-rc.2   →  1.1.0
+Minor: 1.2.0-rc.1   →  1.2.0-rc.2   →  1.2.0
 Major: 2.0.0-beta.1 →  2.0.0-beta.2 →  2.0.0
 ```
 
@@ -68,9 +68,9 @@ main                              ← stable, always deployable
   │
   ├── hotfix/1.0.1                ← patch: cherry-pick fix from main, publish to latest
   │
-  ├── release/1.1.0               ← minor: accumulate fixes + enhancements, RC cycle
-  │     ├── v1.1.0-rc.1           ← tag: published to next
-  │     └── v1.1.0                ← tag: promoted to latest
+  ├── release/1.2.0               ← minor: accumulate fixes + enhancements, RC cycle
+  │     ├── v1.2.0-rc.1           ← tag: published to next
+  │     └── v1.2.0                ← tag: promoted to latest
   │
   ├── release/2.0.0               ← major: features + breaking changes, beta cycle
   │     ├── v2.0.0-beta.1         ← tag: published to next
@@ -100,12 +100,12 @@ For critical bugs that can't wait for the next minor release.
 
 For accumulated fixes and enhancements.
 
-1. Trigger `release.yml` with action `create` and version (e.g., `1.1.0`)
-2. Workflow creates `release/1.1.0` branch from main, bumps package.json
-3. Trigger `release.yml` with action `rc` to publish `1.1.0-rc.1` to `next`
+1. Trigger `release.yml` with action `create` and version (e.g., `1.2.0`)
+2. Workflow creates `release/1.2.0` branch from main, bumps package.json
+3. Trigger `release.yml` with action `rc` to publish `1.2.0-rc.1` to `next`
 4. Test the RC: `npx gsd-hermes@next`
 5. If issues found: fix on release branch, publish `rc.2`, `rc.3`, etc.
-6. Trigger `release.yml` with action `finalize` — publishes `1.1.0` to `latest`
+6. Trigger `release.yml` with action `finalize` — publishes `1.2.0` to `latest`
 7. Merge release branch to main
 
 ### Major Release
