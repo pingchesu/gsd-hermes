@@ -38,4 +38,4 @@ Observed behavior verified by tests:
 
 ## Commits
 - Code commit: `a65bb29` — `feat(sdk): enforce validated runner model bindings`
-- Planning summary commit: `4459769` — `docs(planning): summarize plan 06-02 execution`
+- Planning summary: committed separately with force-add because `.planning/` is gitignored
