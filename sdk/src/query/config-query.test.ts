@@ -71,6 +71,7 @@ describe('runtime-model contract', () => {
     expect(Object.keys(RUNTIME_CAPABILITIES).sort()).toEqual([...SUPPORTED_RUNTIMES].sort());
     expect(RUNTIME_CAPABILITIES.codex.supportsCrossAiExecution).toBe(true);
     expect(RUNTIME_CAPABILITIES.codex.explicitModelFamilies).toContain('openai');
+    expect(RUNTIME_CAPABILITIES.hermes.explicitModelFamilies).toEqual(['anthropic', 'openai', 'google', 'unknown']);
   });
 
   it('supports inherit as a compatibility profile input while keeping adaptive valid', async () => {
@@ -218,6 +219,36 @@ describe('strict runtime-model validation', () => {
     expect(result.bindingKind).toBe('explicit');
     expect(result.resolvedModel).toBe('openai/o3');
     expect(result.issue).toBeNull();
+  });
+
+  it('accepts explicit mixed-provider bindings on hermes', async () => {
+    const { validateAgentBinding } = await import('./config-query.js');
+
+    const planner = validateAgentBinding({
+      runtime: 'hermes',
+      model_profile: 'inherit',
+      resolve_model_ids: 'omit',
+      model_overrides: { 'gsd-planner': 'claude-opus-4-7' },
+      workflow: {},
+    }, 'gsd-planner');
+
+    const checker = validateAgentBinding({
+      runtime: 'hermes',
+      model_profile: 'inherit',
+      resolve_model_ids: 'omit',
+      model_overrides: { 'gsd-plan-checker': 'openai/gpt-5.4' },
+      workflow: {},
+    }, 'gsd-plan-checker');
+
+    expect(planner.ok).toBe(true);
+    expect(planner.bindingKind).toBe('explicit');
+    expect(planner.resolvedModel).toBe('claude-opus-4-7');
+    expect(planner.issue).toBeNull();
+
+    expect(checker.ok).toBe(true);
+    expect(checker.bindingKind).toBe('explicit');
+    expect(checker.resolvedModel).toBe('openai/gpt-5.4');
+    expect(checker.issue).toBeNull();
   });
 });
 

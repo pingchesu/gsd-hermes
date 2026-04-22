@@ -92,5 +92,30 @@ describe('cross-AI execution contract surface', () => {
       assert.match(message, /will not auto-route into it/);
       assert.ok(!/route[:=]/i.test(message), 'Phase 6 should suggest cross_ai_execution without claiming active routing');
     });
+
+    test('hermes accepts explicit mixed-provider bindings without cross-ai delegation', async () => {
+      const { validateAgentBinding } = await import(SDK_RUNTIME_MODEL_VALIDATION_PATH);
+
+      const anthropicPlanner = validateAgentBinding({
+        runtime: 'hermes',
+        model_profile: 'inherit',
+        resolve_model_ids: 'omit',
+        model_overrides: { 'gsd-planner': 'claude-opus-4-7' },
+        workflow: { cross_ai_execution: false },
+      }, 'gsd-planner');
+
+      const openAiChecker = validateAgentBinding({
+        runtime: 'hermes',
+        model_profile: 'inherit',
+        resolve_model_ids: 'omit',
+        model_overrides: { 'gsd-plan-checker': 'openai/gpt-5.4' },
+        workflow: { cross_ai_execution: false },
+      }, 'gsd-plan-checker');
+
+      assert.strictEqual(anthropicPlanner.ok, true);
+      assert.strictEqual(anthropicPlanner.issue, null);
+      assert.strictEqual(openAiChecker.ok, true);
+      assert.strictEqual(openAiChecker.issue, null);
+    });
   });
 });

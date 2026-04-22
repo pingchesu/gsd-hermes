@@ -56,11 +56,13 @@ export interface RuntimeCapability {
 
 const OPENAI_COMPATIBLE_RUNTIMES: Runtime[] = ['codex', 'copilot', 'cursor', 'windsurf', 'cline'];
 const GOOGLE_COMPATIBLE_RUNTIMES: Runtime[] = ['gemini'];
+const HERMES_MULTI_PROVIDER_RUNTIMES: Runtime[] = ['hermes'];
 
 function explicitModelFamiliesForRuntime(runtime: Runtime): readonly ModelFamily[] {
   if (runtime === 'claude') return ['anthropic'];
   if (OPENAI_COMPATIBLE_RUNTIMES.includes(runtime)) return ['openai'];
   if (GOOGLE_COMPATIBLE_RUNTIMES.includes(runtime)) return ['google'];
+  if (HERMES_MULTI_PROVIDER_RUNTIMES.includes(runtime)) return ['anthropic', 'openai', 'google', 'unknown'];
   return ['openai', 'google', 'unknown'];
 }
 

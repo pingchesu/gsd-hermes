@@ -1,0 +1,112 @@
+{
+  "mode": "yolo",
+  "granularity": "standard",
+  "runtime": "hermes",
+
+  "model_profile": "inherit",
+  "resolve_model_ids": "omit",
+
+  "model_overrides": {
+    "gsd-planner": "claude-opus-4-7",
+    "gsd-roadmapper": "claude-opus-4-7",
+    "gsd-executor": "openai/gpt-5.4",
+    "gsd-phase-researcher": "claude-opus-4-7",
+    "gsd-project-researcher": "claude-opus-4-7",
+    "gsd-research-synthesizer": "openai/gpt-5.4",
+    "gsd-debugger": "openai/gpt-5.4",
+    "gsd-codebase-mapper": "openai/gpt-5.4",
+    "gsd-verifier": "openai/gpt-5.4",
+    "gsd-plan-checker": "openai/gpt-5.4",
+    "gsd-integration-checker": "openai/gpt-5.4",
+    "gsd-nyquist-auditor": "openai/gpt-5.4",
+    "gsd-pattern-mapper": "openai/gpt-5.4",
+    "gsd-ui-researcher": "claude-opus-4-7",
+    "gsd-ui-checker": "openai/gpt-5.4",
+    "gsd-ui-auditor": "openai/gpt-5.4",
+    "gsd-doc-writer": "claude-opus-4-7",
+    "gsd-doc-verifier": "openai/gpt-5.4"
+  },
+
+  "workflow": {
+    "research": true,
+    "plan_check": true,
+    "verifier": true,
+    "nyquist_validation": true,
+
+    "tdd_mode": false,
+    "auto_advance": false,
+
+    "node_repair": true,
+    "node_repair_budget": 2,
+
+    "ui_phase": true,
+    "ui_safety_gate": true,
+
+    "text_mode": true,
+    "research_before_questions": false,
+    "discuss_mode": "discuss",
+    "skip_discuss": false,
+
+    "cross_ai_execution": false,
+    "cross_ai_command": null,
+    "cross_ai_timeout": 300,
+
+    "max_discuss_passes": 3,
+    "subagent_timeout": 300000,
+
+    "_auto_chain_active": false,
+    "use_worktrees": true
+  },
+
+  "planning": {
+    "commit_docs": true,
+    "search_gitignored": false,
+    "sub_repos": []
+  },
+
+  "parallelization": {
+    "enabled": true,
+    "plan_level": true,
+    "task_level": false,
+    "skip_checkpoints": true,
+    "max_concurrent_agents": 3,
+    "min_plans_for_parallel": 2
+  },
+
+  "gates": {
+    "confirm_project": true,
+    "confirm_phases": true,
+    "confirm_roadmap": true,
+    "confirm_breakdown": true,
+    "confirm_plan": true,
+    "execute_next_plan": true,
+    "issues_review": true,
+    "confirm_transition": true
+  },
+
+  "safety": {
+    "always_confirm_destructive": true,
+    "always_confirm_external_services": true
+  },
+
+  "git": {
+    "branching_strategy": "none",
+    "phase_branch_template": "gsd/phase-{phase}-{slug}",
+    "milestone_branch_template": "gsd/{milestone}-{slug}",
+    "quick_branch_template": null
+  },
+
+  "hooks": {
+    "context_warnings": true,
+    "workflow_guard": true
+  },
+
+  "search_gitignored": false,
+  "brave_search": false,
+  "firecrawl": false,
+  "exa_search": false,
+
+  "project_code": null,
+  "agent_skills": {},
+  "claude_md_path": "./CLAUDE.md"
+}
