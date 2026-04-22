@@ -130,6 +130,33 @@ describe('resolveModel', () => {
     const data = result.data as Record<string, unknown>;
     expect(data).toHaveProperty('model', '');
   });
+
+  it('preserves fully-qualified model_overrides when resolve_model_ids is omit', async () => {
+    const { resolveModel } = await import('./config-query.js');
+    await writeFile(
+      join(tmpDir, '.planning', 'config.json'),
+      JSON.stringify({
+        model_profile: 'inherit',
+        resolve_model_ids: 'omit',
+        model_overrides: {
+          'gsd-planner': 'claude-opus-4-7',
+          'gsd-executor': 'openai/gpt-5.4',
+        },
+      }),
+    );
+
+    const planner = await resolveModel(['gsd-planner'], tmpDir);
+    const plannerData = planner.data as Record<string, unknown>;
+    expect(plannerData).toHaveProperty('model', 'claude-opus-4-7');
+
+    const executor = await resolveModel(['gsd-executor'], tmpDir);
+    const executorData = executor.data as Record<string, unknown>;
+    expect(executorData).toHaveProperty('model', 'openai/gpt-5.4');
+
+    const verifier = await resolveModel(['gsd-verifier'], tmpDir);
+    const verifierData = verifier.data as Record<string, unknown>;
+    expect(verifierData).toHaveProperty('model', '');
+  });
 });
 
 // ─── MODEL_PROFILES ─────────────────────────────────────────────────────────
