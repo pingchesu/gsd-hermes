@@ -7,7 +7,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { execSync, execFileSync, spawnSync } = require('child_process');
-const { MODEL_PROFILES } = require('./model-profiles.cjs');
+const { MODEL_ALIAS_MAP, MODEL_PROFILES, resolveAgentBinding, toLegacyModelToken } = require('./model-profiles.cjs');
 
 const WORKSTREAM_SESSION_ENV_KEYS = [
   'GSD_SESSION_KEY',
@@ -1436,50 +1436,15 @@ function checkAgentsInstalled() {
   };
 }
 
-// ─── Model alias resolution ───────────────────────────────────────────────────
+// ─── Runtime-model contract adapter ──────────────────────────────────────────
 
-/**
- * Map short model aliases to full model IDs.
- * Updated each release to match current model versions.
- * Users can override with model_overrides in config.json for custom/latest models.
- */
-const MODEL_ALIAS_MAP = {
-  'opus': 'claude-opus-4-6',
-  'sonnet': 'claude-sonnet-4-6',
-  'haiku': 'claude-haiku-4-5',
-};
+function resolveModelBindingInternal(cwd, agentType) {
+  const config = loadConfig(cwd);
+  return resolveAgentBinding(config, agentType);
+}
 
 function resolveModelInternal(cwd, agentType) {
-  const config = loadConfig(cwd);
-
-  // Check per-agent override first — always respected regardless of resolve_model_ids.
-  // Users who set fully-qualified model IDs (e.g., "openai/gpt-5.4") get exactly that.
-  const override = config.model_overrides?.[agentType];
-  if (override) {
-    return override;
-  }
-
-  // resolve_model_ids: "omit" — return empty string so the runtime uses its configured
-  // default model. For non-Claude runtimes (OpenCode, Codex, etc.) that don't recognize
-  // Claude aliases (opus/sonnet/haiku/inherit). Set automatically during install. See #1156.
-  if (config.resolve_model_ids === 'omit') {
-    return '';
-  }
-
-  // Fall back to profile lookup
-  const profile = String(config.model_profile || 'balanced').toLowerCase();
-  const agentModels = MODEL_PROFILES[agentType];
-  if (!agentModels) return 'sonnet';
-  if (profile === 'inherit') return 'inherit';
-  const alias = agentModels[profile] || agentModels['balanced'] || 'sonnet';
-
-  // resolve_model_ids: true — map alias to full Claude model ID
-  // Prevents 404s when the Task tool passes aliases directly to the API
-  if (config.resolve_model_ids) {
-    return MODEL_ALIAS_MAP[alias] || alias;
-  }
-
-  return alias;
+  return toLegacyModelToken(resolveModelBindingInternal(cwd, agentType), '');
 }
 
 // ─── Summary body helpers ─────────────────────────────────────────────────
@@ -1759,6 +1724,7 @@ module.exports = {
   findPhaseInternal,
   getArchivedPhaseDirs,
   getRoadmapPhaseInternal,
+  resolveModelBindingInternal,
   resolveModelInternal,
   pathExistsInternal,
   generateSlugInternal,
