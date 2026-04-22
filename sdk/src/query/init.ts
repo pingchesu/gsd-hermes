@@ -25,7 +25,7 @@ import { homedir } from 'node:os';
 
 import { loadConfig, type GSDConfig } from '../config.js';
 import { MODEL_PROFILES } from './config-query.js';
-import { resolveAgentBinding, toInitModelToken } from './runtime-model-contract.js';
+import { resolveAgentBinding, serializeRuntimeModelResolution, toInitModelToken } from './runtime-model-contract.js';
 import { assertAgentBindingsSupported } from './runtime-model-validation.js';
 import { findPhase } from './phase.js';
 import { roadmapGetPhase, getMilestoneInfo } from './roadmap.js';
@@ -45,6 +45,35 @@ function getInitModelContract(
   return {
     token: toInitModelToken(binding),
     binding,
+  };
+}
+
+function getWorkflowConfig(config: GSDConfig): Record<string, unknown> {
+  return (config.workflow ?? {}) as Record<string, unknown>;
+}
+
+export function buildRuntimeModelMetadata(config: GSDConfig, agentTypes: string[]): Record<string, unknown> {
+  const workflow = getWorkflowConfig(config);
+  const uniqueAgents = [...new Set(agentTypes)];
+  const bindings = Object.fromEntries(
+    uniqueAgents.map((agentType) => {
+      const binding = resolveAgentBinding(config, agentType);
+      return [agentType, serializeRuntimeModelResolution(binding)];
+    }),
+  );
+
+  return {
+    runtime_model: {
+      runtime: detectRuntime(config),
+      model_profile: config.model_profile,
+      resolve_model_ids: config.resolve_model_ids ?? null,
+      cross_ai: {
+        execution_configured: workflow.cross_ai_execution === true,
+        command_configured: typeof workflow.cross_ai_command === 'string' && workflow.cross_ai_command.trim() !== '',
+        timeout_seconds: typeof workflow.cross_ai_timeout === 'number' ? workflow.cross_ai_timeout : null,
+      },
+      agents: bindings,
+    },
   };
 }
 
@@ -313,6 +342,7 @@ export const initExecutePhase: QueryHandler = async (args, projectDir) => {
   const projectCode = (config as Record<string, unknown>).project_code as string || '';
 
   const result: Record<string, unknown> = {
+    ...buildRuntimeModelMetadata(config, ['gsd-executor', 'gsd-verifier']),
     executor_model: executorModel,
     verifier_model: verifierModel,
     tdd_mode: config.workflow.tdd_mode ?? false,
@@ -387,6 +417,7 @@ export const initPlanPhase: QueryHandler = async (args, projectDir) => {
 
   const cfg = config as GSDConfig;
   const result: Record<string, unknown> = {
+    ...buildRuntimeModelMetadata(config, ['gsd-phase-researcher', 'gsd-planner', 'gsd-plan-checker']),
     researcher_model: researcherModel,
     planner_model: plannerModel,
     checker_model: checkerModel,
@@ -469,6 +500,7 @@ export const initNewMilestone: QueryHandler = async (_args, projectDir) => {
   const roadmapperModel = getInitModelContract('gsd-roadmapper', config).token;
 
   const result: Record<string, unknown> = {
+    ...buildRuntimeModelMetadata(config, ['gsd-project-researcher', 'gsd-research-synthesizer', 'gsd-roadmapper']),
     researcher_model: researcherModel,
     synthesizer_model: synthesizerModel,
     roadmapper_model: roadmapperModel,
@@ -529,6 +561,7 @@ export const initQuick: QueryHandler = async (args, projectDir) => {
   const verifierModel = getInitModelContract('gsd-verifier', config).token;
 
   const result: Record<string, unknown> = {
+    ...buildRuntimeModelMetadata(config, ['gsd-planner', 'gsd-executor', 'gsd-plan-checker', 'gsd-verifier']),
     planner_model: plannerModel,
     executor_model: executorModel,
     checker_model: checkerModel,
@@ -599,6 +632,7 @@ export const initVerifyWork: QueryHandler = async (args, projectDir) => {
   const checkerModel = getInitModelContract('gsd-plan-checker', config).token;
 
   const result: Record<string, unknown> = {
+    ...buildRuntimeModelMetadata(config, ['gsd-planner', 'gsd-plan-checker']),
     planner_model: plannerModel,
     checker_model: checkerModel,
     commit_docs: config.commit_docs,

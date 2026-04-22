@@ -26,6 +26,7 @@ import {
   VALID_PROFILES,
   getAgentToModelMapForProfile,
   resolveAgentBinding,
+  serializeRuntimeModelResolution,
   toLegacyResolveModelResult,
 } from './runtime-model-contract.js';
 import type { QueryHandler } from './utils.js';
@@ -132,5 +133,23 @@ export const resolveModel: QueryHandler = async (args, projectDir) => {
 
   const config = await loadConfig(projectDir);
   const resolution = resolveAgentBinding(config, agentType);
-  return { data: toLegacyResolveModelResult(resolution) };
+  const legacy = toLegacyResolveModelResult(resolution);
+  const workflow = (config.workflow ?? {}) as Record<string, unknown>;
+
+  return {
+    data: {
+      ...legacy,
+      runtime_model: {
+        runtime: resolution.runtime,
+        model_profile: resolution.profile,
+        resolve_model_ids: resolution.resolveModelIds ?? null,
+        cross_ai: {
+          execution_configured: workflow.cross_ai_execution === true,
+          command_configured: typeof workflow.cross_ai_command === 'string' && workflow.cross_ai_command.trim() !== '',
+          timeout_seconds: typeof workflow.cross_ai_timeout === 'number' ? workflow.cross_ai_timeout : null,
+        },
+        binding: serializeRuntimeModelResolution(resolution),
+      },
+    },
+  };
 };

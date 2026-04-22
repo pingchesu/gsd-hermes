@@ -27,7 +27,7 @@ import { loadConfig } from '../config.js';
 import { resolveModel } from './config-query.js';
 import { planningPaths, normalizePhaseName, phaseTokenMatches, toPosixPath } from './helpers.js';
 import { getMilestoneInfo, extractCurrentMilestone } from './roadmap.js';
-import { withProjectRoot } from './init.js';
+import { withProjectRoot, buildRuntimeModelMetadata } from './init.js';
 import type { QueryHandler } from './utils.js';
 
 // ─── Internal helpers ──────────────────────────────────────────────────────
@@ -282,6 +282,7 @@ export const initProgress: QueryHandler = async (_args, projectDir, _workstream)
   } catch { /* intentionally empty */ }
 
   const result: Record<string, unknown> = {
+    ...buildRuntimeModelMetadata(config, ['gsd-executor', 'gsd-planner']),
     executor_model: await getModelAlias('gsd-executor', projectDir),
     planner_model: await getModelAlias('gsd-planner', projectDir),
 
