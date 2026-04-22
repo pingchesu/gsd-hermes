@@ -96,8 +96,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm pack --silent
-          TARBALL=$(ls get-shit-done-cc-*.tgz | head -1)
+          TARBALL=$(npm pack --silent | tail -n 1)
+          test -f "$TARBALL"
           echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
           echo "Packed: $TARBALL"
 
@@ -120,6 +120,7 @@ jobs:
           TMPDIR_ROOT=$(mktemp -d)
           cd "$TMPDIR_ROOT"
           npm install -g "$WORKSPACE/$TARBALL"
+          command -v gsd-hermes
           command -v get-shit-done-cc
           # `--claude --local` is the non-interactive code path (see
           # install.js main block: when both a runtime and location are set,
@@ -127,7 +128,7 @@ jobs:
           # We tolerate non-zero here because the authoritative assertion is
           # the next step: gsd-sdk must land on PATH. Some runtime targets
           # may exit before the SDK step for unrelated reasons on CI.
-          get-shit-done-cc --claude --local || true
+          gsd-hermes --claude --local || true
 
       - name: Assert gsd-sdk resolves on PATH
         if: steps.skip.outputs.skip != 'true'
