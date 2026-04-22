@@ -290,6 +290,44 @@ describe('PhaseRunner', () => {
     });
   });
 
+  // ─── Strict binding enforcement ────────────────────────────────────────
+
+  describe('strict binding enforcement', () => {
+    it('blocks unsupported planning bindings before any planning session starts', async () => {
+      const config = makeConfig({
+        runtime: 'codex',
+        model_profile: 'balanced',
+        workflow: { skip_discuss: true, research: true, plan_check: true, verifier: false } as any,
+      });
+      const phaseOp = makePhaseOp({ has_context: true, has_plans: true, plan_count: 1 });
+      const deps = makeDeps({ config });
+      (deps.tools.initPhaseOp as ReturnType<typeof vi.fn>).mockResolvedValue(phaseOp);
+
+      const runner = new PhaseRunner(deps);
+
+      await expect(runner.run('1')).rejects.toThrow(/Unsupported runtime\/model binding before planning step group\./);
+      expect(mockRunPhaseStepSession).not.toHaveBeenCalled();
+    });
+
+    it('blocks unsupported execution bindings before any execute session starts', async () => {
+      const config = makeConfig({
+        runtime: 'codex',
+        model_profile: 'inherit',
+        resolve_model_ids: 'omit',
+        model_overrides: { 'gsd-executor': 'claude-opus-4-7' },
+        workflow: { skip_discuss: true, research: false, plan_check: false, verifier: false } as any,
+      });
+      const phaseOp = makePhaseOp({ has_context: true, has_plans: true, plan_count: 1 });
+      const deps = makeDeps({ config });
+      (deps.tools.initPhaseOp as ReturnType<typeof vi.fn>).mockResolvedValue(phaseOp);
+
+      const runner = new PhaseRunner(deps);
+
+      await expect(runner.run('1')).rejects.toThrow(/Unsupported runtime\/model binding before execution step group\./);
+      expect(mockRunPhaseStepSession.mock.calls.some(call => call[1] === PhaseStepType.Execute)).toBe(false);
+    });
+  });
+
   // ─── Execute iterates plans ────────────────────────────────────────────
 
   describe('execute step', () => {
@@ -1383,15 +1421,53 @@ Use TypeScript.`, 'utf-8');
       await runner.run('1', {
         maxBudgetPerStep: 2.0,
         maxTurnsPerStep: 20,
-        model: 'claude-opus-4-6',
       });
 
-      // Check session options passed to runPhaseStepSession
       const call = mockRunPhaseStepSession.mock.calls[0];
       const sessionOpts = call[3] as SessionOptions;
       expect(sessionOpts.maxBudgetUsd).toBe(2.0);
       expect(sessionOpts.maxTurns).toBe(20);
-      expect(sessionOpts.model).toBe('claude-opus-4-6');
+    });
+
+    it('passes the validated explicit planner model to plan sessions', async () => {
+      const phaseOp = makePhaseOp({ has_context: true, has_plans: true, plan_count: 1 });
+      const config = makeConfig({
+        runtime: 'claude',
+        model_profile: 'inherit',
+        resolve_model_ids: 'omit',
+        model_overrides: { 'gsd-planner': 'claude-opus-4-7' },
+        workflow: { research: false, verifier: false, skip_discuss: true, plan_check: false } as any,
+      });
+      const deps = makeDeps({ config });
+      (deps.tools.initPhaseOp as ReturnType<typeof vi.fn>).mockResolvedValue(phaseOp);
+
+      const runner = new PhaseRunner(deps);
+      await runner.run('1');
+
+      const planCall = mockRunPhaseStepSession.mock.calls.find(call => call[1] === PhaseStepType.Plan);
+      expect(planCall).toBeDefined();
+      const sessionOpts = planCall![3] as SessionOptions;
+      expect(sessionOpts.model).toBe('claude-opus-4-7');
+    });
+
+    it('omits the model for runtime-default execute sessions', async () => {
+      const phaseOp = makePhaseOp({ has_context: true, has_plans: true, plan_count: 1 });
+      const config = makeConfig({
+        runtime: 'codex',
+        model_profile: 'balanced',
+        resolve_model_ids: 'omit',
+        workflow: { research: false, verifier: false, skip_discuss: true, plan_check: false } as any,
+      });
+      const deps = makeDeps({ config });
+      (deps.tools.initPhaseOp as ReturnType<typeof vi.fn>).mockResolvedValue(phaseOp);
+
+      const runner = new PhaseRunner(deps);
+      await runner.run('1');
+
+      const executeCall = mockRunPhaseStepSession.mock.calls.find(call => call[1] === PhaseStepType.Execute);
+      expect(executeCall).toBeDefined();
+      const sessionOpts = executeCall![3] as SessionOptions;
+      expect(sessionOpts.model).toBeUndefined();
     });
   });
 
