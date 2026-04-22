@@ -12,9 +12,10 @@ That is why this project exists: preserve the upstream GSD workflow, track upstr
 
 > [!NOTE]
 > **Version identity:** `gsd-hermes` uses its own npm version line starting at `1.0.0`.
-> This release is based on upstream `get-shit-done-cc@1.38.2`.
-> This upstream minor sync is released as `gsd-hermes@1.1.0`.
-> Do not mirror upstream as `gsd-hermes@1.38.2`; the downstream package version and upstream base are tracked separately.
+> The upstream GSD base and the downstream `gsd-hermes` release line are tracked separately.
+> The next downstream feature release is `gsd-hermes@1.2.0`, centered on **Cross-Provider Agent Execution** rather than a plain upstream sync.
+> That release line packages strict runtime/model binding, Hermes mixed-provider direct execution, and explicit `cross_ai_execution` fallback semantics without changing the standard GSD workflow.
+> Do not mirror upstream package numbers directly into `gsd-hermes`; the fork ships its own release story.
 
 ---
 
@@ -24,7 +25,7 @@ That is why this project exists: preserve the upstream GSD workflow, track upstr
 
 **English** · [Português](README.pt-BR.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja-JP.md) · [한국어](README.ko-KR.md)
 
-**A downstream get-shit-done fork with first-class Hermes Agent runtime support, while preserving the upstream GSD workflow for Claude Code, OpenCode, Gemini CLI, Kilo, Codex, Copilot, Cursor, Windsurf, Antigravity, Augment, Trae, Qwen Code, Cline, and CodeBuddy.**
+**A downstream get-shit-done fork with first-class Hermes Agent runtime support and cross-provider runtime/model execution semantics, while preserving the upstream GSD workflow for Claude Code, OpenCode, Gemini CLI, Kilo, Codex, Copilot, Cursor, Windsurf, Antigravity, Augment, Trae, Qwen Code, Cline, and CodeBuddy.**
 
 **Solves context rot — the quality degradation that happens as Claude fills its context window.**
 
@@ -107,11 +108,12 @@ People who want to describe what they want and have it built correctly — witho
 
 Built-in quality gates catch real problems: schema drift detection flags ORM changes missing migrations, security enforcement anchors verification to threat models, and scope reduction detection prevents the planner from silently dropping your requirements.
 
-### v1.37.0 Highlights
+### v1.2.0 Highlights
 
-- **Spiking & sketching** — `/gsd-spike` runs 2–5 focused experiments with Given/When/Then verdicts; `/gsd-sketch` produces 2–3 interactive HTML mockup variants per design question — both store artifacts in `.planning/` and pair with wrap-up commands to package findings into project-local skills
-- **Agent size-budget enforcement** — Tiered line-count limits (XL: 1 600, Large: 1 000, Default: 500) keep agent prompts lean; violations surface in CI
-- **Shared boilerplate extraction** — Mandatory-initial-read and project-skills-discovery logic extracted to reference files, reducing duplication across a dozen agents
+- **Cross-Provider Agent Execution** — Hermes can now honor different provider/model bindings per agent in the same project, so planning, checking, execution, and verification no longer have to pretend one runtime model fits every role.
+- **Strict runtime/model binding** — Configured bindings are now enforced exactly or fail fast with actionable diagnostics; unsupported direct bindings no longer silently fall back to a different provider or model.
+- **Explicit external fallback path** — `cross_ai_execution` remains available, but only as a deliberate opt-in fallback path rather than an implicit provider-translation shortcut.
+- **Operator-visible runtime state** — Init/workflow surfaces and canonical docs now make the four runtime-model paths easier to reason about: explicit binding, `inherit`, runtime-default omission, and explicit cross-AI fallback.
 
 ---
 
@@ -121,13 +123,15 @@ Built-in quality gates catch real problems: schema drift detection flags ORM cha
 npx gsd-hermes@latest
 ```
 
-If the npm package is not published yet, install directly from GitHub:
+If you need the unreleased main branch before the next npm publish, install directly from GitHub:
 
 ```bash
 npx --yes github:pingchesu/gsd-hermes
 ```
 
-Release maintainers can publish through GitHub Actions; see [docs/npm-publishing.md](docs/npm-publishing.md).
+Release maintainers can publish through GitHub Actions; see [docs/npm-publishing.md](docs/npm-publishing.md). The prepared release copy for the next feature release lives at [docs/releases/v1.2.0-cross-provider-agent-execution.md](docs/releases/v1.2.0-cross-provider-agent-execution.md).
+
+Hermes users who want planner/checker/executor/verifier to run on different LLMs should start with the mixed-provider examples in [docs/CONFIGURATION.md](docs/CONFIGURATION.md#cross-provider-agent-execution-hermes-example).
 
 The installer prompts you to choose:
 1. **Runtime** — Hermes Agent, Claude Code, OpenCode, Gemini, Kilo, Codex, Copilot, Cursor, Windsurf, Antigravity, Augment, Trae, Qwen Code, CodeBuddy, Cline, or all (interactive multi-select — pick multiple runtimes in a single install session)

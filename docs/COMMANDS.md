@@ -161,6 +161,8 @@ Research, plan, and verify a phase.
 
 Runtime-model semantics for this command follow the canonical four-path model in [`CONFIGURATION.md`](CONFIGURATION.md#canonical-runtime-model-semantics): explicit binding, `inherit`, runtime-default omission, and explicit `cross_ai_execution` fallback.
 
+For the `gsd-hermes` v1.2.0 Cross-Provider Agent Execution path, that means phase research, planning, and plan checking may each resolve to different provider/model bindings under `runtime: "hermes"`. Unsupported explicit direct bindings fail before planning starts and surface a suggested fix instead of silently falling back.
+
 ```bash
 /gsd-plan-phase 1                   # Research + plan + verify phase 1
 /gsd-plan-phase 3 --skip-research   # Plan without research (familiar domain)
@@ -224,6 +226,8 @@ Execute all plans in a phase with wave-based parallelization, or run a specific 
 **Produces:** per-plan `{phase}-{N}-SUMMARY.md`, git commits, and `{phase}-VERIFICATION.md` when the phase is fully complete
 
 This command prefers direct runtime support when available. `--cross-ai` and `workflow.cross_ai_execution` opt into the explicit external fallback path; they do not imply automatic provider translation.
+
+In the `gsd-hermes` v1.2.0 Cross-Provider Agent Execution model, Hermes can execute directly with mixed provider/model bindings (for example, planner on Claude and executor/verifier on OpenAI) as long as the runtime can honor those bindings. `--cross-ai` remains the explicit fallback knob when you want external delegation instead.
 
 ```bash
 /gsd-execute-phase 1                # Execute phase 1

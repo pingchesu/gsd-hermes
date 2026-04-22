@@ -539,30 +539,37 @@ When GSD is installed for a non-Claude runtime, the installer automatically sets
 
 That installer default is the runtime-default omission path from the canonical four-path model above. It is a valid steady-state configuration, not a missing setting.
 
-If you want different agents to use different models, use `model_overrides` with fully-qualified model IDs that your runtime recognizes:
+If you want different agents to use different models, use `model_overrides` with fully-qualified model IDs that your runtime recognizes. For Hermes, this is the direct **Cross-Provider Agent Execution** path:
 
 ```json
 {
+  "runtime": "hermes",
+  "model_profile": "inherit",
   "resolve_model_ids": "omit",
   "model_overrides": {
-    "gsd-planner": "openai/o3",
-    "gsd-executor": "openai/o4-mini",
-    "gsd-debugger": "openai/o3",
-    "gsd-codebase-mapper": "openai/o4-mini"
+    "gsd-phase-researcher": "claude-opus-4-7",
+    "gsd-planner": "claude-opus-4-7",
+    "gsd-plan-checker": "openai/gpt-5.4",
+    "gsd-executor": "openai/gpt-5.4",
+    "gsd-verifier": "openai/gpt-5.4"
   }
 }
 ```
 
-The intent is the same as the Claude profile tiers -- use a stronger model for planning and debugging (where reasoning quality matters most), and a cheaper model for execution and mapping (where the plan already contains the reasoning).
+In this setup Hermes stays on the direct runtime path: GSD asks for the configured bindings directly and only accepts them when the runtime can honor them. Unsupported direct bindings fail fast with explicit diagnostics instead of silently translating into `cross_ai_execution`.
+
+The intent is the same as the Claude profile tiers -- use a stronger model for planning and debugging (where reasoning quality matters most), and a cheaper or faster model for execution and verification when that trade-off makes sense.
 
 **When to use which approach:**
 
 | Scenario | Setting | Effect |
 |----------|---------|--------|
 | Non-Claude runtime, single model | `resolve_model_ids: "omit"` (installer default) | All agents use the runtime's default model |
+| Hermes, mixed-provider direct execution | `runtime: "hermes"` + `resolve_model_ids: "omit"` + fully-qualified `model_overrides` | Hermes honors each agent's configured provider/model directly |
 | Non-Claude runtime, tiered models | `resolve_model_ids: "omit"` + `model_overrides` | Named agents use specific models, others use runtime default |
 | Claude Code with OpenRouter/local provider | `model_profile: "inherit"` | All agents follow the session model |
 | Claude Code with OpenRouter, tiered | `model_profile: "inherit"` + `model_overrides` | Named agents use specific models, others inherit |
+| Provider-restricted runtime needing external delegation | `workflow.cross_ai_execution: true` + `workflow.cross_ai_command` | Execution uses an explicit external fallback path |
 
 **`resolve_model_ids` values:**
 
@@ -571,6 +578,16 @@ The intent is the same as the Claude profile tiers -- use a stronger model for p
 | `false` (default) | Returns Claude aliases (`opus`, `sonnet`, `haiku`) | Claude Code with native Anthropic API |
 | `true` | Maps aliases to full Claude model IDs (`claude-opus-4-6`) | Claude Code with API that requires full IDs |
 | `"omit"` | Returns empty string (runtime picks its default) | Non-Claude runtimes (Codex, OpenCode, Gemini CLI, Kilo, Hermes) |
+
+### Cross-Provider Agent Execution (Hermes example)
+
+The flagship `gsd-hermes` v1.2.0 capability is direct mixed-provider execution under `runtime: "hermes"`. The important rule is simple:
+
+- If Hermes can honor the configured provider/model binding directly, GSD keeps it on the direct runtime path.
+- If the configured direct binding is unsupported, GSD fails fast with an actionable error.
+- GSD does **not** silently rewrite an invalid direct binding into `cross_ai_execution`.
+
+That separation keeps runtime truthfulness intact: Hermes can serve as a multi-provider runtime adapter, while `cross_ai_execution` stays an explicit external fallback rather than an invisible downgrade.
 
 ### Profile Philosophy
 
