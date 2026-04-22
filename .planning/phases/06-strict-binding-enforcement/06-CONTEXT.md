@@ -6,47 +6,47 @@
 <domain>
 ## Phase Boundary
 
-Add fail-fast validation so unsupported runtime/model combinations are rejected before planning or execution proceeds, with actionable diagnostics for explicit, inherited, and runtime-default bindings. This phase should enforce the Phase 5 contract in workflow/runner entry points without broadening into Phase 7 cross-AI hardening or Phase 8 full workflow-wide rollout.
+Add fail-fast validation so unsupported runtime/model combinations are rejected before planning or execution proceeds, with actionable diagnostics for explicit, inherited, and runtime-default bindings. This phase enforces the Phase 5 runtime-model contract at real workflow/runtime entry points, but does not expand into Phase 7 cross-AI hardening or Phase 8 broad rollout and cleanup.
 
 </domain>
 
 <decisions>
 ## Implementation Decisions
 
-### Validation trigger points
-- **D-01:** Phase 6 should not add new blocking validation to `config-set` or general init-time config mutation.
-- **D-02:** Fail-fast validation should trigger only when a plan or execution flow is actually about to run, so the user gets blocked before real execution but not while merely editing config.
-- **D-03:** `plan-phase` and `execute-phase` entry paths are the primary fail-fast gates for this phase.
+### Validation Trigger Points
+- **D-01:** Phase 6 must not introduce new blocking validation in `config-set` or other config editing flows.
+- **D-02:** Fail-fast validation must trigger only when a plan or execute flow is actually about to run.
+- **D-03:** The primary validation gates for this phase are `plan-phase` and `execute-phase` entry paths.
 
-### Error diagnostics
-- **D-04:** Every fail-fast error must be highly explicit and include the agent, runtime, configured or resolved model, failure reason, suggested fix, and whether `cross_ai_execution` is a valid alternative.
-- **D-05:** Error output should be optimized for operator action, not terse CLI brevity.
-- **D-06:** Phase 6 should define a reusable error-shape contract rather than ad hoc strings per caller.
+### Error Diagnostics
+- **D-04:** Every fail-fast error must include the agent, runtime, configured or resolved model, failure reason, suggested fix, and whether `cross_ai_execution` is a valid alternative.
+- **D-05:** Error output should optimize for operator action and diagnosis, not terse CLI brevity.
+- **D-06:** Phase 6 should use a reusable structured error-shape contract rather than ad hoc strings per caller.
 
-### Compatibility policy
+### Compatibility Policy
 - **D-07:** Only explicitly unsupported model selections should block execution in this phase.
-- **D-08:** Legacy configurations that do not explicitly request unsupported bindings should keep existing behavior.
-- **D-09:** `resolve_model_ids: "omit"` runtime-default behavior remains valid and must not be treated as an execution error by itself.
+- **D-08:** Legacy configurations that do not explicitly request unsupported bindings should preserve current behavior.
+- **D-09:** `resolve_model_ids: "omit"` remains valid runtime-default behavior and must not be treated as an error by itself.
 
-### Execution integration boundary
-- **D-10:** Phase 6 should implement fail-fast checks in workflow entry paths and also add an execution-time guard in `phase-runner`.
-- **D-11:** Phase 6 should not deeply rewrite `session-runner`; leave deeper execution backend unification for later work unless a minimal adjacent fix is strictly necessary.
-- **D-12:** `cross_ai_execution` may appear in suggested fixes, but this phase must not harden or expand that path beyond recommendation-level handling.
+### Execution Integration Boundary
+- **D-10:** Phase 6 should add fail-fast validation in workflow entry paths and a second safety guard in `phase-runner`.
+- **D-11:** Phase 6 should not deeply rewrite `session-runner`; only a minimal adjacent fix is allowed if absolutely necessary for correctness.
+- **D-12:** `cross_ai_execution` may appear in suggested fixes, but this phase must not harden or broaden cross-AI behavior beyond recommendation-level handling.
 
 ### Claude's Discretion
-- Exact module placement for shared validation helpers, as long as they consume the Phase 5 contract.
-- Whether the workflow-facing guard is implemented in dedicated helper functions or directly in `plan-phase` / `execute-phase` orchestration support code.
-- The exact formatting of multi-line error output, provided the required fields remain visible and structured.
+- Exact helper/module placement for the validation layer, as long as it consumes the Phase 5 contract instead of duplicating semantics.
+- Exact wire format for structured errors, as long as all required diagnostic fields remain visible.
+- Whether the workflow-facing checks are implemented in dedicated helper functions or local orchestration support code, as long as the checks stay consistent.
 
 </decisions>
 
 <specifics>
 ## Specific Ideas
 
-- The user wants the system to "噴錯讓我知道" as soon as a real plan/execute run would use an unsupported binding.
-- The user explicitly chose a conservative integration boundary: block at runtime entry points first, not at config editing time.
-- The user wants precise operator-facing diagnostics, not vague validation failures.
-- The user wants `cross_ai_execution` surfaced as an escape hatch in errors, but not implemented as implicit fallback.
+- The user wants the system to "噴錯讓我知道" when a real plan/execute run would use an unsupported binding.
+- The user explicitly prefers conservative integration: do not break config-editing flows just to surface errors earlier.
+- The user wants high-detail, operator-friendly diagnostics instead of generic validation failures.
+- The user wants `cross_ai_execution` suggested as an escape hatch when applicable, but not silently used as fallback.
 
 </specifics>
 
@@ -56,26 +56,27 @@ Add fail-fast validation so unsupported runtime/model combinations are rejected 
 **Downstream agents MUST read these before planning or implementing.**
 
 ### Phase and milestone requirements
-- `.planning/ROADMAP.md` — Phase 6 goal, success criteria, dependency on Phase 5, and scope boundary relative to Phases 7 and 8.
+- `.planning/ROADMAP.md` — Phase 6 goal, success criteria, dependency on Phase 5, and boundary relative to Phases 7 and 8.
 - `.planning/REQUIREMENTS.md` — Phase 6 requirements `SBV-01`, `SBV-02`, `SBV-03`, `SBV-04`.
-- `.planning/PROJECT.md` — milestone goal and high-level product intent for strict per-agent model enforcement.
+- `.planning/PROJECT.md` — milestone-level strict model enforcement intent.
 
-### Prior phase outputs
-- `.planning/phases/05-runtime-model-contract/05-CONTEXT.md` — locked Phase 5 decisions that Phase 6 must respect.
-- `.planning/phases/05-runtime-model-contract/05-RESEARCH.md` — Phase 5 findings on current runtime/model semantics, parity, and migration constraints.
-- `.planning/phases/05-runtime-model-contract/05-01-SUMMARY.md` — SDK-first contract work already completed.
-- `.planning/phases/05-runtime-model-contract/05-02-SUMMARY.md` — legacy CJS parity work already completed.
+### Phase 5 outputs that define current truth
+- `.planning/phases/05-runtime-model-contract/05-CONTEXT.md` — locked Phase 5 decisions that Phase 6 must enforce, not reopen.
+- `.planning/phases/05-runtime-model-contract/05-RESEARCH.md` — current runtime/model semantics, migration constraints, and validation architecture from Phase 5.
+- `.planning/phases/05-runtime-model-contract/05-01-SUMMARY.md` — SDK-first contract implementation already completed.
+- `.planning/phases/05-runtime-model-contract/05-02-SUMMARY.md` — legacy CJS parity implementation already completed.
 
-### Runtime-model implementation surface
-- `sdk/src/query/runtime-model-contract.ts` — canonical Phase 5 runtime-model contract.
-- `sdk/src/query/config-query.ts` — current resolver entry point that now adapts the contract.
-- `sdk/src/query/init.ts` — init payload generation that must not silently flatten unsupported states.
+### Runtime-model implementation surfaces
+- `sdk/src/query/runtime-model-contract.ts` — canonical runtime-model contract introduced in Phase 5.
+- `sdk/src/query/config-query.ts` — current SDK resolver adapter over the contract.
+- `sdk/src/query/init.ts` — workflow/init payload boundary that must not flatten unsupported states silently.
 - `sdk/src/phase-runner.ts` — target location for execution-time guard in this phase.
-- `sdk/src/session-runner.ts` — boundary file to avoid over-expanding in this phase.
+- `sdk/src/session-runner.ts` — explicit boundary file to avoid over-expanding in this phase.
+- `get-shit-done/bin/lib/model-profiles.cjs` — legacy parity surface already aligned to contract semantics.
 
-### Operator-facing docs
-- `docs/CONFIGURATION.md` — documented user semantics for model settings and `cross_ai_execution`.
-- `docs/USER-GUIDE.md` — runtime-facing user expectations and remediation language.
+### Operator-facing docs and expectations
+- `docs/CONFIGURATION.md` — current documented model-setting and `cross_ai_execution` semantics.
+- `docs/USER-GUIDE.md` — runtime-facing remediation and expected behavior surface.
 
 [If no external specs: "No external specs — requirements fully captured in decisions above"]
 </canonical_refs>
@@ -84,30 +85,30 @@ Add fail-fast validation so unsupported runtime/model combinations are rejected 
 ## Existing Code Insights
 
 ### Reusable Assets
-- `sdk/src/query/runtime-model-contract.ts` already contains the structured binding contract from Phase 5.
-- `sdk/src/query/config-query.ts` already adapts structured contract results and is the natural place to reuse validation helpers.
-- `sdk/src/phase-runner.ts` is the right execution-time orchestration seam for a final pre-run guard.
-- `sdk/src/query/init.ts` already provides workflow entry payloads that Phase 6 can enrich or validate against.
+- `sdk/src/query/runtime-model-contract.ts` already contains the contract data and structured binding semantics from Phase 5.
+- `sdk/src/query/config-query.ts` already adapts structured contract outcomes and is the natural place to reuse validation helpers.
+- `sdk/src/query/init.ts` is already the pre-run workflow payload seam for plan-phase.
+- `sdk/src/phase-runner.ts` is the natural runtime guard seam for execute-time defense in depth.
 
 ### Established Patterns
-- The repo now distinguishes explicit, inherit, and runtime-default binding semantics at the contract layer.
-- `config-set` and config loading are intentionally permissive enough that runtime-facing checks should happen closer to execution.
-- `cross_ai_execution` is already a documented config surface, but hardening is intentionally deferred.
-- Phase 5 already made SDK the source of truth, so Phase 6 should consume that contract rather than rebuild validation logic separately.
+- The repo now distinguishes explicit, inherit, and runtime-default semantics at the contract layer.
+- Config editing is intentionally more permissive than runtime execution, which supports the chosen conservative validation trigger strategy.
+- `cross_ai_execution` exists as documented config surface, but hardening is intentionally deferred to Phase 7.
+- SDK is now the source of truth for runtime-model semantics; Phase 6 should consume that instead of recreating resolution logic.
 
 ### Integration Points
-- `plan-phase` should fail fast before planning proceeds when the resolved planner/checker/research bindings are unsupported.
-- `execute-phase` should fail fast before plan execution proceeds when the resolved executor/verifier bindings are unsupported.
-- `phase-runner` should provide an execution-time safety guard in case a caller reaches execution without going through the expected workflow gate.
+- `plan-phase` should block before planning proceeds when resolved planner/checker/research bindings are explicitly unsupported.
+- `execute-phase` should block before execution proceeds when executor/verifier bindings are explicitly unsupported.
+- `phase-runner` should add a final execution-time guard so direct SDK paths cannot bypass the intended validation.
 
 </code_context>
 
 <deferred>
 ## Deferred Ideas
 
-- Full `cross_ai_execution` command/output validation and routing hardening — Phase 7.
-- Broad workflow-wide propagation across all model-passing surfaces and docs migration rollout — Phase 8.
-- Deep `session-runner` backend redesign — later phase unless a minimal fix proves unavoidable.
+- Full `cross_ai_execution` hardening, command/output validation, and routing behavior — Phase 7.
+- Broad workflow-wide rollout across all model-passing surfaces and full docs cleanup — Phase 8.
+- Deep `session-runner` redesign or backend unification — later phase unless a minimal correctness fix becomes unavoidable.
 
 </deferred>
 

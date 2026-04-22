@@ -5,18 +5,18 @@
 
 ## Summary
 
-Phase 6 discussion focused on where fail-fast validation should happen, how detailed the error messages should be, how conservative migration behavior should remain, and how far execution-path integration should go in this phase.
+Phase 6 discussion focused on where fail-fast validation should trigger, how explicit the error output should be, how conservative backward compatibility should remain, and how far execution-time integration should go in this phase.
 
 ## Captured Decisions
 
 ### Validation trigger points
-- The user chose a conservative trigger strategy.
+- The user chose the conservative trigger strategy.
 - Do not add new blocking validation in `config-set`.
-- Do not move fail-fast to generic init-time config editing flows.
-- Fail-fast should happen when plan/execute is actually about to run.
+- Do not move fail-fast into generic config editing or passive init-time flows.
+- Trigger fail-fast only when planning or execution is actually about to run.
 
 ### Error diagnostics
-- The user chose the most explicit diagnostic style.
+- The user chose the most detailed diagnostic style.
 - Every fail-fast error must include:
   - agent
   - runtime
@@ -27,26 +27,26 @@ Phase 6 discussion focused on where fail-fast validation should happen, how deta
 
 ### Legacy config compatibility
 - The user wants compatibility preserved unless an unsupported explicit model is requested.
-- Legacy configs should not start failing just because Phase 6 becomes stricter.
-- `resolve_model_ids: "omit"` remains valid runtime-default behavior.
+- Existing configs should keep working when they do not explicitly request an unsupported binding.
+- `resolve_model_ids: "omit"` remains a valid runtime-default state.
 
 ### Execution integration boundary
 - The user chose the middle integration boundary.
 - Add fail-fast checks in workflow entry paths.
-- Add an execution-time guard in `phase-runner`.
+- Add a second safety guard in `phase-runner`.
 - Do not deeply rewrite `session-runner` in this phase.
 
 ## Notes
 
-- The user wants runtime enforcement to be real, but not at the cost of broad config-editing breakage.
-- The user prefers an operator-first CLI experience where failures are explicit and actionable.
-- The user is intentionally deferring deeper cross-AI runtime behavior and backend redesign to later phases.
+- The user wants real enforcement, but not at the cost of broad config-editing breakage.
+- The user prefers actionable operator-facing diagnostics over concise generic errors.
+- The user explicitly does not want `cross_ai_execution` to become an implicit fallback in this phase.
 
 ## Deferred to Later Phases
 
 - `cross_ai_execution` hardening and malformed-output handling
-- broader workflow-wide rollout and documentation cleanup
-- deeper `session-runner` / backend unification
+- broader workflow-wide rollout and docs cleanup
+- deep `session-runner` / backend unification
 
 ---
 
