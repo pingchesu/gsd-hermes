@@ -235,10 +235,7 @@ describe('Source code integration (Kilo)', () => {
   });
 
   test('settings.json write excludes Kilo', () => {
-    assert.ok(
-      /if \([\s\S]{0,140}!isKilo[\s\S]{0,140}writeSettings/.test(src),
-      'settings write excludes kilo'
-    );
+    assert.ok(src.includes('!isCodex && !isCopilot && !isKilo && !isCursor && !isWindsurf'), 'settings write excludes kilo');
   });
 
   test('agent path replacement does not exclude Kilo', () => {

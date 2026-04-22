@@ -77,7 +77,7 @@ function formatRegistryRawStdout(matchedCmd: string, data: unknown): string {
 
   if (matchedCmd === 'config-set') {
     const d = data as Record<string, unknown>;
-    if (d.set === true && d.key !== undefined) {
+    if ((d.updated === true || d.set === true) && d.key !== undefined) {
       const v = d.value;
       if (v === null || v === undefined) {
         return `${d.key}=`;
@@ -117,6 +117,8 @@ export class GSDTools {
     workstream?: string;
     /** When set, mutation handlers emit the same events as `gsd-sdk query`. */
     eventStream?: GSDEventStream;
+    /** Correlation id for mutation events when `eventStream` is set. */
+    sessionId?: string;
     /**
      * When true (default), route known commands through the SDK query registry.
      * Set false in tests that substitute a mock `gsdToolsPath` script.
@@ -129,7 +131,7 @@ export class GSDTools {
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.workstream = opts.workstream;
     this.preferNativeQuery = opts.preferNativeQuery ?? true;
-    this.registry = createRegistry(opts.eventStream);
+    this.registry = createRegistry(opts.eventStream, opts.sessionId);
   }
 
   private shouldUseNativeQuery(): boolean {
@@ -188,6 +190,8 @@ export class GSDTools {
       }, this.timeoutMs);
     });
     try {
+      // Promise.race rejects when the timeout fires but does not cancel the handler promise;
+      // native handlers may still run to completion (unlike subprocess + execFile timeout).
       return await Promise.race([work, timeoutPromise]);
     } finally {
       if (timeoutId !== undefined) {
@@ -543,6 +547,34 @@ export class GSDTools {
   async configSet(key: string, value: string): Promise<string> {
     return this.dispatchNativeRaw('config-set', [key, value], 'config-set', [key, value]);
   }
+}
+
+/**
+ * Run `gsd-sdk query` semantics in-process: normalize argv, resolve registry, dispatch.
+ * Returns handler JSON payload (same as stdout from the `gsd-sdk query` CLI without `--pick`).
+ */
+export async function runGsdToolsQuery(projectDir: string, queryArgv: string[]): Promise<unknown> {
+  const { createRegistry } = await import('./query/index.js');
+  const { resolveQueryArgv } = await import('./query/registry.js');
+  const { normalizeQueryCommand } = await import('./query/normalize-query-command.js');
+  const { GSDError, ErrorClassification } = await import('./errors.js');
+
+  if (queryArgv.length === 0 || !queryArgv[0]) {
+    throw new GSDError('runGsdToolsQuery requires a command', ErrorClassification.Validation);
+  }
+  const queryCommand = queryArgv[0];
+  const [normCmd, normArgs] = normalizeQueryCommand(queryCommand, queryArgv.slice(1));
+  const registry = createRegistry();
+  const tokens = [normCmd, ...normArgs];
+  const matched = resolveQueryArgv(tokens, registry);
+  if (!matched) {
+    throw new GSDError(
+      `Unknown command: "${tokens.join(' ')}". No native handler registered.`,
+      ErrorClassification.Validation,
+    );
+  }
+  const result = await registry.dispatch(matched.cmd, matched.args, projectDir);
+  return result.data;
 }
 
 // ─── Path resolution ────────────────────────────────────────────────────────

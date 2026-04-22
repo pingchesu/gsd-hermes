@@ -21,6 +21,7 @@ import { join, dirname, relative, resolve, isAbsolute, normalize } from 'node:pa
 import { realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { GSDError, ErrorClassification } from '../errors.js';
+import { relPlanningPath } from '../workstream-utils.js';
 
 // ─── Runtime-aware agents directory resolution ─────────────────────────────
 
@@ -286,10 +287,12 @@ export function toPosixPath(p: string): string {
  */
 export function stateExtractField(content: string, fieldName: string): string | null {
   const escaped = escapeRegex(fieldName);
-  const boldPattern = new RegExp(`\\*\\*${escaped}:\\*\\*\\s*(.+)`, 'i');
+  // Horizontal whitespace only after ':' so YAML blocks like `progress:\n  total:` do not
+  // match as `Progress:` with a multi-line "value" (parity with STATE.md body fields).
+  const boldPattern = new RegExp(`\\*\\*${escaped}:\\*\\*[ \\t]*(.+)`, 'i');
   const boldMatch = content.match(boldPattern);
   if (boldMatch) return boldMatch[1].trim();
-  const plainPattern = new RegExp(`^${escaped}:\\s*(.+)`, 'im');
+  const plainPattern = new RegExp(`^${escaped}:[ \\t]*(.+)`, 'im');
   const plainMatch = content.match(plainPattern);
   return plainMatch ? plainMatch[1].trim() : null;
 }
@@ -404,14 +407,16 @@ export function normalizeMd(content: string): string {
 /**
  * Get common .planning file paths for a project directory.
  *
- * Simplified version (no workstream/project env vars).
+ * When `workstream` is provided, all paths are rooted under
+ * `.planning/workstreams/<workstream>` instead of `.planning`.
  * All paths returned in POSIX format.
  *
  * @param projectDir - Root project directory
+ * @param workstream - Optional workstream name (see relPlanningPath)
  * @returns Object with paths to common .planning files
  */
-export function planningPaths(projectDir: string): PlanningPaths {
-  const base = join(projectDir, '.planning');
+export function planningPaths(projectDir: string, workstream?: string): PlanningPaths {
+  const base = join(projectDir, relPlanningPath(workstream));
   return {
     planning: toPosixPath(base),
     state: toPosixPath(join(base, 'STATE.md')),
@@ -448,4 +453,33 @@ export async function resolvePathUnderProject(projectDir: string, userPath: stri
     throw new GSDError('path escapes project directory', ErrorClassification.Validation);
   }
   return realCandidate;
+}
+
+// ─── sanitizeForDisplay (security.cjs) ───────────────────────────────────────
+
+/** Port of `sanitizeForPrompt` from `security.cjs`. */
+export function sanitizeForPrompt(text: string): string {
+  let sanitized = text;
+  sanitized = sanitized.replace(/[\u200B-\u200F\u2028-\u202F\uFEFF\u00AD]/g, '');
+  sanitized = sanitized.replace(
+    /<(\/?)(?:system|assistant|human)>/gi,
+    (_, slash: string) => `＜${slash || ''}system-text＞`,
+  );
+  sanitized = sanitized.replace(/\[(SYSTEM|INST)\]/gi, '[$1-TEXT]');
+  sanitized = sanitized.replace(/<<\s*SYS\s*>>/gi, '«SYS-TEXT»');
+  return sanitized;
+}
+
+/** Port of `sanitizeForDisplay` from `security.cjs` (matches CLI JSON). */
+export function sanitizeForDisplay(text: string): string {
+  let sanitized = sanitizeForPrompt(text);
+  const protocolLeakPatterns = [
+    /^\s*(?:assistant|user|system)\s+to=[^:\s]+:[^\n]+$/i,
+    /^\s*<\|(?:assistant|user|system)[^|]*\|>\s*$/i,
+  ];
+  sanitized = sanitized
+    .split('\n')
+    .filter(line => !protocolLeakPatterns.some(pattern => pattern.test(line)))
+    .join('\n');
+  return sanitized;
 }

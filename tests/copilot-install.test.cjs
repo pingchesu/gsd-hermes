@@ -159,10 +159,7 @@ describe('Source code integration (Copilot)', () => {
   });
 
   test('hooks are skipped for Copilot', () => {
-    assert.ok(
-      /shouldInstallStatusline[\s\S]{0,180}!isCopilot/.test(src),
-      'hooks skip check includes copilot'
-    );
+    assert.ok(src.includes('!isCodex && !isCopilot'), 'hooks skip check includes copilot');
   });
 
   test('--both flag unchanged (still claude + opencode only)', () => {
@@ -1103,9 +1100,9 @@ describe('Copilot manifest and patches fixes', () => {
   });
 });
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 // E2E Integration Tests — Copilot Install & Uninstall
-// ============================================================================
+// ----------------------------------------------------------------------------
 
 const { execFileSync } = require('child_process');
 const crypto = require('crypto');
@@ -1119,7 +1116,7 @@ const EXPECTED_AGENTS = fs.readdirSync(path.join(__dirname, '..', 'agents'))
 function runCopilotInstall(cwd) {
   const env = { ...process.env };
   delete env.GSD_TEST_MODE;
-  return execFileSync(process.execPath, [INSTALL_PATH, '--copilot', '--local'], {
+  return execFileSync(process.execPath, [INSTALL_PATH, '--copilot', '--local', '--no-sdk'], {
     cwd,
     encoding: 'utf-8',
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -1130,7 +1127,7 @@ function runCopilotInstall(cwd) {
 function runCopilotUninstall(cwd) {
   const env = { ...process.env };
   delete env.GSD_TEST_MODE;
-  return execFileSync(process.execPath, [INSTALL_PATH, '--copilot', '--local', '--uninstall'], {
+  return execFileSync(process.execPath, [INSTALL_PATH, '--copilot', '--local', '--uninstall', '--no-sdk'], {
     cwd,
     encoding: 'utf-8',
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -1379,7 +1376,7 @@ describe('E2E: Copilot uninstall verification', () => {
 function runClaudeInstall(cwd) {
   const env = { ...process.env };
   delete env.GSD_TEST_MODE;
-  return execFileSync(process.execPath, [INSTALL_PATH, '--claude', '--local'], {
+  return execFileSync(process.execPath, [INSTALL_PATH, '--claude', '--local', '--no-sdk'], {
     cwd,
     encoding: 'utf-8',
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -1390,7 +1387,7 @@ function runClaudeInstall(cwd) {
 function runClaudeUninstall(cwd) {
   const env = { ...process.env };
   delete env.GSD_TEST_MODE;
-  return execFileSync(process.execPath, [INSTALL_PATH, '--claude', '--local', '--uninstall'], {
+  return execFileSync(process.execPath, [INSTALL_PATH, '--claude', '--local', '--uninstall', '--no-sdk'], {
     cwd,
     encoding: 'utf-8',
     stdio: ['pipe', 'pipe', 'pipe'],

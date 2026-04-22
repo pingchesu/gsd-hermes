@@ -71,24 +71,24 @@ describe('multi-runtime selection parsing', () => {
     assert.deepStrictEqual(parseRuntimeInput('8'), ['cursor']);
   });
 
-  test('single choice for hermes', () => {
-    assert.deepStrictEqual(parseRuntimeInput('11'), ['hermes']);
-  });
-
   test('comma-separated choices return multiple runtimes', () => {
     assert.deepStrictEqual(parseRuntimeInput('1,7,9'), ['claude', 'copilot', 'gemini']);
-    assert.deepStrictEqual(parseRuntimeInput('2,3,11'), ['antigravity', 'augment', 'hermes']);
+    assert.deepStrictEqual(parseRuntimeInput('2,3'), ['antigravity', 'augment']);
     assert.deepStrictEqual(parseRuntimeInput('3,6'), ['augment', 'codex']);
   });
 
   test('space-separated choices return multiple runtimes', () => {
     assert.deepStrictEqual(parseRuntimeInput('1 7 9'), ['claude', 'copilot', 'gemini']);
-    assert.deepStrictEqual(parseRuntimeInput('8 10 11'), ['cursor', 'kilo', 'hermes']);
+    assert.deepStrictEqual(parseRuntimeInput('8 10'), ['cursor', 'kilo']);
   });
 
   test('mixed comma and space separators work', () => {
     assert.deepStrictEqual(parseRuntimeInput('1, 7, 9'), ['claude', 'copilot', 'gemini']);
     assert.deepStrictEqual(parseRuntimeInput('2 , 8'), ['antigravity', 'cursor']);
+  });
+
+  test('single choice for hermes', () => {
+    assert.deepStrictEqual(parseRuntimeInput('11'), ['hermes']);
   });
 
   test('single choice for opencode', () => {
@@ -130,17 +130,16 @@ describe('multi-runtime selection parsing', () => {
   test('duplicate choices are deduplicated', () => {
     assert.deepStrictEqual(parseRuntimeInput('1,1,1'), ['claude']);
     assert.deepStrictEqual(parseRuntimeInput('7,7,9,9'), ['copilot', 'gemini']);
-    assert.deepStrictEqual(parseRuntimeInput('11,11,7,11'), ['hermes', 'copilot']);
   });
 
   test('preserves selection order', () => {
     assert.deepStrictEqual(parseRuntimeInput('9,1,7'), ['gemini', 'claude', 'copilot']);
-    assert.deepStrictEqual(parseRuntimeInput('11,10,2,8'), ['hermes', 'kilo', 'antigravity', 'cursor']);
+    assert.deepStrictEqual(parseRuntimeInput('10,2,8'), ['kilo', 'antigravity', 'cursor']);
   });
 });
 
 describe('install.js source contains multi-select support', () => {
-  test('runtimeMap is defined with all 15 runtimes including hermes', () => {
+  test('runtimeMap is defined with all 15 runtimes', () => {
     for (const [key, name] of Object.entries(runtimeMap)) {
       assert.ok(
         installSrc.includes(`'${key}': '${name}'`),
@@ -164,10 +163,14 @@ describe('install.js source contains multi-select support', () => {
     );
   });
 
-  test('prompt lists Hermes as option 11, Qwen Code as option 13, Trae as option 14, Windsurf as option 15 and All as option 16', () => {
+  test('prompt lists Hermes as option 11, OpenCode as option 12, Qwen Code as option 13, Trae as option 14 and All as option 16', () => {
     assert.ok(
       installSrc.includes('11${reset}) Hermes'),
       'prompt lists Hermes as option 11'
+    );
+    assert.ok(
+      installSrc.includes('12${reset}) OpenCode'),
+      'prompt lists OpenCode as option 12'
     );
     assert.ok(
       installSrc.includes('13${reset}) Qwen Code'),
@@ -178,41 +181,8 @@ describe('install.js source contains multi-select support', () => {
       'prompt lists Trae as option 14'
     );
     assert.ok(
-      installSrc.includes('15${reset}) Windsurf'),
-      'prompt lists Windsurf as option 15'
-    );
-    assert.ok(
       installSrc.includes('16${reset}) All'),
       'prompt lists All as option 16'
-    );
-  });
-
-  test('installer source exposes --hermes flag and help text', () => {
-    assert.ok(
-      installSrc.includes("args.includes('--hermes')"),
-      '--hermes flag is parsed'
-    );
-    assert.ok(
-      installSrc.includes('--hermes${reset}'),
-      '--hermes help text is present'
-    );
-    assert.ok(
-      installSrc.includes('global or project-linked mode'),
-      'Hermes help text states supported global and project-linked modes'
-    );
-    assert.ok(
-      installSrc.includes('skills.external_dirs'),
-      'Hermes help text explains project-linked external_dirs support'
-    );
-  });
-
-  test('installer source keeps upstream hasAll selection structure with hermes', () => {
-    const hasAllBlock = installSrc.match(/const hasAll = args\.includes\('--all'\);[\s\S]{0,900}?if \(hasAll\) \{[\s\S]{0,500}?selectedRuntimes = \[([\s\S]*?)\];/);
-    assert.ok(hasAllBlock, 'hasAll block with selectedRuntimes assignment found');
-    assert.ok(hasAllBlock[1].includes("'hermes'"), 'hasAll selectedRuntimes includes hermes');
-    assert.ok(
-      !installSrc.includes('args.all'),
-      'installer does not use a non-upstream args.all shape'
     );
   });
 

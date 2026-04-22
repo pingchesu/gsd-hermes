@@ -19,6 +19,19 @@ syncs from.
 - **`init` query agents-installed check looks at the correct directory** — `checkAgentsInstalled` in `sdk/src/query/init.ts` defaulted to `~/.claude/get-shit-done/agents/`, but the installer writes GSD agents to `~/.claude/agents/`. Every init query therefore reported `agents_installed: false` on clean installs, which made workflows refuse to spawn `gsd-executor` and other parallel subagents. The default now matches `sdk/src/init-runner.ts` and the installer (#2400)
 - **Installer now installs `@gsd-build/sdk` automatically** so `gsd-sdk` lands on PATH. Resolves `command not found: gsd-sdk` errors that affected every `/gsd-*` command after a fresh install or `/gsd-update` to 1.36+. Adds `--no-sdk` to opt out and `--sdk` to force reinstall. Implements the `--sdk` flag that was previously documented in README but never wired up (#2385)
 
+## [1.1.0] - 2026-04-22
+
+GSD Hermes package version: `1.1.0`
+Upstream GSD base: `get-shit-done-cc@1.38.2`
+
+### Changed
+- **Upstream sync to `get-shit-done-cc@1.38.2`** — Merged the stable upstream `1.38.2` base into the Hermes fork while preserving the independent `gsd-hermes` package identity, Hermes runtime support, and downstream release policy.
+- **Release metadata now records the new upstream base** — README and changelog now identify this downstream release as `gsd-hermes@1.1.0` based on upstream `get-shit-done-cc@1.38.2`, instead of mirroring upstream package versions.
+
+### Fixed
+- **Hermes compatibility gate expanded after upstream sync** — `npm run test:hermes` now includes deterministic installer, runtime selection, SDK install fallback, and SDK model config coverage so Hermes global/project-linked installs and `resolve_model_ids: "omit"` behavior stay covered.
+- **Hermes non-Claude model override docs clarified** — Configuration docs now include Hermes in the non-Claude runtime guidance and use fully-qualified `model_overrides` examples.
+
 ## [1.0.1] - 2026-04-20
 
 GSD Hermes package version: `1.0.1`

@@ -53,7 +53,7 @@ Output a dependency suggestion table:
 
 ```
 Phase Dependency Analysis
-=========================
+-------------------------
 
 Phase N: <name>
   Scope: <brief scope>
