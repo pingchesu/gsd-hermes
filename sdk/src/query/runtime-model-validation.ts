@@ -53,6 +53,239 @@ export interface BindingValidationSummary {
   issues: BindingValidationIssue[];
 }
 
+export type CrossAiRoutingDecision = 'disabled' | 'forced' | 'required' | 'direct';
+
+export interface CrossAiRoutingResolution {
+  decision: CrossAiRoutingDecision;
+  source: 'cli' | 'config' | 'frontmatter' | 'direct-binding';
+  shouldUseCrossAi: boolean;
+  crossAiRequired: boolean;
+  directRuntimeBindingValid: boolean;
+  reason: string;
+}
+
+export interface CrossAiSummaryValidationResult {
+  valid: boolean;
+  partial: boolean;
+  missingSections: string[];
+}
+
+export type CrossAiExecutionFailureKind = 'missing-command' | 'timeout' | 'non-zero-exit' | 'malformed-summary' | 'partial-execution';
+
+export interface CrossAiExecutionResult {
+  ok: boolean;
+  failureKind: CrossAiExecutionFailureKind | null;
+  reason: string;
+  routing: CrossAiRoutingResolution;
+  summaryValidation: CrossAiSummaryValidationResult | null;
+}
+
+function hasSection(text: string, pattern: RegExp): boolean {
+  return pattern.test(text);
+}
+
+function normalizeCrossAiCommand(command: string | null | undefined): string {
+  return typeof command === 'string' ? command.trim() : '';
+}
+
+export function resolveCrossAiRouting(options: {
+  cliForce?: boolean;
+  cliDisabled?: boolean;
+  configCrossAiExecution?: boolean | null;
+  planFrontmatterCrossAi?: boolean | null;
+  directRuntimeBindingValid?: boolean;
+}): CrossAiRoutingResolution {
+  const {
+    cliForce = false,
+    cliDisabled = false,
+    configCrossAiExecution,
+    planFrontmatterCrossAi,
+    directRuntimeBindingValid = false,
+  } = options;
+
+  if (cliDisabled) {
+    return {
+      decision: 'disabled',
+      source: 'cli',
+      shouldUseCrossAi: false,
+      crossAiRequired: false,
+      directRuntimeBindingValid,
+      reason: 'Cross-AI execution disabled by CLI flag --no-cross-ai.',
+    };
+  }
+
+  if (cliForce) {
+    return {
+      decision: 'forced',
+      source: 'cli',
+      shouldUseCrossAi: true,
+      crossAiRequired: true,
+      directRuntimeBindingValid,
+      reason: 'Cross-AI execution forced by CLI flag --cross-ai.',
+    };
+  }
+
+  if (directRuntimeBindingValid) {
+    return {
+      decision: 'direct',
+      source: 'direct-binding',
+      shouldUseCrossAi: false,
+      crossAiRequired: false,
+      directRuntimeBindingValid,
+      reason: 'Direct runtime binding is valid, so cross-AI execution is not required.',
+    };
+  }
+
+  if (typeof configCrossAiExecution === 'boolean') {
+    return configCrossAiExecution
+      ? {
+          decision: 'required',
+          source: 'config',
+          shouldUseCrossAi: true,
+          crossAiRequired: true,
+          directRuntimeBindingValid,
+          reason: 'Cross-AI execution required by workflow.cross_ai_execution config.',
+        }
+      : {
+          decision: 'disabled',
+          source: 'config',
+          shouldUseCrossAi: false,
+          crossAiRequired: false,
+          directRuntimeBindingValid,
+          reason: 'Cross-AI execution disabled by workflow.cross_ai_execution config.',
+        };
+  }
+
+  if (planFrontmatterCrossAi) {
+    return {
+      decision: 'required',
+      source: 'frontmatter',
+      shouldUseCrossAi: true,
+      crossAiRequired: true,
+      directRuntimeBindingValid,
+      reason: 'Cross-AI execution required by plan frontmatter.',
+    };
+  }
+
+  return {
+    decision: 'disabled',
+    source: 'frontmatter',
+    shouldUseCrossAi: false,
+    crossAiRequired: false,
+    directRuntimeBindingValid,
+    reason: 'Cross-AI execution not requested by config or plan frontmatter.',
+  };
+}
+
+export function validateExternalSummaryContract(summaryText: string | null | undefined): CrossAiSummaryValidationResult {
+  const text = typeof summaryText === 'string' ? summaryText.trim() : '';
+  const missingSections: string[] = [];
+
+  if (!text) {
+    return {
+      valid: false,
+      partial: false,
+      missingSections: ['completion summary', 'what changed', 'verification results'],
+    };
+  }
+
+  const hasCompletionSummary = hasSection(text, /^##?\s*(?:summary|outcome|completion|result)\b/im);
+  const hasWhatChanged = hasSection(text, /^##?\s*(?:what changed|changes|files changed|modified files)\b/im);
+  const hasVerification = hasSection(text, /^##?\s*(?:verification|validation|tests?|checks?)\b/im);
+  const hasDeviationSection = hasSection(text, /^##?\s*(?:issues encountered|deviations|failures|problems|risks|scope\s*\/\s*deviations)\b/im);
+  const indicatesPartialExecution = /(partial(?:ly)?\s+execut|incomplete|not\s+completed|left\s+unfinished|remaining work|deviation|failed|failure|skipped verification|verification not run)/i.test(text);
+
+  if (!hasCompletionSummary) missingSections.push('completion summary');
+  if (!hasWhatChanged) missingSections.push('what changed');
+  if (!hasVerification) missingSections.push('verification results');
+  if (indicatesPartialExecution && !hasDeviationSection) missingSections.push('failure/deviation section');
+
+  return {
+    valid: missingSections.length === 0,
+    partial: indicatesPartialExecution,
+    missingSections,
+  };
+}
+
+export function evaluateCrossAiExecutionResult(options: {
+  routing: CrossAiRoutingResolution;
+  crossAiCommand?: string | null;
+  exitCode: number;
+  timedOut?: boolean;
+  summaryText?: string | null;
+}): CrossAiExecutionResult {
+  const { routing, crossAiCommand, exitCode, timedOut = false, summaryText } = options;
+
+  if (routing.shouldUseCrossAi && normalizeCrossAiCommand(crossAiCommand) === '') {
+    return {
+      ok: false,
+      failureKind: 'missing-command',
+      reason: 'Cross-AI routing requires workflow.cross_ai_command, but no command is configured.',
+      routing,
+      summaryValidation: null,
+    };
+  }
+
+  if (!routing.shouldUseCrossAi) {
+    return {
+      ok: true,
+      failureKind: null,
+      reason: routing.reason,
+      routing,
+      summaryValidation: null,
+    };
+  }
+
+  if (timedOut) {
+    return {
+      ok: false,
+      failureKind: 'timeout',
+      reason: 'Cross-AI command timed out before producing an acceptable result.',
+      routing,
+      summaryValidation: null,
+    };
+  }
+
+  if (exitCode !== 0) {
+    return {
+      ok: false,
+      failureKind: 'non-zero-exit',
+      reason: `Cross-AI command exited with status ${exitCode}.`,
+      routing,
+      summaryValidation: null,
+    };
+  }
+
+  const summaryValidation = validateExternalSummaryContract(summaryText);
+  if (!summaryValidation.valid) {
+    return {
+      ok: false,
+      failureKind: 'malformed-summary',
+      reason: `Cross-AI output did not satisfy the minimum SUMMARY contract. Missing: ${summaryValidation.missingSections.join(', ')}.`,
+      routing,
+      summaryValidation,
+    };
+  }
+
+  if (summaryValidation.partial) {
+    return {
+      ok: false,
+      failureKind: 'partial-execution',
+      reason: 'Cross-AI output reported a partial or incomplete execution result.',
+      routing,
+      summaryValidation,
+    };
+  }
+
+  return {
+    ok: true,
+    failureKind: null,
+    reason: 'Cross-AI execution produced an acceptable SUMMARY contract.',
+    routing,
+    summaryValidation,
+  };
+}
+
 function buildSuggestedFix(binding: RuntimeModelResolution): string {
   if (binding.kind === 'unsupported') {
     return binding.suggestedFix;
