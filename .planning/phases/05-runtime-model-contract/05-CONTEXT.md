@@ -15,7 +15,7 @@ Define the canonical runtime capability contract plus shared model resolution an
 
 ### Source of Truth
 - **D-01:** The Phase 5 runtime-model contract must use the SDK as the primary source of truth, with legacy CJS behavior updated afterward to match SDK semantics.
-- **D-02:** Phase 5 should introduce an explicit runtime capability contract as a clear shared data structure (registry/table/type), not leave capability rules scattered across resolver logic.
+- **D-02:** Phase 5 should introduce an explicit runtime capability contract using a clear shared data structure (registry/table/type), not leave capability rules scattered across runtime-model code paths.
 
 ### Binding Semantics
 - **D-03:** `resolve_model_ids: "omit"` producing an empty model is a valid runtime-default binding state, not an invalid or missing model.

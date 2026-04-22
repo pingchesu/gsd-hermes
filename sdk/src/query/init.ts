@@ -49,7 +49,7 @@ function getInitModelContract(
 }
 
 function getWorkflowConfig(config: GSDConfig): Record<string, unknown> {
-  return (config.workflow ?? {}) as Record<string, unknown>;
+  return (config.workflow ?? {}) as unknown as Record<string, unknown>;
 }
 
 export function buildRuntimeModelMetadata(config: GSDConfig, agentTypes: string[]): Record<string, unknown> {

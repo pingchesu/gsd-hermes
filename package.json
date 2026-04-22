@@ -60,6 +60,7 @@
     "prepublishOnly": "npm run build:hooks",
     "test:hermes": "node scripts/validate-hermes-compat.cjs",
     "test": "node scripts/run-tests.cjs",
+    "pretest:coverage": "npm --prefix sdk ci && npm --prefix sdk run build",
     "test:coverage": "c8 --check-coverage --lines 70 --reporter text --include 'get-shit-done/bin/lib/*.cjs' --exclude 'tests/**' --all node scripts/run-tests.cjs"
   }
 }
