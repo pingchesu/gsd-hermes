@@ -17,23 +17,14 @@ import { getToolsForPhase } from './tool-scoping.js';
 // ─── Model resolution ────────────────────────────────────────────────────────
 
 /**
- * Resolve model identifier from options or config profile.
+ * Resolve model identifier from session options only.
  *
- * Priority: explicit model option > config model_profile > default.
+ * Phase 6 intentionally stops session-runner from re-deriving models from the
+ * generic config model_profile map. Callers that need a concrete model must
+ * pass the already-validated per-agent token via SessionOptions.model.
  */
-function resolveModel(options?: SessionOptions, config?: GSDConfig): string | undefined {
+function resolveModel(options?: SessionOptions, _config?: GSDConfig): string | undefined {
   if (options?.model) return options.model;
-
-  // Map model_profile names to model IDs
-  if (config?.model_profile) {
-    const profileMap: Record<string, string> = {
-      balanced: 'claude-sonnet-4-6',
-      quality: 'claude-opus-4-6',
-      speed: 'claude-haiku-4-5',
-    };
-    return profileMap[config.model_profile] ?? config.model_profile;
-  }
-
   return undefined; // Let SDK use its default
 }
 

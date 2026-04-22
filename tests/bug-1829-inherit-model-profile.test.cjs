@@ -25,6 +25,11 @@ const path = require('path');
 const { runGsdTools, createTempProject, cleanup } = require('./helpers.cjs');
 
 const { resolveModelInternal } = require('../get-shit-done/bin/lib/core.cjs');
+const { pathToFileURL } = require('url');
+
+const SDK_RUNTIME_MODEL_VALIDATION_PATH = pathToFileURL(
+  path.join(__dirname, '..', 'sdk', 'dist', 'query', 'runtime-model-validation.js')
+).href;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -214,5 +219,46 @@ describe('bug #1829: model_profile "inherit" — validate health does not warn W
       output.warnings.some(w => w.code === 'W004'),
       `Invalid profile should trigger W004: ${JSON.stringify(output.warnings)}`
     );
+  });
+});
+
+describe('Phase 6 migration-safe omit and inherit behavior', () => {
+  test('runtime-default omission stays valid for codex when no unsupported explicit model is requested', async () => {
+    const { validateAgentBindings } = await import(SDK_RUNTIME_MODEL_VALIDATION_PATH);
+    const summary = validateAgentBindings({
+      runtime: 'codex',
+      model_profile: 'balanced',
+      resolve_model_ids: 'omit',
+      workflow: {
+        research: true,
+        plan_check: true,
+        verifier: true,
+        cross_ai_execution: false,
+      },
+    }, ['gsd-phase-researcher', 'gsd-planner', 'gsd-executor', 'gsd-verifier']);
+
+    assert.strictEqual(summary.ok, true);
+    assert.deepStrictEqual(summary.issues, []);
+    assert.ok(summary.results.every(result => result.ok));
+    assert.ok(summary.results.every(result => result.binding.bindingKind === 'runtime-default'));
+  });
+
+  test('inherit stays valid for codex when no unsupported explicit model is requested', async () => {
+    const { validateAgentBindings } = await import(SDK_RUNTIME_MODEL_VALIDATION_PATH);
+    const summary = validateAgentBindings({
+      runtime: 'codex',
+      model_profile: 'inherit',
+      workflow: {
+        research: true,
+        plan_check: true,
+        verifier: true,
+        cross_ai_execution: false,
+      },
+    }, ['gsd-phase-researcher', 'gsd-planner', 'gsd-executor', 'gsd-verifier']);
+
+    assert.strictEqual(summary.ok, true);
+    assert.deepStrictEqual(summary.issues, []);
+    assert.ok(summary.results.every(result => result.ok));
+    assert.ok(summary.results.every(result => result.binding.bindingKind === 'inherit'));
   });
 });

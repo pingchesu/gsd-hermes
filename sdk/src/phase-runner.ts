@@ -29,6 +29,8 @@ import { runPhaseStepSession, runPlanSession } from './session-runner.js';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { checkResearchGate } from './research-gate.js';
+import { assertAgentBindingsSupported } from './query/runtime-model-validation.js';
+import { resolveAgentBinding } from './query/runtime-model-contract.js';
 
 // ─── Error type ──────────────────────────────────────────────────────────────
 
@@ -59,6 +61,9 @@ export interface PhaseRunnerDeps {
   config: GSDConfig;
   logger?: GSDLogger;
 }
+
+const PLANNING_GUARD_AGENTS = ['gsd-phase-researcher', 'gsd-planner', 'gsd-plan-checker'] as const;
+const EXECUTION_GUARD_AGENTS = ['gsd-executor', 'gsd-verifier'] as const;
 
 // ─── PhaseRunner ─────────────────────────────────────────────────────────────
 
@@ -180,6 +185,7 @@ export class PhaseRunner {
 
     // ── Step 2: Research ──
     if (!halted) {
+      this.assertStepGroupBindingsSupported('planning');
       if (!this.config.workflow.research) {
         this.logger?.debug('Skipping research: config.workflow.research=false');
       } else {
@@ -248,6 +254,7 @@ export class PhaseRunner {
 
     // ── Step 4: Execute ──
     if (!halted) {
+      this.assertStepGroupBindingsSupported('execution');
       const executeResult = await this.retryOnce('execute', () => this.runExecuteStep(phaseNumber, sessionOpts));
       steps.push(executeResult);
     }
@@ -309,6 +316,53 @@ export class PhaseRunner {
     };
   }
 
+  private assertStepGroupBindingsSupported(group: 'planning' | 'execution'): void {
+    const agents = (group === 'planning' ? PLANNING_GUARD_AGENTS : EXECUTION_GUARD_AGENTS)
+      .filter((agent) => this.isAgentEnabledForValidation(agent));
+
+    if (agents.length === 0) return;
+
+    assertAgentBindingsSupported(
+      this.config,
+      [...agents],
+      group === 'planning' ? 'planning step group' : 'execution step group',
+    );
+  }
+
+  private isAgentEnabledForValidation(agent: string): boolean {
+    if (agent === 'gsd-plan-checker') return this.config.workflow.plan_check !== false;
+    if (agent === 'gsd-verifier') return this.config.workflow.verifier !== false;
+    return true;
+  }
+
+  private stepToAgent(step: PhaseStepType): string | null {
+    const mapping: Partial<Record<PhaseStepType, string>> = {
+      [PhaseStepType.Research]: 'gsd-phase-researcher',
+      [PhaseStepType.Plan]: 'gsd-planner',
+      [PhaseStepType.PlanCheck]: 'gsd-plan-checker',
+      [PhaseStepType.Execute]: 'gsd-executor',
+      [PhaseStepType.Verify]: 'gsd-verifier',
+    };
+
+    return mapping[step] ?? null;
+  }
+
+  private withValidatedStepModel(step: PhaseStepType, sessionOpts: SessionOptions): SessionOptions {
+    const agent = this.stepToAgent(step);
+    if (!agent) return sessionOpts;
+
+    const binding = resolveAgentBinding(this.config, agent);
+    if (binding.kind !== 'resolved') {
+      return { ...sessionOpts, model: undefined };
+    }
+
+    if (binding.bindingKind === 'inherit' || binding.bindingKind === 'runtime-default') {
+      return { ...sessionOpts, model: undefined };
+    }
+
+    return { ...sessionOpts, model: binding.modelToken ?? undefined };
+  }
+
   // ─── Step runners ──────────────────────────────────────────────────────
 
   /**
@@ -357,12 +411,13 @@ export class PhaseRunner {
 
       // Supplement with plan-checker instructions
       prompt += '\n\n## Plan Checker Instructions\n\nYou are a plan checker. Review the plans for this phase and verify they are well-formed, complete, and achievable. If all plans pass, output "VERIFICATION PASSED". If any issues are found, output "ISSUES FOUND" followed by a description of each issue.';
+      const resolvedSessionOpts = this.withValidatedStepModel(PhaseStepType.PlanCheck, sessionOpts);
 
       planResult = await runPhaseStepSession(
         prompt,
         PhaseStepType.PlanCheck,
         this.config,
-        sessionOpts,
+        resolvedSessionOpts,
         this.eventStream,
         { phase: PhaseType.Verify, planName: undefined },
       );
@@ -520,12 +575,13 @@ export class PhaseRunner {
       const phaseType = this.stepToPhaseType(step);
       const contextFiles = await this.contextEngine.resolveContextFiles(phaseType);
       const prompt = await this.promptFactory.buildPrompt(phaseType, null, contextFiles);
+      const resolvedSessionOpts = this.withValidatedStepModel(step, sessionOpts);
 
       planResult = await runPhaseStepSession(
         prompt,
         step,
         this.config,
-        sessionOpts,
+        resolvedSessionOpts,
         this.eventStream,
         { phase: phaseType, planName: undefined },
       );
@@ -755,12 +811,13 @@ export class PhaseRunner {
       const phaseType = PhaseType.Execute;
       const contextFiles = await this.contextEngine.resolveContextFiles(phaseType);
       const prompt = await this.promptFactory.buildPrompt(phaseType, null, contextFiles);
+      const resolvedSessionOpts = this.withValidatedStepModel(PhaseStepType.Execute, sessionOpts);
 
       return await runPhaseStepSession(
         prompt,
         PhaseStepType.Execute,
         this.config,
-        sessionOpts,
+        resolvedSessionOpts,
         this.eventStream,
         { phase: phaseType, planName: planId },
       );
@@ -815,12 +872,13 @@ export class PhaseRunner {
         const phaseType = PhaseType.Verify;
         const contextFiles = await this.contextEngine.resolveContextFiles(phaseType);
         const prompt = await this.promptFactory.buildPrompt(phaseType, null, contextFiles);
+        const resolvedSessionOpts = this.withValidatedStepModel(PhaseStepType.Verify, sessionOpts);
 
         lastResult = await runPhaseStepSession(
           prompt,
           PhaseStepType.Verify,
           this.config,
-          sessionOpts,
+          resolvedSessionOpts,
           this.eventStream,
           { phase: phaseType },
         );
