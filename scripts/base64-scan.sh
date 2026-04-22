@@ -148,12 +148,6 @@ extract_and_check_blobs() {
   local found=0
   local line_num=0
 
-  # Most changed files contain no long base64-like blobs. Use grep's C
-  # implementation as a fast prefilter before the slower shell line scanner.
-  if ! LC_ALL=C grep -qE '[A-Za-z0-9+/]{'"$MIN_BLOB_LENGTH"',}={0,3}' "$file" 2>/dev/null; then
-    return 0
-  fi
-
   while IFS= read -r line; do
     line_num=$((line_num + 1))
 
@@ -180,7 +174,7 @@ extract_and_check_blobs() {
 
       # Try to decode — if it fails, not valid base64
       local decoded
-      decoded=$(printf '%s' "$blob" | base64 -d 2>/dev/null | tr '\000' '\001' || echo "")
+      decoded=$(echo "$blob" | base64 -d 2>/dev/null || echo "")
 
       if [[ -z "$decoded" ]]; then
         continue

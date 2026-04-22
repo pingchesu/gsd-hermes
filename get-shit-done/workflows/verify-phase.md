@@ -197,22 +197,29 @@ inspecting static artifacts.
 **Step 1: Run test suite**
 
 ```bash
+# Resolve test command: project config > Makefile > language sniff
+TEST_CMD=$(gsd-sdk query config-get workflow.test_command --default "" 2>/dev/null || true)
+if [ -z "$TEST_CMD" ]; then
+  if [ -f "Makefile" ] && grep -q "^test:" Makefile; then
+    TEST_CMD="make test"
+  elif [ -f "Justfile" ] || [ -f "justfile" ]; then
+    TEST_CMD="just test"
+  elif [ -f "package.json" ]; then
+    TEST_CMD="npm test"
+  elif [ -f "Cargo.toml" ]; then
+    TEST_CMD="cargo test"
+  elif [ -f "go.mod" ]; then
+    TEST_CMD="go test ./..."
+  elif [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
+    TEST_CMD="python -m pytest -q --tb=short 2>&1 || uv run python -m pytest -q --tb=short"
+  else
+    TEST_CMD="false"
+    echo "⚠ No test runner detected — skipping test suite"
+  fi
+fi
 # Detect test runner and run all tests (timeout: 5 minutes)
 TEST_EXIT=0
-timeout 300 bash -c '
-if [ -f "package.json" ]; then
-  npm test 2>&1
-elif [ -f "Cargo.toml" ]; then
-  cargo test 2>&1
-elif [ -f "go.mod" ]; then
-  go test ./... 2>&1
-elif [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
-  python -m pytest -q --tb=short 2>&1 || uv run python -m pytest -q --tb=short 2>&1
-else
-  echo "⚠ No test runner detected — skipping test suite"
-  exit 1
-fi
-'
+timeout 300 bash -c "$TEST_CMD" 2>&1
 TEST_EXIT=$?
 if [ "${TEST_EXIT}" -eq 0 ]; then
   echo "✓ Test suite passed"
@@ -367,9 +374,34 @@ If a requirement specifies a quantity of test cases (e.g., "30 calculations"), c
 </step>
 
 <step name="identify_human_verification">
-**Always needs human:** Visual appearance, user flow completion, real-time behavior (WebSocket/SSE), external service integration, performance feel, error message clarity.
+**First: determine if this is an infrastructure/foundation phase.**
 
-**Needs human if uncertain:** Complex wiring grep can't trace, dynamic state-dependent behavior, edge cases.
+Infrastructure and foundation phases — code foundations, database schema, internal APIs, data models, build tooling, CI/CD, internal service integrations — have no user-facing elements by definition. For these phases:
+
+- Do NOT invent artificial manual steps (e.g., "manually run git commits", "manually invoke methods", "manually check database state").
+- Mark human verification as **N/A** with rationale: "Infrastructure/foundation phase — no user-facing elements to test manually."
+- Set `human_verification: []` and do **not** produce a `human_needed` status solely due to lack of user-facing features.
+- Only add human verification items if the phase goal or success criteria explicitly describe something a user would interact with (UI, CLI command output visible to end users, external service UX).
+
+**How to determine if a phase is infrastructure/foundation:**
+- Phase goal or name contains: "foundation", "infrastructure", "schema", "database", "internal API", "data model", "scaffolding", "pipeline", "tooling", "CI", "migrations", "service layer", "backend", "core library"
+- Phase success criteria describe only technical artifacts (files exist, tests pass, schema is valid) with no user interaction required
+- There is no UI, CLI output visible to end users, or real-time behavior to observe
+
+**If the phase IS infrastructure/foundation:** auto-pass UAT — skip the human verification items list entirely. Log:
+
+```markdown
+## Human Verification
+
+N/A — Infrastructure/foundation phase with no user-facing elements.
+All acceptance criteria are verifiable programmatically.
+```
+
+**If the phase IS user-facing:** Only flag items that genuinely require a human. Do not invent steps.
+
+**Always needs human (user-facing phases only):** Visual appearance, user flow completion, real-time behavior (WebSocket/SSE), external service integration, performance feel, error message clarity.
+
+**Needs human if uncertain (user-facing phases only):** Complex wiring grep can't trace, dynamic state-dependent behavior, edge cases.
 
 Format each as: Test Name → What to do → Expected result → Why can't verify programmatically.
 </step>

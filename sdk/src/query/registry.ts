@@ -61,8 +61,8 @@ export function extractField(obj: unknown, fieldPath: string): unknown {
  * Flat command registry that routes query commands to native handlers.
  *
  * `dispatch()` throws `GSDError` for unknown command keys. The `gsd-sdk query`
- * CLI uses `resolveQueryArgv()` to map argv to a registered handler; there is
- * no passthrough to `gsd-tools.cjs` — CJS-only commands stay on the legacy CLI.
+ * CLI uses `resolveQueryArgv()` first; when no handler matches, it may shell out
+ * to `gsd-tools.cjs` (see `cli.ts` and `QUERY-HANDLERS.md` fallback policy).
  */
 export class QueryRegistry {
   private handlers = new Map<string, QueryHandler>();
@@ -110,10 +110,11 @@ export class QueryRegistry {
    * @param command - The command name to dispatch
    * @param args - Arguments to pass to the handler
    * @param projectDir - The project directory for context
+   * @param workstream - Optional workstream name to scope .planning paths
    * @returns The query result from the handler
    * @throws GSDError if no handler is registered for the command
    */
-  async dispatch(command: string, args: string[], projectDir: string): Promise<QueryResult> {
+  async dispatch(command: string, args: string[], projectDir: string, workstream?: string): Promise<QueryResult> {
     const handler = this.handlers.get(command);
     if (!handler) {
       throw new GSDError(
@@ -121,7 +122,7 @@ export class QueryRegistry {
         ErrorClassification.Validation,
       );
     }
-    return handler(args, projectDir);
+    return handler(args, projectDir, workstream);
   }
 }
 
