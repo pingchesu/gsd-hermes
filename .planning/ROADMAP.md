@@ -81,6 +81,18 @@
 - `tests/bug-1829-inherit-model-profile.test.cjs`
 - `sdk/src/query/config-query.test.ts`
 
+**Wave 1** *(entry-point enforcement wave)*
+- Plan `06-01` — shared validator and workflow init fail-fast gates
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- Plan `06-02` — phase-runner defense-in-depth and minimal runtime model-threading
+
+**Cross-cutting constraints:**
+- Fail-fast only at real plan/execute run entry points in this phase.
+- Preserve inherit and `resolve_model_ids: "omit"` as valid omission-based success paths.
+- Include highly explicit diagnostics with agent/runtime/model/reason/fix/cross-AI alternative fields.
+- Do not widen scope into config-set blocking, automatic cross-AI routing, or deep `session-runner` redesign.
+
 ## Phase 7: Cross-AI Execution Hardening
 
 **Goal:** Turn `cross_ai_execution` into the explicit validated path for cross-provider execution when direct runtime binding cannot be honored.
