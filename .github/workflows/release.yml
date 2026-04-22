@@ -293,7 +293,7 @@ jobs:
           npm run test:coverage
 
       - name: Dry-run publish validation
-        run: npm publish --dry-run
+        run: npm publish --dry-run --tag latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -339,7 +339,7 @@ jobs:
 
       - name: Publish to npm (latest)
         if: ${{ !inputs.dry_run }}
-        run: npm publish --provenance --access public
+        run: npm publish --provenance --access public --tag latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
