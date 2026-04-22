@@ -8,39 +8,38 @@ Use the `Publish npm` workflow in `.github/workflows/publish-npm.yml`.
 
 The workflow validates the package name and version, runs the test suite, checks the npm tarball with `npm pack --dry-run`, publishes to npm, and verifies that the expected package version is visible in the npm registry.
 
-## First Publish
+For the upcoming `gsd-hermes@1.2.0` Cross-Provider Agent Execution release, keep the publishing flow simple:
 
-Because `gsd-hermes` is not published yet, the first npm publish cannot use Trusted Publishing. npm trusted publisher configuration is attached to an existing npm package, so bootstrap the package once with a short-lived npm token.
+1. Update README / CHANGELOG / release notes first.
+2. Run `Publish npm` with `dry_run: true`.
+3. If dry run is clean, rerun with `dry_run: false`.
+4. Prefer `auth_mode: trusted-publishing`, but keep `npm-token` as the break-glass fallback until issue #6 is closed.
 
-1. Create a granular npm token that can publish `gsd-hermes`.
-2. Add it to the GitHub repository as the `NPM_TOKEN` secret.
-3. Open GitHub Actions, run `Publish npm`, and use:
-   - `tag`: `latest`
-   - `auth_mode`: `npm-token`
-   - `dry_run`: `false`
-4. Delete or rotate the temporary token after the package exists.
+## Publish Workflow Inputs
+
+Use these workflow inputs in GitHub Actions:
+
+- `tag`: `latest` for stable release, `next` for preview distribution
+- `auth_mode`: `trusted-publishing` first, `npm-token` if trusted publishing is still failing
+- `dry_run`: `true` for readiness validation, `false` for the actual publish
 
 ## Trusted Publishing Setup
 
-After the first publish, configure npm Trusted Publishing so future releases do not require a long-lived token.
-
-Use npm's package settings UI, or run:
-
-```bash
-npm trust github gsd-hermes --repo pingchesu/gsd-hermes --file publish-npm.yml --env npm-publish
-```
-
-The trusted publisher configuration must match the workflow filename and GitHub environment name exactly:
+The preferred long-term path is npm Trusted Publishing. The trusted publisher configuration must match the workflow filename and GitHub environment name exactly:
 
 - Repository: `pingchesu/gsd-hermes`
 - Workflow filename: `publish-npm.yml`
 - Environment: `npm-publish`
 
-Future publishes should use:
+You can configure it with npm package settings UI, or run:
 
-- `tag`: `latest` or `next`
-- `auth_mode`: `trusted-publishing`
-- `dry_run`: `false`
+```bash
+npm trust github gsd-hermes --repo pingchesu/gsd-hermes --file publish-npm.yml --env npm-publish
+```
+
+## Token Fallback
+
+Trusted publishing for this repo still has a tracked setup issue in [#6](https://github.com/pingchesu/gsd-hermes/issues/6). Until that issue is fully closed and re-verified, keep `NPM_TOKEN` available as a controlled fallback for release maintainers.
 
 ## Dry Runs
 
@@ -52,7 +51,7 @@ GitHub Actions -> Publish npm -> Run workflow -> dry_run=true
 
 ## Local Fallback Before npm Publish
 
-Until the package is visible in npm, users can install from GitHub:
+If you need the unreleased main branch before the next npm publish, install directly from GitHub:
 
 ```bash
 npx --yes github:pingchesu/gsd-hermes

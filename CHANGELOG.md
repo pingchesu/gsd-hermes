@@ -11,7 +11,7 @@ syncs from.
 ## [Unreleased]
 
 ### Added
-- **Downstream version policy docs** — README and release docs now state that `gsd-hermes` starts at `1.0.0` and records the upstream `get-shit-done-cc` base separately instead of mirroring upstream package versions.
+- **Cross-Provider Agent Execution release messaging** — README, CHANGELOG, release draft, and canonical operator docs now present the upcoming `gsd-hermes@1.2.0` release as a downstream capability milestone centered on strict per-agent runtime/model binding, Hermes mixed-provider direct execution, and explicit `cross_ai_execution` fallback semantics.
 - **`/gsd-ingest-docs` command** — Scan a repo containing mixed ADRs, PRDs, SPECs, and DOCs and bootstrap or merge the full `.planning/` setup from them in a single pass. Parallel classification (`gsd-doc-classifier`), synthesis with precedence rules and cycle detection (`gsd-doc-synthesizer`), three-bucket conflicts report (`INGEST-CONFLICTS.md`: auto-resolved, competing-variants, unresolved-blockers), and hard-block on LOCKED-vs-LOCKED ADR contradictions in both new and merge modes. Supports directory-convention discovery and `--manifest <file>` YAML override with per-doc precedence. v1 caps at 50 docs per invocation; `--resolve interactive` is reserved. Extracts shared conflict-detection contract into `references/doc-conflict-engine.md` which `/gsd-import` now also consumes (#2387)
 
 ### Fixed
