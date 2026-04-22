@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: null
 milestone_name: null
-status: no_active_milestone
-last_updated: "2026-04-23T02:00:00+08:00"
-last_activity: 2026-04-23 -- Milestone v1.2 archived
+status: "Milestone v1.2 shipped — PR #13"
+last_updated: "2026-04-22T17:49:05.687Z"
+last_activity: 2026-04-23
 progress:
-  total_phases: 0
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_phases: 4
+  completed_phases: 4
+  total_plans: 8
+  completed_plans: 8
   percent: 100
 ---
 
@@ -26,7 +26,7 @@ See: `.planning/PROJECT.md` (updated 2026-04-23)
 
 Phase: None
 Plan: None
-Status: Milestone complete
+Status: Milestone v1.2 shipped — PR #13
 Last activity: 2026-04-23
 
 ## Next Action
