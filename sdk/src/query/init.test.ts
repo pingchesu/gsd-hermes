@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, writeFile, mkdir, rm, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { GSDError } from '../errors.js';
 import {
   withProjectRoot,
   initExecutePhase,
@@ -501,6 +502,81 @@ describe('initRemoveWorkspace', () => {
 });
 
 describe('init binding serialization', () => {
+  it('fails fast for unsupported profile-derived planner bindings before returning init plan payload', async () => {
+    await writeFile(join(tmpDir, '.planning', 'config.json'), JSON.stringify({
+      runtime: 'codex',
+      model_profile: 'balanced',
+      commit_docs: false,
+      git: {
+        branching_strategy: 'none',
+        phase_branch_template: 'gsd/phase-{phase}-{slug}',
+        milestone_branch_template: 'gsd/{milestone}-{slug}',
+        quick_branch_template: null,
+      },
+      workflow: { research: true, plan_check: true, verifier: true, nyquist_validation: true, cross_ai_execution: false },
+    }));
+
+    await expect(initPlanPhase(['9'], tmpDir)).rejects.toThrow(GSDError);
+    await expect(initPlanPhase(['9'], tmpDir)).rejects.toThrow(/Agent: gsd-phase-researcher|Agent: gsd-planner/);
+    await expect(initPlanPhase(['9'], tmpDir)).rejects.toThrow(/Runtime: codex/);
+    await expect(initPlanPhase(['9'], tmpDir)).rejects.toThrow(/Suggested fix:/);
+    await expect(initPlanPhase(['9'], tmpDir)).rejects.toThrow(/Cross-AI suggestion:/);
+  });
+
+  it('fails fast for unsupported explicit executor bindings before returning init execute payload', async () => {
+    await writeFile(join(tmpDir, '.planning', 'config.json'), JSON.stringify({
+      runtime: 'codex',
+      model_profile: 'inherit',
+      resolve_model_ids: 'omit',
+      model_overrides: { 'gsd-executor': 'claude-opus-4-7' },
+      commit_docs: false,
+      git: {
+        branching_strategy: 'none',
+        phase_branch_template: 'gsd/phase-{phase}-{slug}',
+        milestone_branch_template: 'gsd/{milestone}-{slug}',
+        quick_branch_template: null,
+      },
+      workflow: { research: true, plan_check: true, verifier: true, nyquist_validation: true, cross_ai_execution: true },
+    }));
+
+    await expect(initExecutePhase(['9'], tmpDir)).rejects.toThrow(GSDError);
+    await expect(initExecutePhase(['9'], tmpDir)).rejects.toThrow(/Agent: gsd-executor/);
+    await expect(initExecutePhase(['9'], tmpDir)).rejects.toThrow(/Configured model: claude-opus-4-7/);
+    await expect(initExecutePhase(['9'], tmpDir)).rejects.toThrow(/cross_ai_execution recommendation: explicit alternative available/);
+  });
+
+  it('skips optional checker and verifier validation when their workflow toggles are disabled', async () => {
+    await writeFile(join(tmpDir, '.planning', 'config.json'), JSON.stringify({
+      runtime: 'codex',
+      model_profile: 'inherit',
+      resolve_model_ids: 'omit',
+      model_overrides: {
+        'gsd-plan-checker': 'claude-sonnet-4-6',
+        'gsd-verifier': 'claude-sonnet-4-6',
+      },
+      commit_docs: false,
+      git: {
+        branching_strategy: 'none',
+        phase_branch_template: 'gsd/phase-{phase}-{slug}',
+        milestone_branch_template: 'gsd/{milestone}-{slug}',
+        quick_branch_template: null,
+      },
+      workflow: { research: true, plan_check: false, verifier: false, nyquist_validation: true },
+    }));
+
+    const planResult = await initPlanPhase(['9'], tmpDir);
+    const planData = planResult.data as Record<string, unknown>;
+    expect(planData.planner_model).toBe('');
+    expect(planData.checker_model).toBe('claude-sonnet-4-6');
+    expect(planData.plan_checker_enabled).toBe(false);
+
+    const executeResult = await initExecutePhase(['9'], tmpDir);
+    const executeData = executeResult.data as Record<string, unknown>;
+    expect(executeData.executor_model).toBe('');
+    expect(executeData.verifier_model).toBe('claude-sonnet-4-6');
+    expect(executeData.verifier_enabled).toBe(false);
+  });
+
   it('keeps inherit binding as omission instead of falling back to sonnet', async () => {
     await writeFile(join(tmpDir, '.planning', 'config.json'), JSON.stringify({
       model_profile: 'inherit',
