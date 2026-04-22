@@ -134,7 +134,7 @@ export const resolveModel: QueryHandler = async (args, projectDir) => {
   const config = await loadConfig(projectDir);
   const resolution = resolveAgentBinding(config, agentType);
   const legacy = toLegacyResolveModelResult(resolution);
-  const workflow = (config.workflow ?? {}) as Record<string, unknown>;
+  const workflow = (config.workflow ?? {}) as unknown as Record<string, unknown>;
 
   return {
     data: {
