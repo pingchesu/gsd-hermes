@@ -12,8 +12,9 @@ That is why this project exists: preserve the upstream GSD workflow, track upstr
 
 > [!NOTE]
 > **Version identity:** `gsd-hermes` uses its own npm version line starting at `1.0.0`.
-> This release is based on upstream `get-shit-done-cc@1.37.1`.
-> Future upstream syncs should bump `gsd-hermes` independently, for example `gsd-hermes@1.0.1` based on `get-shit-done-cc@1.37.2`, instead of mirroring upstream package versions.
+> This release is based on upstream `get-shit-done-cc@1.38.2`.
+> This upstream minor sync is released as `gsd-hermes@1.1.0`.
+> Do not mirror upstream as `gsd-hermes@1.38.2`; the downstream package version and upstream base are tracked separately.
 
 ---
 
