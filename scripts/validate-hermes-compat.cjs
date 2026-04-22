@@ -3,10 +3,12 @@
 const { spawnSync } = require('node:child_process');
 
 const testFiles = [
+  'tests/hermes-install.test.cjs',
   'tests/hermes-core-workflow.test.cjs',
   'tests/hermes-lifecycle.test.cjs',
   'tests/hermes-docs.test.cjs',
   'tests/multi-runtime-select.test.cjs',
+  'tests/bugs-1656-1657.test.cjs',
 ];
 
 console.log('Running Hermes compatibility validation...');

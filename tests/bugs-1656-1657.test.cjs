@@ -103,6 +103,30 @@ describe('#1657 / #2385: SDK install must be wired into installer source', () =>
     );
   });
 
+  test('install.js falls back to a user npm prefix when global SDK install fails', () => {
+    src = src || fs.readFileSync(INSTALL_SRC, 'utf-8');
+    assert.ok(
+      src.includes('GSD_NPM_PREFIX'),
+      'installer must allow overriding the user-writable npm prefix'
+    );
+    assert.ok(
+      src.includes("path.join(os.homedir(), '.local')"),
+      'installer must default the user-writable npm prefix to ~/.local'
+    );
+    assert.ok(
+      src.includes("['install', '-g', '--prefix', userPrefix, '.']"),
+      'installer must retry SDK install with npm install -g --prefix <userPrefix> .'
+    );
+    assert.ok(
+      src.includes('Global SDK install failed. Retrying with user npm prefix'),
+      'installer must explain that the global install failed and user-prefix fallback is being used'
+    );
+    assert.ok(
+      src.includes('not on PATH'),
+      'installer must warn when the user-prefix bin directory is not on PATH'
+    );
+  });
+
   test('package.json ships sdk source in published tarball (#2385)', () => {
     const rootPkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf-8'));
     const files = rootPkg.files || [];

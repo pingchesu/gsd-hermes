@@ -28,12 +28,13 @@ const runtimeMap = {
   '8': 'cursor',
   '9': 'gemini',
   '10': 'kilo',
-  '11': 'opencode',
-  '12': 'qwen',
-  '13': 'trae',
-  '14': 'windsurf'
+  '11': 'hermes',
+  '12': 'opencode',
+  '13': 'qwen',
+  '14': 'trae',
+  '15': 'windsurf'
 };
-const allRuntimes = ['claude', 'antigravity', 'augment', 'cline', 'codebuddy', 'codex', 'copilot', 'cursor', 'gemini', 'kilo', 'opencode', 'qwen', 'trae', 'windsurf'];
+const allRuntimes = ['claude', 'antigravity', 'augment', 'cline', 'codebuddy', 'codex', 'copilot', 'cursor', 'gemini', 'kilo', 'hermes', 'opencode', 'qwen', 'trae', 'windsurf'];
 
 /**
  * Simulate the parsing logic from promptRuntime without requiring readline.
@@ -42,7 +43,7 @@ const allRuntimes = ['claude', 'antigravity', 'augment', 'cline', 'codebuddy', '
 function parseRuntimeInput(input) {
   input = input.trim() || '1';
 
-  if (input === '15') {
+  if (input === '16') {
     return allRuntimes;
   }
 
@@ -86,24 +87,28 @@ describe('multi-runtime selection parsing', () => {
     assert.deepStrictEqual(parseRuntimeInput('2 , 8'), ['antigravity', 'cursor']);
   });
 
+  test('single choice for hermes', () => {
+    assert.deepStrictEqual(parseRuntimeInput('11'), ['hermes']);
+  });
+
   test('single choice for opencode', () => {
-    assert.deepStrictEqual(parseRuntimeInput('11'), ['opencode']);
+    assert.deepStrictEqual(parseRuntimeInput('12'), ['opencode']);
   });
 
   test('single choice for qwen', () => {
-    assert.deepStrictEqual(parseRuntimeInput('12'), ['qwen']);
+    assert.deepStrictEqual(parseRuntimeInput('13'), ['qwen']);
   });
 
   test('single choice for trae', () => {
-    assert.deepStrictEqual(parseRuntimeInput('13'), ['trae']);
+    assert.deepStrictEqual(parseRuntimeInput('14'), ['trae']);
   });
 
   test('single choice for windsurf', () => {
-    assert.deepStrictEqual(parseRuntimeInput('14'), ['windsurf']);
+    assert.deepStrictEqual(parseRuntimeInput('15'), ['windsurf']);
   });
 
-  test('choice 15 returns all runtimes', () => {
-    assert.deepStrictEqual(parseRuntimeInput('15'), allRuntimes);
+  test('choice 16 returns all runtimes', () => {
+    assert.deepStrictEqual(parseRuntimeInput('16'), allRuntimes);
   });
 
   test('empty input defaults to claude', () => {
@@ -112,13 +117,13 @@ describe('multi-runtime selection parsing', () => {
   });
 
   test('invalid choices are ignored, falls back to claude if all invalid', () => {
-    assert.deepStrictEqual(parseRuntimeInput('16'), ['claude']);
+    assert.deepStrictEqual(parseRuntimeInput('17'), ['claude']);
     assert.deepStrictEqual(parseRuntimeInput('0'), ['claude']);
     assert.deepStrictEqual(parseRuntimeInput('abc'), ['claude']);
   });
 
   test('invalid choices mixed with valid are filtered out', () => {
-    assert.deepStrictEqual(parseRuntimeInput('1,16,7'), ['claude', 'copilot']);
+    assert.deepStrictEqual(parseRuntimeInput('1,17,7'), ['claude', 'copilot']);
     assert.deepStrictEqual(parseRuntimeInput('abc 3 xyz'), ['augment']);
   });
 
@@ -134,7 +139,7 @@ describe('multi-runtime selection parsing', () => {
 });
 
 describe('install.js source contains multi-select support', () => {
-  test('runtimeMap is defined with all 14 runtimes', () => {
+  test('runtimeMap is defined with all 15 runtimes', () => {
     for (const [key, name] of Object.entries(runtimeMap)) {
       assert.ok(
         installSrc.includes(`'${key}': '${name}'`),
@@ -151,25 +156,33 @@ describe('install.js source contains multi-select support', () => {
     }
   });
 
-  test('all shortcut uses option 15', () => {
+  test('all shortcut uses option 16', () => {
     assert.ok(
-      installSrc.includes("if (input === '15')"),
-      'all shortcut uses option 15'
+      installSrc.includes("if (input === '16')"),
+      'all shortcut uses option 16'
     );
   });
 
-  test('prompt lists Qwen Code as option 12, Trae as option 13 and All as option 15', () => {
+  test('prompt lists Hermes as option 11, OpenCode as option 12, Qwen Code as option 13, Trae as option 14 and All as option 16', () => {
     assert.ok(
-      installSrc.includes('12${reset}) Qwen Code'),
-      'prompt lists Qwen Code as option 12'
+      installSrc.includes('11${reset}) Hermes'),
+      'prompt lists Hermes as option 11'
     );
     assert.ok(
-      installSrc.includes('13${reset}) Trae'),
-      'prompt lists Trae as option 13'
+      installSrc.includes('12${reset}) OpenCode'),
+      'prompt lists OpenCode as option 12'
     );
     assert.ok(
-      installSrc.includes('15${reset}) All'),
-      'prompt lists All as option 15'
+      installSrc.includes('13${reset}) Qwen Code'),
+      'prompt lists Qwen Code as option 13'
+    );
+    assert.ok(
+      installSrc.includes('14${reset}) Trae'),
+      'prompt lists Trae as option 14'
+    );
+    assert.ok(
+      installSrc.includes('16${reset}) All'),
+      'prompt lists All as option 16'
     );
   });
 
