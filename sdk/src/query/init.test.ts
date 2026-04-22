@@ -500,6 +500,53 @@ describe('initRemoveWorkspace', () => {
   });
 });
 
+describe('init binding serialization', () => {
+  it('keeps inherit binding as omission instead of falling back to sonnet', async () => {
+    await writeFile(join(tmpDir, '.planning', 'config.json'), JSON.stringify({
+      model_profile: 'inherit',
+      commit_docs: false,
+      git: {
+        branching_strategy: 'none',
+        phase_branch_template: 'gsd/phase-{phase}-{slug}',
+        milestone_branch_template: 'gsd/{milestone}-{slug}',
+        quick_branch_template: null,
+      },
+      workflow: { research: true, plan_check: true, verifier: true, nyquist_validation: true },
+    }));
+
+    const executeResult = await initExecutePhase(['9'], tmpDir);
+    const executeData = executeResult.data as Record<string, unknown>;
+    expect(executeData.executor_model).toBe('');
+    expect(executeData.verifier_model).toBe('');
+
+    const planResult = await initPlanPhase(['9'], tmpDir);
+    const planData = planResult.data as Record<string, unknown>;
+    expect(planData.planner_model).toBe('');
+    expect(planData.checker_model).toBe('');
+  });
+
+  it('keeps resolve_model_ids omit as runtime-default omission for non-Claude runtimes', async () => {
+    await writeFile(join(tmpDir, '.planning', 'config.json'), JSON.stringify({
+      runtime: 'codex',
+      model_profile: 'balanced',
+      resolve_model_ids: 'omit',
+      commit_docs: false,
+      git: {
+        branching_strategy: 'none',
+        phase_branch_template: 'gsd/phase-{phase}-{slug}',
+        milestone_branch_template: 'gsd/{milestone}-{slug}',
+        quick_branch_template: null,
+      },
+      workflow: { research: true, plan_check: true, verifier: true, nyquist_validation: true },
+    }));
+
+    const result = await initExecutePhase(['9'], tmpDir);
+    const data = result.data as Record<string, unknown>;
+    expect(data.executor_model).toBe('');
+    expect(data.verifier_model).toBe('');
+  });
+});
+
 describe('initIngestDocs', () => {
   it('returns flat JSON with ingest-docs branching fields', async () => {
     const result = await initIngestDocs([], tmpDir);

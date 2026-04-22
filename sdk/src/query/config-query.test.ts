@@ -8,8 +8,6 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { GSDError } from '../errors.js';
 
-// ─── Test setup ─────────────────────────────────────────────────────────────
-
 let tmpDir: string;
 
 beforeEach(async () => {
@@ -20,8 +18,6 @@ beforeEach(async () => {
 afterEach(async () => {
   await rm(tmpDir, { recursive: true, force: true });
 });
-
-// ─── configGet ──────────────────────────────────────────────────────────────
 
 describe('configGet', () => {
   it('returns raw config value for top-level key', async () => {
@@ -60,20 +56,80 @@ describe('configGet', () => {
 
   it('reads raw config without merging defaults', async () => {
     const { configGet } = await import('./config-query.js');
-    // Write config with only model_profile -- no workflow section
     await writeFile(
       join(tmpDir, '.planning', 'config.json'),
       JSON.stringify({ model_profile: 'balanced' }),
     );
-    // Accessing workflow should fail (not merged with defaults)
     await expect(configGet(['workflow.auto_advance'], tmpDir)).rejects.toThrow(GSDError);
   });
 });
 
-// ─── resolveModel ───────────────────────────────────────────────────────────
+describe('runtime-model contract', () => {
+  it('exports a capability registry for every supported runtime', async () => {
+    const { RUNTIME_CAPABILITIES } = await import('./runtime-model-contract.js');
+    const { SUPPORTED_RUNTIMES } = await import('./helpers.js');
+    expect(Object.keys(RUNTIME_CAPABILITIES).sort()).toEqual([...SUPPORTED_RUNTIMES].sort());
+    expect(RUNTIME_CAPABILITIES.codex.supportsCrossAiExecution).toBe(true);
+  });
+
+  it('supports inherit as a compatibility profile input while keeping adaptive valid', async () => {
+    const { ACCEPTED_MODEL_PROFILES, VALID_PROFILES, getAgentToModelMapForProfile } = await import('./config-query.js');
+    expect(VALID_PROFILES).toEqual(['quality', 'balanced', 'budget', 'adaptive']);
+    expect(ACCEPTED_MODEL_PROFILES).toEqual(['quality', 'balanced', 'budget', 'adaptive', 'inherit']);
+    expect(getAgentToModelMapForProfile('inherit')['gsd-planner']).toBe('inherit');
+  });
+
+  it('resolves structured binding kinds distinctly', async () => {
+    const { resolveAgentBinding } = await import('./runtime-model-contract.js');
+
+    const explicit = resolveAgentBinding({
+      model_profile: 'balanced',
+      model_overrides: { 'gsd-planner': 'openai/gpt-5.4' },
+      workflow: {},
+    }, 'gsd-planner');
+    expect(explicit.kind).toBe('resolved');
+    if (explicit.kind !== 'resolved') throw new Error('expected resolved explicit binding');
+    expect(explicit.bindingKind).toBe('explicit');
+    expect(explicit.configuredModel).toBe('openai/gpt-5.4');
+    expect(explicit.resolvedModel).toBe('openai/gpt-5.4');
+
+    const inherit = resolveAgentBinding({ model_profile: 'inherit', workflow: {} }, 'gsd-planner');
+    expect(inherit.kind).toBe('resolved');
+    if (inherit.kind !== 'resolved') throw new Error('expected resolved inherit binding');
+    expect(inherit.bindingKind).toBe('inherit');
+    expect(inherit.modelToken).toBeNull();
+
+    const runtimeDefault = resolveAgentBinding({ model_profile: 'balanced', resolve_model_ids: 'omit', workflow: {} }, 'gsd-planner');
+    expect(runtimeDefault.kind).toBe('resolved');
+    if (runtimeDefault.kind !== 'resolved') throw new Error('expected resolved runtime-default binding');
+    expect(runtimeDefault.bindingKind).toBe('runtime-default');
+    expect(runtimeDefault.modelToken).toBeNull();
+  });
+
+  it('maps profile aliases to full IDs when resolve_model_ids is true', async () => {
+    const { resolveAgentBinding } = await import('./runtime-model-contract.js');
+    const result = resolveAgentBinding({ model_profile: 'balanced', resolve_model_ids: true, workflow: {} }, 'gsd-planner');
+    expect(result.kind).toBe('resolved');
+    if (result.kind !== 'resolved') throw new Error('expected resolved binding');
+    expect(result.resolvedModel).toBe('claude-opus-4-6');
+    expect(result.modelToken).toBe('claude-opus-4-6');
+  });
+
+  it('reports unknown agents as structured unsupported results instead of sonnet fallback', async () => {
+    const { resolveAgentBinding } = await import('./runtime-model-contract.js');
+    const result = resolveAgentBinding({ model_profile: 'balanced', workflow: {} }, 'unknown-agent');
+    expect(result.kind).toBe('unsupported');
+    if (result.kind !== 'unsupported') throw new Error('expected unsupported binding');
+    expect(result.agent).toBe('unknown-agent');
+    expect(result.runtime).toBe('claude');
+    expect(result.bindingKind).toBe('profile');
+    expect(result.rejectionReason).toBe('unknown-agent');
+    expect(result.suggestedFix).toContain('supported agent');
+  });
+});
 
 describe('resolveModel', () => {
-  it('returns model and profile for known agent', async () => {
+  it('returns model/profile metadata for known agents', async () => {
     const { resolveModel } = await import('./config-query.js');
     await writeFile(
       join(tmpDir, '.planning', 'config.json'),
@@ -81,43 +137,30 @@ describe('resolveModel', () => {
     );
     const result = await resolveModel(['gsd-planner'], tmpDir);
     const data = result.data as Record<string, unknown>;
-    expect(data).toHaveProperty('model');
-    expect(data).toHaveProperty('profile', 'balanced');
-    expect(data).not.toHaveProperty('unknown_agent');
+    expect(data.model).toBe('opus');
+    expect(data.profile).toBe('balanced');
+    expect(data.binding_kind).toBe('profile');
+    expect(data.runtime).toBe('claude');
   });
 
-  it('returns unknown_agent flag for unknown agent', async () => {
-    const { resolveModel } = await import('./config-query.js');
-    await writeFile(
-      join(tmpDir, '.planning', 'config.json'),
-      JSON.stringify({ model_profile: 'balanced' }),
-    );
-    const result = await resolveModel(['unknown-agent'], tmpDir);
-    const data = result.data as Record<string, unknown>;
-    expect(data).toHaveProperty('model', 'sonnet');
-    expect(data).toHaveProperty('unknown_agent', true);
-  });
-
-  it('throws GSDError when no agent type provided', async () => {
-    const { resolveModel } = await import('./config-query.js');
-    await expect(resolveModel([], tmpDir)).rejects.toThrow(GSDError);
-  });
-
-  it('respects model_overrides from config', async () => {
+  it('respects explicit model_overrides before all other paths', async () => {
     const { resolveModel } = await import('./config-query.js');
     await writeFile(
       join(tmpDir, '.planning', 'config.json'),
       JSON.stringify({
-        model_profile: 'balanced',
+        model_profile: 'inherit',
+        resolve_model_ids: 'omit',
         model_overrides: { 'gsd-planner': 'openai/gpt-5.4' },
       }),
     );
     const result = await resolveModel(['gsd-planner'], tmpDir);
     const data = result.data as Record<string, unknown>;
-    expect(data).toHaveProperty('model', 'openai/gpt-5.4');
+    expect(data.model).toBe('openai/gpt-5.4');
+    expect(data.binding_kind).toBe('explicit');
+    expect(data.source).toBe('override');
   });
 
-  it('returns empty model when resolve_model_ids is omit', async () => {
+  it('preserves runtime-default binding when resolve_model_ids is omit', async () => {
     const { resolveModel } = await import('./config-query.js');
     await writeFile(
       join(tmpDir, '.planning', 'config.json'),
@@ -128,7 +171,9 @@ describe('resolveModel', () => {
     );
     const result = await resolveModel(['gsd-planner'], tmpDir);
     const data = result.data as Record<string, unknown>;
-    expect(data).toHaveProperty('model', '');
+    expect(data.model).toBe('');
+    expect(data.binding_kind).toBe('runtime-default');
+    expect(data.resolved_model).toBeNull();
   });
 
   it('preserves fully-qualified model_overrides when resolve_model_ids is omit', async () => {
@@ -147,19 +192,70 @@ describe('resolveModel', () => {
 
     const planner = await resolveModel(['gsd-planner'], tmpDir);
     const plannerData = planner.data as Record<string, unknown>;
-    expect(plannerData).toHaveProperty('model', 'claude-opus-4-7');
+    expect(plannerData.model).toBe('claude-opus-4-7');
+    expect(plannerData.binding_kind).toBe('explicit');
 
     const executor = await resolveModel(['gsd-executor'], tmpDir);
     const executorData = executor.data as Record<string, unknown>;
-    expect(executorData).toHaveProperty('model', 'openai/gpt-5.4');
+    expect(executorData.model).toBe('openai/gpt-5.4');
+    expect(executorData.binding_kind).toBe('explicit');
 
     const verifier = await resolveModel(['gsd-verifier'], tmpDir);
     const verifierData = verifier.data as Record<string, unknown>;
-    expect(verifierData).toHaveProperty('model', '');
+    expect(verifierData.model).toBe('');
+    expect(verifierData.binding_kind).toBe('runtime-default');
+  });
+
+  it('serializes inherit profile as an explicit inherit binding state', async () => {
+    const { resolveModel } = await import('./config-query.js');
+    await writeFile(
+      join(tmpDir, '.planning', 'config.json'),
+      JSON.stringify({ model_profile: 'inherit' }),
+    );
+    const result = await resolveModel(['gsd-planner'], tmpDir);
+    const data = result.data as Record<string, unknown>;
+    expect(data.model).toBe('');
+    expect(data.binding_kind).toBe('inherit');
+    expect(data.resolved_model).toBe('inherit');
+  });
+
+  it('returns structured unsupported metadata for unknown agents', async () => {
+    const { resolveModel } = await import('./config-query.js');
+    await writeFile(
+      join(tmpDir, '.planning', 'config.json'),
+      JSON.stringify({ model_profile: 'balanced' }),
+    );
+    const result = await resolveModel(['unknown-agent'], tmpDir);
+    const data = result.data as Record<string, unknown>;
+    expect(data.model).toBe('');
+    expect(data.unsupported).toBe(true);
+    expect(data.agent).toBe('unknown-agent');
+    expect(data.runtime).toBe('claude');
+    expect(data.rejection_reason).toBe('unknown-agent');
+    expect(data.suggested_fix).toBeTruthy();
+  });
+
+  it('captures cross_ai_execution capability/config without implementing routing', async () => {
+    const { resolveModel } = await import('./config-query.js');
+    await writeFile(
+      join(tmpDir, '.planning', 'config.json'),
+      JSON.stringify({
+        model_profile: 'balanced',
+        workflow: { cross_ai_execution: true, cross_ai_command: 'external-ai', cross_ai_timeout: 15 },
+      }),
+    );
+    const result = await resolveModel(['gsd-planner'], tmpDir);
+    const data = result.data as Record<string, unknown>;
+    expect(data.cross_ai_execution_supported).toBe(true);
+    expect(data.cross_ai_execution_configured).toBe(true);
+    expect(data.model).toBe('opus');
+  });
+
+  it('throws GSDError when no agent type provided', async () => {
+    const { resolveModel } = await import('./config-query.js');
+    await expect(resolveModel([], tmpDir)).rejects.toThrow(GSDError);
   });
 });
-
-// ─── MODEL_PROFILES ─────────────────────────────────────────────────────────
 
 describe('MODEL_PROFILES', () => {
   it('contains all 18 agent entries (sync with model-profiles.cjs)', async () => {
@@ -175,14 +271,5 @@ describe('MODEL_PROFILES', () => {
       expect(MODEL_PROFILES[agent]).toHaveProperty('budget');
       expect(MODEL_PROFILES[agent]).toHaveProperty('adaptive');
     }
-  });
-});
-
-// ─── VALID_PROFILES ─────────────────────────────────────────────────────────
-
-describe('VALID_PROFILES', () => {
-  it('contains the four profile names', async () => {
-    const { VALID_PROFILES } = await import('./config-query.js');
-    expect(VALID_PROFILES).toEqual(['quality', 'balanced', 'budget', 'adaptive']);
   });
 });

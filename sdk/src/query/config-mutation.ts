@@ -22,7 +22,7 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { GSDError, ErrorClassification } from '../errors.js';
-import { VALID_PROFILES, getAgentToModelMapForProfile } from './config-query.js';
+import { ACCEPTED_MODEL_PROFILES, getAgentToModelMapForProfile } from './config-query.js';
 import { planningPaths } from './helpers.js';
 import { acquireStateLock, releaseStateLock } from './state-mutation.js';
 import type { QueryHandler } from './utils.js';
@@ -55,6 +55,7 @@ async function atomicWriteConfig(configPath: string, config: Record<string, unkn
  */
 const VALID_CONFIG_KEYS = new Set([
   'mode', 'granularity', 'parallelization', 'commit_docs', 'model_profile',
+  'model_overrides', 'resolve_model_ids', 'runtime',
   'search_gitignored', 'brave_search', 'firecrawl', 'exa_search',
   'workflow.research', 'workflow.plan_check', 'workflow.verifier',
   'workflow.nyquist_validation', 'workflow.ui_phase', 'workflow.ui_safety_gate',
@@ -63,6 +64,7 @@ const VALID_CONFIG_KEYS = new Set([
   'workflow.research_before_questions',
   'workflow.discuss_mode',
   'workflow.skip_discuss',
+  'workflow.cross_ai_execution', 'workflow.cross_ai_command', 'workflow.cross_ai_timeout',
   'workflow._auto_chain_active',
   'workflow.use_worktrees',
   'workflow.code_review',
@@ -288,15 +290,15 @@ export const configSetModelProfile: QueryHandler = async (args, projectDir, _wor
   const profileName = args[0];
   if (!profileName) {
     throw new GSDError(
-      `Usage: config-set-model-profile <${VALID_PROFILES.join('|')}>`,
+      `Usage: config-set-model-profile <${ACCEPTED_MODEL_PROFILES.join('|')}>`,
       ErrorClassification.Validation,
     );
   }
 
   const normalized = profileName.toLowerCase().trim();
-  if (!VALID_PROFILES.includes(normalized)) {
+  if (!(ACCEPTED_MODEL_PROFILES as readonly string[]).includes(normalized)) {
     throw new GSDError(
-      `Invalid profile '${profileName}'. Valid profiles: ${VALID_PROFILES.join(', ')}`,
+      `Invalid profile '${profileName}'. Valid profiles: ${ACCEPTED_MODEL_PROFILES.join(', ')}`,
       ErrorClassification.Validation,
     );
   }
@@ -316,7 +318,7 @@ export const configSetModelProfile: QueryHandler = async (args, projectDir, _wor
 
     const prev =
       typeof config.model_profile === 'string' ? config.model_profile.toLowerCase().trim() : '';
-    previousProfile = VALID_PROFILES.includes(prev) ? prev : 'balanced';
+    previousProfile = (ACCEPTED_MODEL_PROFILES as readonly string[]).includes(prev) ? prev : 'balanced';
     config.model_profile = normalized;
     await atomicWriteConfig(paths.config, config);
   } finally {
@@ -390,7 +392,9 @@ export const configNewProject: QueryHandler = async (args, projectDir, _workstre
   // Build default config
   const defaults: Record<string, unknown> = {
     model_profile: 'balanced',
-    commit_docs: false,
+    model_overrides: {},
+    resolve_model_ids: false,
+    commit_docs: true,
     parallelization: 1,
     search_gitignored: false,
     brave_search: hasBraveSearch,
@@ -416,6 +420,9 @@ export const configNewProject: QueryHandler = async (args, projectDir, _workstre
       research_before_questions: false,
       discuss_mode: 'discuss',
       skip_discuss: false,
+      cross_ai_execution: false,
+      cross_ai_command: null,
+      cross_ai_timeout: 300,
       code_review: true,
       code_review_depth: 'standard',
     },

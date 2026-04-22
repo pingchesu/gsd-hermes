@@ -24,7 +24,8 @@ import { execSync } from 'node:child_process';
 import { homedir } from 'node:os';
 
 import { loadConfig, type GSDConfig } from '../config.js';
-import { resolveModel, MODEL_PROFILES } from './config-query.js';
+import { MODEL_PROFILES } from './config-query.js';
+import { resolveAgentBinding, toInitModelToken } from './runtime-model-contract.js';
 import { findPhase } from './phase.js';
 import { roadmapGetPhase, getMilestoneInfo } from './roadmap.js';
 import { planningPaths, normalizePhaseName, toPosixPath, resolveAgentsDir, detectRuntime } from './helpers.js';
@@ -33,12 +34,17 @@ import type { QueryHandler } from './utils.js';
 // ─── Internal helpers ──────────────────────────────────────────────────────
 
 /**
- * Extract model alias string from a resolveModel result.
+ * Extract init model token from the canonical runtime-model contract.
  */
-async function getModelAlias(agentType: string, projectDir: string): Promise<string> {
-  const result = await resolveModel([agentType], projectDir);
-  const data = result.data as Record<string, unknown>;
-  return (data.model as string) || 'sonnet';
+function getInitModelContract(
+  agentType: string,
+  config: GSDConfig,
+): { token: string; binding: ReturnType<typeof resolveAgentBinding> } {
+  const binding = resolveAgentBinding(config, agentType);
+  return {
+    token: toInitModelToken(binding),
+    binding,
+  };
 }
 
 /**
@@ -276,10 +282,8 @@ export const initExecutePhase: QueryHandler = async (args, projectDir) => {
   const { phaseInfo, roadmapPhase } = await getPhaseInfoWithFallback(phase, projectDir);
   const phase_req_ids = extractReqIds(roadmapPhase);
 
-  const [executorModel, verifierModel] = await Promise.all([
-    getModelAlias('gsd-executor', projectDir),
-    getModelAlias('gsd-verifier', projectDir),
-  ]);
+  const executorModel = getInitModelContract('gsd-executor', config).token;
+  const verifierModel = getInitModelContract('gsd-verifier', config).token;
 
   const milestone = await getMilestoneInfo(projectDir);
 
@@ -355,11 +359,9 @@ export const initPlanPhase: QueryHandler = async (args, projectDir) => {
   const { phaseInfo, roadmapPhase } = await getPhaseInfoWithFallback(phase, projectDir);
   const phase_req_ids = extractReqIds(roadmapPhase);
 
-  const [researcherModel, plannerModel, checkerModel] = await Promise.all([
-    getModelAlias('gsd-phase-researcher', projectDir),
-    getModelAlias('gsd-planner', projectDir),
-    getModelAlias('gsd-plan-checker', projectDir),
-  ]);
+  const researcherModel = getInitModelContract('gsd-phase-researcher', config).token;
+  const plannerModel = getInitModelContract('gsd-planner', config).token;
+  const checkerModel = getInitModelContract('gsd-plan-checker', config).token;
 
   const phaseNumber = (phaseInfo?.phase_number as string) || null;
   const plans = (phaseInfo?.plans || []) as string[];
@@ -443,11 +445,9 @@ export const initNewMilestone: QueryHandler = async (_args, projectDir) => {
     }
   } catch { /* intentionally empty */ }
 
-  const [researcherModel, synthesizerModel, roadmapperModel] = await Promise.all([
-    getModelAlias('gsd-project-researcher', projectDir),
-    getModelAlias('gsd-research-synthesizer', projectDir),
-    getModelAlias('gsd-roadmapper', projectDir),
-  ]);
+  const researcherModel = getInitModelContract('gsd-project-researcher', config).token;
+  const synthesizerModel = getInitModelContract('gsd-research-synthesizer', config).token;
+  const roadmapperModel = getInitModelContract('gsd-roadmapper', config).token;
 
   const result: Record<string, unknown> = {
     researcher_model: researcherModel,
@@ -504,12 +504,10 @@ export const initQuick: QueryHandler = async (args, projectDir) => {
         .replace('{slug}', branchSlug)
     : null;
 
-  const [plannerModel, executorModel, checkerModel, verifierModel] = await Promise.all([
-    getModelAlias('gsd-planner', projectDir),
-    getModelAlias('gsd-executor', projectDir),
-    getModelAlias('gsd-plan-checker', projectDir),
-    getModelAlias('gsd-verifier', projectDir),
-  ]);
+  const plannerModel = getInitModelContract('gsd-planner', config).token;
+  const executorModel = getInitModelContract('gsd-executor', config).token;
+  const checkerModel = getInitModelContract('gsd-plan-checker', config).token;
+  const verifierModel = getInitModelContract('gsd-verifier', config).token;
 
   const result: Record<string, unknown> = {
     planner_model: plannerModel,
@@ -578,10 +576,8 @@ export const initVerifyWork: QueryHandler = async (args, projectDir) => {
   const config = await loadConfig(projectDir);
   const { phaseInfo } = await getPhaseInfoForVerifyWork(phase, projectDir);
 
-  const [plannerModel, checkerModel] = await Promise.all([
-    getModelAlias('gsd-planner', projectDir),
-    getModelAlias('gsd-plan-checker', projectDir),
-  ]);
+  const plannerModel = getInitModelContract('gsd-planner', config).token;
+  const checkerModel = getInitModelContract('gsd-plan-checker', config).token;
 
   const result: Record<string, unknown> = {
     planner_model: plannerModel,
@@ -835,7 +831,7 @@ export const initMapCodebase: QueryHandler = async (_args, projectDir) => {
     existingMaps = readdirSync(codebaseDir).filter(f => f.endsWith('.md'));
   } catch { /* intentionally empty */ }
 
-  const mapperModel = await getModelAlias('gsd-codebase-mapper', projectDir);
+  const mapperModel = getInitModelContract('gsd-codebase-mapper', config).token;
 
   const result: Record<string, unknown> = {
     mapper_model: mapperModel,
