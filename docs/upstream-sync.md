@@ -137,6 +137,24 @@ Keep the default assumption simple:
 - Preserve the merge commit so the conflict resolution remains traceable in
   history.
 
+## Sync Logs
+
+Persistent per-sync classification records live in [`docs/sync-logs/`](./sync-logs/).
+Each upstream sync produces one file (`YYYY-MM-sync-<upstream-short-sha>.md`) recording
+every resolved conflict hunk with `owner`, `resolution`, and `risk` per
+[`docs/fork-ownership.md`](./fork-ownership.md).
+
+See [`docs/sync-logs/2026-04-sync-0a049149.md`](./sync-logs/2026-04-sync-0a049149.md) for the
+v1.3 sync precedent — 226 files resolved across 97 upstream commits, with per-hunk
+granularity for `bin/install.js` (the Hermes adapter seam) and per-file granularity
+for bulk `upstream base` and whole-file governance decisions.
+
+The sync log captures Verification Evidence (D-08 triad results, fork-identity output,
+ARCHIVE-03 housekeeping, `.gitattributes` scope containment), Deferred Decisions (items
+pushed to subsequent phases), and Operator Notes (granularity adaptations, scan-evidence,
+handoff hints). Populate the log incrementally during conflict resolution and finalize
+the Verification Evidence section after the post-merge test gates pass.
+
 ## Explicit Non-Goals
 
 Phase 1 does not import upstream code yet as part of this runbook alone. Phase 1
