@@ -82,11 +82,13 @@ should_skip_file() {
     *.pdf|*.doc|*.docx|*.xls|*.xlsx) return 0 ;;
   esac
   # Skip lockfiles and node_modules
+  # NOTE: patterns use both `*/X` and `X` to match at any depth INCLUDING repo-root
+  # (bash case `*/foo` requires a prefix and won't match bare `foo`).
   case "$file" in
-    */node_modules/*) return 0 ;;
-    */package-lock.json) return 0 ;;
-    */yarn.lock) return 0 ;;
-    */pnpm-lock.yaml) return 0 ;;
+    */node_modules/*|node_modules/*) return 0 ;;
+    */package-lock.json|package-lock.json) return 0 ;;
+    */yarn.lock|yarn.lock) return 0 ;;
+    */pnpm-lock.yaml|pnpm-lock.yaml) return 0 ;;
   esac
   # Skip the scan scripts themselves and test files
   case "$file" in
