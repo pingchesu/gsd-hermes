@@ -17,6 +17,9 @@ Language versions: [English](README.md) · [Português (pt-BR)](pt-BR/README.md)
 | [User Guide](USER-GUIDE.md) | All users | Workflow walkthroughs, troubleshooting, and recovery |
 | [Context Monitor](context-monitor.md) | All users | Context window monitoring hook architecture |
 | [Discuss Mode](workflow-discuss-mode.md) | All users | Assumptions vs interview mode for discuss-phase |
+| [Hermes Install](hermes-install.md) | Hermes users | Hermes global and project-linked install modes, command discovery smoke, validation matrix and maintenance contract |
+| [Hermes Compatibility](hermes-compatibility.md) | Maintainers | Hermes support boundaries, known gaps, and runtime compatibility guardrails |
+| [Upstream Sync](upstream-sync.md) | Maintainers | post-sync validation checklist and fork maintenance workflow |
 
 ## Quick Links
 
@@ -25,5 +28,6 @@ Language versions: [English](README.md) · [Português (pt-BR)](pt-BR/README.md)
 - **Full workflow walkthrough:** [User Guide](USER-GUIDE.md)
 - **All commands at a glance:** [Command Reference](COMMANDS.md)
 - **Configuring GSD:** [Configuration Reference](CONFIGURATION.md)
+- **Hermes runtime:** [Hermes Install](hermes-install.md) + [Hermes Compatibility](hermes-compatibility.md)
 - **How the system works internally:** [Architecture](ARCHITECTURE.md)
 - **Contributing or extending:** [CLI Tools Reference](CLI-TOOLS.md) + [Agent Reference](AGENTS.md)

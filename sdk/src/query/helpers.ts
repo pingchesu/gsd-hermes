@@ -30,7 +30,7 @@ import { relPlanningPath } from '../workstream-utils.js';
  */
 export const SUPPORTED_RUNTIMES = [
   'claude', 'opencode', 'kilo', 'gemini', 'codex', 'copilot', 'antigravity',
-  'cursor', 'windsurf', 'augment', 'trae', 'qwen', 'codebuddy', 'cline',
+  'cursor', 'windsurf', 'augment', 'trae', 'qwen', 'codebuddy', 'cline', 'hermes',
 ] as const;
 
 export type Runtime = (typeof SUPPORTED_RUNTIMES)[number];
@@ -81,6 +81,8 @@ export function getRuntimeConfigDir(runtime: Runtime): string {
       return process.env.CODEBUDDY_CONFIG_DIR ? expandTilde(process.env.CODEBUDDY_CONFIG_DIR) : join(homedir(), '.codebuddy');
     case 'cline':
       return process.env.CLINE_CONFIG_DIR ? expandTilde(process.env.CLINE_CONFIG_DIR) : join(homedir(), '.cline');
+    case 'hermes':
+      return process.env.HERMES_CONFIG_DIR ? expandTilde(process.env.HERMES_CONFIG_DIR) : join(homedir(), '.hermes');
   }
 }
 
