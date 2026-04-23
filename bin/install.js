@@ -10,6 +10,8 @@ const crypto = require('crypto');
 const cyan = '\x1b[36m';
 const green = '\x1b[32m';
 const yellow = '\x1b[33m';
+const red = '\x1b[31m';
+const bold = '\x1b[1m';
 const dim = '\x1b[2m';
 const reset = '\x1b[0m';
 
@@ -55,6 +57,13 @@ const claudeToCopilotTools = {
 // Get version from package.json
 const pkg = require('../package.json');
 
+// #2517 runtime-aware tier resolution (upstream/main): require lazily inside
+// readGsdRuntimeProfileResolver so bin/install.js remains loadable in merge
+// interim states where get-shit-done/bin/lib/*.cjs have not yet resolved their
+// own conflicts (Plan 03 scope). When the lib files are clean, the lazy
+// require resolves normally; when they're not, the resolver returns null and
+// falls back to Hermes's existing modelOverrides-only path.
+
 // Parse args
 const args = process.argv.slice(2);
 const hasGlobal = args.includes('--global') || args.includes('-g');
@@ -78,6 +87,7 @@ const hasBoth = args.includes('--both'); // Legacy flag, keeps working
 const hasAll = args.includes('--all');
 const hasUninstall = args.includes('--uninstall') || args.includes('-u');
 const hasDoctor = args.includes('--doctor');
+const hasSkillsRoot = args.includes('--skills-root');
 const hasPortableHooks = args.includes('--portable-hooks') || process.env.GSD_PORTABLE_HOOKS === '1';
 const hasSdk = args.includes('--sdk');
 const hasNoSdk = args.includes('--no-sdk');
@@ -758,6 +768,133 @@ function readGsdGlobalModelOverrides() {
   }
 }
 
+/**
+ * #2517 — Read a single GSD config file (defaults.json or per-project
+ * config.json) into a plain object, returning null on missing/empty files
+ * and warning to stderr on JSON parse failures so silent corruption can't
+ * mask broken configs (review finding #5).
+ */
+function _readGsdConfigFile(absPath, label) {
+  if (!fs.existsSync(absPath)) return null;
+  let raw;
+  try {
+    raw = fs.readFileSync(absPath, 'utf-8');
+  } catch (err) {
+    process.stderr.write(`gsd: warning — could not read ${label} (${absPath}): ${err.message}\n`);
+    return null;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    process.stderr.write(`gsd: warning — invalid JSON in ${label} (${absPath}): ${err.message}\n`);
+    return null;
+  }
+}
+
+/**
+ * #2517 — Build a runtime-aware tier resolver for the install path.
+ *
+ * Probes BOTH per-project `<targetDir>/.planning/config.json` AND
+ * `~/.gsd/defaults.json`, with per-project keys winning over global. This
+ * matches `loadConfig`'s precedence and is the only way the PR's headline claim
+ * — "set runtime in .planning/config.json and the Codex TOML emit picks it up"
+ * — actually holds end-to-end (review finding #1).
+ *
+ * `targetDir` should be the consuming runtime's install root — install code
+ * passes `path.dirname(<runtime root>)` so `.planning/config.json` resolves
+ * relative to the user's project. When `targetDir` is null/undefined, only the
+ * global defaults are consulted.
+ *
+ * Returns null if no `runtime` is configured (preserves prior behavior — only
+ * model_overrides is embedded, no tier/reasoning-effort inference). Returns
+ * null when `model_profile` is `inherit` so the literal alias passes through
+ * unchanged.
+ *
+ * Returns { runtime, resolve(agentName) -> { model, reasoning_effort? } | null }
+ */
+function readGsdRuntimeProfileResolver(targetDir = null) {
+  // Lazy-require the runtime-aware tier resolver dependencies. Hoisting the
+  // require here (rather than at module top) keeps bin/install.js loadable
+  // when get-shit-done/bin/lib/{model-profiles,core}.cjs are themselves in an
+  // unmerged state during a sync-branch interim (Phase 6 Plan 3 scope). When
+  // the libs resolve cleanly, this require succeeds on first call; when they
+  // don't, we return null and the caller falls back to the modelOverrides-only
+  // code path that Hermes has used since v1.2.
+  let GSD_MODEL_PROFILES;
+  let gsdResolveTierEntry;
+  try {
+    const _gsdLibDir = path.join(__dirname, '..', 'get-shit-done', 'bin', 'lib');
+    ({ MODEL_PROFILES: GSD_MODEL_PROFILES } = require(path.join(_gsdLibDir, 'model-profiles.cjs')));
+    ({ resolveTierEntry: gsdResolveTierEntry } = require(path.join(_gsdLibDir, 'core.cjs')));
+  } catch (err) {
+    process.stderr.write(`gsd: warning — runtime-aware tier resolver unavailable (${err.message}); falling back to modelOverrides-only path\n`);
+    return null;
+  }
+
+  const homeDefaults = _readGsdConfigFile(
+    path.join(os.homedir(), '.gsd', 'defaults.json'),
+    '~/.gsd/defaults.json'
+  );
+
+  // Per-project config probe. Resolve the project root by walking up from
+  // targetDir until we hit a `.planning/` directory; this covers both the
+  // common case (caller passes the project root) and the case where caller
+  // passes a nested install dir like `<root>/.codex/`.
+  let projectConfig = null;
+  if (targetDir) {
+    let probeDir = path.resolve(targetDir);
+    for (let depth = 0; depth < 8; depth += 1) {
+      const candidate = path.join(probeDir, '.planning', 'config.json');
+      if (fs.existsSync(candidate)) {
+        projectConfig = _readGsdConfigFile(candidate, '.planning/config.json');
+        break;
+      }
+      const parent = path.dirname(probeDir);
+      if (parent === probeDir) break;
+      probeDir = parent;
+    }
+  }
+
+  // Per-project wins. Only fall back to ~/.gsd/defaults.json when the project
+  // didn't set the field. Field-level merge (not whole-object replace) so a
+  // user can keep `runtime` global while overriding only `model_profile` per
+  // project, and vice versa.
+  const merged = {
+    runtime:
+      (projectConfig && projectConfig.runtime) ||
+      (homeDefaults && homeDefaults.runtime) ||
+      null,
+    model_profile:
+      (projectConfig && projectConfig.model_profile) ||
+      (homeDefaults && homeDefaults.model_profile) ||
+      'balanced',
+    model_profile_overrides:
+      (projectConfig && projectConfig.model_profile_overrides) ||
+      (homeDefaults && homeDefaults.model_profile_overrides) ||
+      null,
+  };
+
+  if (!merged.runtime) return null;
+
+  const profile = String(merged.model_profile).toLowerCase();
+  if (profile === 'inherit') return null;
+
+  return {
+    runtime: merged.runtime,
+    resolve(agentName) {
+      const agentModels = GSD_MODEL_PROFILES[agentName];
+      if (!agentModels) return null;
+      const tier = agentModels[profile] || agentModels.balanced;
+      if (!tier) return null;
+      return gsdResolveTierEntry({
+        runtime: merged.runtime,
+        tier,
+        overrides: merged.model_profile_overrides,
+      });
+    },
+  };
+}
+
 // Cache for attribution settings (populated once per runtime during install)
 const attributionCache = new Map();
 
@@ -1015,14 +1152,18 @@ function convertCopilotToolName(claudeTool) {
  */
 function convertClaudeToCopilotContent(content, isGlobal = false) {
   let c = content;
-  // CONV-06: Path replacement — most specific first to avoid substring matches
+  // CONV-06: Path replacement — most specific first to avoid substring matches.
+  // Handle both `~/.claude/foo` (trailing slash) and bare `~/.claude` forms in
+  // one pass via a capture group, matching the approach used by Antigravity,
+  // OpenCode, Kilo, and Codex converters (issue #2545).
   if (isGlobal) {
-    c = c.replace(/\$HOME\/\.claude\//g, '$HOME/.copilot/');
-    c = c.replace(/~\/\.claude\//g, '~/.copilot/');
+    c = c.replace(/\$HOME\/\.claude(\/|\b)/g, '$HOME/.copilot$1');
+    c = c.replace(/~\/\.claude(\/|\b)/g, '~/.copilot$1');
   } else {
     c = c.replace(/\$HOME\/\.claude\//g, '.github/');
     c = c.replace(/~\/\.claude\//g, '.github/');
-    c = c.replace(/~\/\.claude\n/g, '.github/');
+    c = c.replace(/\$HOME\/\.claude\b/g, '.github');
+    c = c.replace(/~\/\.claude\b/g, '.github');
   }
   c = c.replace(/\.\/\.claude\//g, './.github/');
   c = c.replace(/\.claude\//g, '.github/');
@@ -1143,11 +1284,17 @@ function convertClaudeAgentToCopilotAgent(content, isGlobal = false) {
 function convertClaudeToAntigravityContent(content, isGlobal = false) {
   let c = content;
   if (isGlobal) {
-    c = c.replace(/\$HOME\/\.claude(?=\/|\b)/g, '$HOME/.gemini/antigravity');
-    c = c.replace(/~\/\.claude(?=\/|\b)/g, '~/.gemini/antigravity');
+    c = c.replace(/\$HOME\/\.claude\//g, '$HOME/.gemini/antigravity/');
+    c = c.replace(/~\/\.claude\//g, '~/.gemini/antigravity/');
+    // Bare form (no trailing slash) — must come after slash form to avoid double-replace
+    c = c.replace(/\$HOME\/\.claude\b/g, '$HOME/.gemini/antigravity');
+    c = c.replace(/~\/\.claude\b/g, '~/.gemini/antigravity');
   } else {
-    c = c.replace(/\$HOME\/\.claude(?=\/|\b)/g, '.agent');
-    c = c.replace(/~\/\.claude(?=\/|\b)/g, '.agent');
+    c = c.replace(/\$HOME\/\.claude\//g, '.agent/');
+    c = c.replace(/~\/\.claude\//g, '.agent/');
+    // Bare form (no trailing slash) — must come after slash form to avoid double-replace
+    c = c.replace(/\$HOME\/\.claude\b/g, '.agent');
+    c = c.replace(/~\/\.claude\b/g, '.agent');
   }
   c = c.replace(/\.\/\.claude\//g, './.agent/');
   c = c.replace(/\.claude\//g, '.agent/');
@@ -1917,7 +2064,7 @@ purpose: ${toSingleLine(description)}
  * Sets required agent metadata, sandbox_mode, and developer_instructions
  * from the agent markdown content.
  */
-function generateCodexAgentToml(agentName, agentContent, modelOverrides = null) {
+function generateCodexAgentToml(agentName, agentContent, modelOverrides = null, runtimeResolver = null) {
   const sandboxMode = CODEX_AGENT_SANDBOX[agentName] || 'read-only';
   const { frontmatter, body } = extractFrontmatterAndBody(agentContent);
   const frontmatterText = frontmatter || '';
@@ -1936,9 +2083,20 @@ function generateCodexAgentToml(agentName, agentContent, modelOverrides = null) 
   // Embed model override when configured in ~/.gsd/defaults.json so that
   // model_overrides is respected on Codex (which uses static TOML, not inline
   // Task() model parameters). See #2256.
+  // Precedence: per-agent model_overrides > runtime-aware tier resolution (#2517).
   const modelOverride = modelOverrides?.[resolvedName] || modelOverrides?.[agentName];
   if (modelOverride) {
     lines.push(`model = ${JSON.stringify(modelOverride)}`);
+  } else if (runtimeResolver) {
+    // #2517 — runtime-aware tier resolution. Embeds Codex-native model + reasoning_effort
+    // from RUNTIME_PROFILE_MAP / model_profile_overrides for the configured tier.
+    const entry = runtimeResolver.resolve(resolvedName) || runtimeResolver.resolve(agentName);
+    if (entry?.model) {
+      lines.push(`model = ${JSON.stringify(entry.model)}`);
+      if (entry.reasoning_effort) {
+        lines.push(`model_reasoning_effort = ${JSON.stringify(entry.reasoning_effort)}`);
+      }
+    }
   }
 
   // Agent prompts contain raw backslashes in regexes and shell snippets.
@@ -3178,8 +3336,16 @@ function installCodexConfig(targetDir, agentsSrc) {
 
     // Pass model overrides from ~/.gsd/defaults.json so Codex TOML files
     // embed the configured model — Codex cannot receive model inline (#2256).
+    // #2517 — also pass the runtime-aware tier resolver so profile tiers can
+    // resolve to Codex-native model IDs + reasoning_effort when `runtime: "codex"`
+    // is set in defaults.json.
     const modelOverrides = readGsdGlobalModelOverrides();
-    const tomlContent = generateCodexAgentToml(name, content, modelOverrides);
+    // Pass `targetDir` so per-project .planning/config.json wins over global
+    // ~/.gsd/defaults.json — without this, the PR's headline claim that
+    // setting runtime in the project config reaches the Codex emit path is
+    // false (review finding #1).
+    const runtimeResolver = readGsdRuntimeProfileResolver(targetDir);
+    const tomlContent = generateCodexAgentToml(name, content, modelOverrides, runtimeResolver);
     fs.writeFileSync(path.join(agentsTomlDir, `${name}.toml`), tomlContent);
   }
 
@@ -5992,6 +6158,8 @@ function install(isGlobal, runtime = 'claude') {
   // For global installs: use $HOME/ so paths expand correctly inside double-quoted
   // shell commands (~ does NOT expand inside double quotes, causing MODULE_NOT_FOUND).
   // For local installs: use resolved absolute path (may be outside $HOME).
+  // Exception: OpenCode on Windows does not expand $HOME in @file references —
+  // use the absolute path instead so @$HOME/... references resolve correctly (#2376).
   const resolvedTarget = path.resolve(targetDir).replace(/\\/g, '/');
   const homeDir = os.homedir().replace(/\\/g, '/');
   const isWindowsHost = process.platform === 'win32';
@@ -6389,6 +6557,7 @@ function install(isGlobal, runtime = 'claude') {
             let content = fs.readFileSync(srcFile, 'utf8');
             content = content.replace(/'\.claude'/g, configDirReplacement);
             content = content.replace(/\/\.claude\//g, `/${getDirName(runtime)}/`);
+            content = content.replace(/\.claude\//g, `${getDirName(runtime)}/`);
             if (isQwen) {
               content = content.replace(/CLAUDE\.md/g, 'QWEN.md');
               content = content.replace(/\bClaude Code\b/g, 'Qwen Code');
@@ -6514,6 +6683,7 @@ function install(isGlobal, runtime = 'claude') {
           let content = fs.readFileSync(srcFile, 'utf8');
           content = content.replace(/'\.claude'/g, configDirReplacement);
           content = content.replace(/\/\.claude\//g, `/${getDirName(runtime)}/`);
+          content = content.replace(/\.claude\//g, `${getDirName(runtime)}/`);
           content = content.replace(/\{\{GSD_VERSION\}\}/g, pkg.version);
           fs.writeFileSync(destFile, content);
           try { fs.chmodSync(destFile, 0o755); } catch (e) { /* Windows */ }
@@ -6630,9 +6800,13 @@ function install(isGlobal, runtime = 'claude') {
     return;
   }
   const settings = validateHookFields(cleanupOrphanedHooks(rawSettings));
-  // Local installs anchor paths to $CLAUDE_PROJECT_DIR so hooks resolve
-  // correctly regardless of the shell's current working directory (#1906).
-  const localPrefix = '"$CLAUDE_PROJECT_DIR"/' + dirName;
+  // Local installs anchor hook paths so they resolve regardless of cwd (#1906).
+  // Claude Code sets $CLAUDE_PROJECT_DIR; Gemini/Antigravity do not — and on
+  // Windows their own substitution logic doubles the path (#2557). Those runtimes
+  // run project hooks with the project dir as cwd, so bare relative paths work.
+  const localPrefix = (runtime === 'gemini' || runtime === 'antigravity')
+    ? dirName
+    : '"$CLAUDE_PROJECT_DIR"/' + dirName;
   const hookOpts = { portableHooks: hasPortableHooks };
   const statuslineCommand = isGlobal
     ? buildHookCommand(targetDir, 'gsd-statusline.js', hookOpts)
@@ -7457,6 +7631,7 @@ if (process.env.GSD_TEST_MODE) {
     stripGsdFromCodexConfig,
     mergeCodexConfig,
     installCodexConfig,
+    readGsdRuntimeProfileResolver,
     install,
     uninstall,
     convertClaudeCommandToCodexSkill,

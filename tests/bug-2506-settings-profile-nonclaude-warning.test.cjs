@@ -42,12 +42,6 @@ describe('bug #2506: settings.md non-Claude runtime warning for model profiles',
     );
   });
 
-  test('settings.md distinguishes direct binding from inherit, omit, and cross_ai_execution fallback', () => {
-    assert.ok(content.includes('direct binding'), 'settings.md must mention direct binding');
-    assert.ok(content.includes('resolve_model_ids: "omit"'), 'settings.md must mention runtime-default omission');
-    assert.ok(content.includes('cross_ai_execution'), 'settings.md must mention explicit cross_ai_execution fallback');
-  });
-
   test('Inherit option description explicitly mentions non-Claude runtimes', () => {
     // The Inherit option in AskUserQuestion must call out non-Claude runtimes
     const inheritOptionMatch = content.match(/label:\s*"Inherit"[^}]*description:\s*"([^"]+)"/s);

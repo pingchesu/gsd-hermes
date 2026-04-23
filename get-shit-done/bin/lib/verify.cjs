@@ -555,7 +555,7 @@ function cmdValidateHealth(cwd, options, raw) {
 
   // ─── Check 1: .planning/ exists ───────────────────────────────────────────
   if (!fs.existsSync(planBase)) {
-    addIssue('error', 'E001', '.planning/ directory not found', 'Run /gsd-new-project to initialize');
+    addIssue('error', 'E001', '.planning/ directory not found', 'Run /gsd:new-project to initialize');
     output({
       status: 'broken',
       errors,
@@ -568,7 +568,7 @@ function cmdValidateHealth(cwd, options, raw) {
 
   // ─── Check 2: PROJECT.md exists and has required sections ─────────────────
   if (!fs.existsSync(projectPath)) {
-    addIssue('error', 'E002', 'PROJECT.md not found', 'Run /gsd-new-project to create');
+    addIssue('error', 'E002', 'PROJECT.md not found', 'Run /gsd:new-project to create');
   } else {
     const content = fs.readFileSync(projectPath, 'utf-8');
     const requiredSections = ['## What This Is', '## Core Value', '## Requirements'];
@@ -581,12 +581,12 @@ function cmdValidateHealth(cwd, options, raw) {
 
   // ─── Check 3: ROADMAP.md exists ───────────────────────────────────────────
   if (!fs.existsSync(roadmapPath)) {
-    addIssue('error', 'E003', 'ROADMAP.md not found', 'Run /gsd-new-milestone to create roadmap');
+    addIssue('error', 'E003', 'ROADMAP.md not found', 'Run /gsd:new-milestone to create roadmap');
   }
 
   // ─── Check 4: STATE.md exists and references valid phases ─────────────────
   if (!fs.existsSync(statePath)) {
-    addIssue('error', 'E004', 'STATE.md not found', 'Run /gsd-health --repair to regenerate', true);
+    addIssue('error', 'E004', 'STATE.md not found', 'Run /gsd:health --repair to regenerate', true);
     repairs.push('regenerateState');
   } else {
     const stateContent = fs.readFileSync(statePath, 'utf-8');
@@ -613,7 +613,7 @@ function cmdValidateHealth(cwd, options, raw) {
             'warning',
             'W002',
             `STATE.md references phase ${ref}, but only phases ${[...diskPhases].sort().join(', ')} exist`,
-            'Review STATE.md manually before changing it; /gsd-health --repair will not overwrite an existing STATE.md for phase mismatches'
+            'Review STATE.md manually before changing it; /gsd:health --repair will not overwrite an existing STATE.md for phase mismatches'
           );
         }
       }
@@ -622,7 +622,7 @@ function cmdValidateHealth(cwd, options, raw) {
 
   // ─── Check 5: config.json valid JSON + valid schema ───────────────────────
   if (!fs.existsSync(configPath)) {
-    addIssue('warning', 'W003', 'config.json not found', 'Run /gsd-health --repair to create with defaults', true);
+    addIssue('warning', 'W003', 'config.json not found', 'Run /gsd:health --repair to create with defaults', true);
     repairs.push('createConfig');
   } else {
     try {
@@ -634,7 +634,7 @@ function cmdValidateHealth(cwd, options, raw) {
         addIssue('warning', 'W004', `config.json: invalid model_profile "${parsed.model_profile}"`, `Valid values: ${validProfiles.join(', ')}`);
       }
     } catch (err) {
-      addIssue('error', 'E005', `config.json: JSON parse error - ${err.message}`, 'Run /gsd-health --repair to reset to defaults', true);
+      addIssue('error', 'E005', `config.json: JSON parse error - ${err.message}`, 'Run /gsd:health --repair to reset to defaults', true);
       repairs.push('resetConfig');
     }
   }
@@ -645,11 +645,11 @@ function cmdValidateHealth(cwd, options, raw) {
       const configRaw = fs.readFileSync(configPath, 'utf-8');
       const configParsed = JSON.parse(configRaw);
       if (configParsed.workflow && configParsed.workflow.nyquist_validation === undefined) {
-        addIssue('warning', 'W008', 'config.json: workflow.nyquist_validation absent (defaults to enabled but agents may skip)', 'Run /gsd-health --repair to add key', true);
+        addIssue('warning', 'W008', 'config.json: workflow.nyquist_validation absent (defaults to enabled but agents may skip)', 'Run /gsd:health --repair to add key', true);
         if (!repairs.includes('addNyquistKey')) repairs.push('addNyquistKey');
       }
       if (configParsed.workflow && configParsed.workflow.ai_integration_phase === undefined) {
-        addIssue('warning', 'W016', 'config.json: workflow.ai_integration_phase absent (defaults to enabled — run /gsd-ai-integration-phase before planning AI system phases)', 'Run /gsd-health --repair to add key', true);
+        addIssue('warning', 'W016', 'config.json: workflow.ai_integration_phase absent (defaults to enabled — run /gsd:ai-integration-phase before planning AI system phases)', 'Run /gsd:health --repair to add key', true);
         if (!repairs.includes('addAiIntegrationPhaseKey')) repairs.push('addAiIntegrationPhaseKey');
       }
     } catch { /* intentionally empty */ }
@@ -699,7 +699,7 @@ function cmdValidateHealth(cwd, options, raw) {
       try {
         const researchContent = fs.readFileSync(path.join(phasesDir, e.name, researchFile), 'utf-8');
         if (researchContent.includes('## Validation Architecture')) {
-          addIssue('warning', 'W009', `Phase ${e.name}: has Validation Architecture in RESEARCH.md but no VALIDATION.md`, 'Re-run /gsd-plan-phase with --research to regenerate');
+          addIssue('warning', 'W009', `Phase ${e.name}: has Validation Architecture in RESEARCH.md but no VALIDATION.md`, 'Re-run /gsd:plan-phase with --research to regenerate');
         }
       } catch { /* intentionally empty */ }
     }
@@ -792,7 +792,7 @@ function cmdValidateHealth(cwd, options, raw) {
           if (statusVal !== 'complete' && statusVal !== 'done') {
             addIssue('warning', 'W011',
               `STATE.md says current phase is ${statePhase} (status: ${statusVal || 'unknown'}) but ROADMAP.md shows it as [x] complete — state files may be out of sync`,
-              'Run /gsd-progress to re-derive current position, or manually update STATE.md');
+              'Run /gsd:progress to re-derive current position, or manually update STATE.md');
           }
         }
       }
@@ -895,7 +895,7 @@ function cmdValidateHealth(cwd, options, raw) {
         if (missingFromRegistry.length > 0) {
           addIssue('warning', 'W018',
             `MILESTONES.md missing ${missingFromRegistry.length} archived milestone(s): ${missingFromRegistry.join(', ')}`,
-            'Run /gsd-health --backfill to synthesize missing entries from archive snapshots',
+            'Run /gsd:health --backfill to synthesize missing entries from archive snapshots',
             true);
           repairs.push('backfillMilestones');
         }
@@ -969,7 +969,7 @@ function cmdValidateHealth(cwd, options, raw) {
             stateContent += `**Current phase:** (determining...)\n`;
             stateContent += `**Status:** Resuming\n\n`;
             stateContent += `## Session Log\n\n`;
-            stateContent += `- ${new Date().toISOString().split('T')[0]}: STATE.md regenerated by /gsd-health --repair\n`;
+            stateContent += `- ${new Date().toISOString().split('T')[0]}: STATE.md regenerated by /gsd:health --repair\n`;
             writeStateMd(statePath, stateContent, cwd);
             repairActions.push({ action: repair, success: true, path: 'STATE.md' });
             break;
@@ -1019,7 +1019,7 @@ function cmdValidateHealth(cwd, options, raw) {
                 // Build minimal entry from snapshot title or version
                 const titleMatch = snapshot && snapshot.match(/^#\s+(.+)$/m);
                 const milestoneName = titleMatch ? titleMatch[1].replace(/^Milestone\s+/i, '').replace(/^v[\d.]+\s*/, '').trim() : ver;
-                const entry = `## ${ver}${milestoneName && milestoneName !== ver ? ` ${milestoneName}` : ''} (Backfilled: ${today})\n\n**Note:** Synthesized from archive snapshot by \`/gsd-health --backfill\`. Original completion date unknown.\n\n---\n\n`;
+                const entry = `## ${ver}${milestoneName && milestoneName !== ver ? ` ${milestoneName}` : ''} (Backfilled: ${today})\n\n**Note:** Synthesized from archive snapshot by \`/gsd:health --backfill\`. Original completion date unknown.\n\n---\n\n`;
                 const milestonesContent = fs.existsSync(milestonesPath)
                   ? fs.readFileSync(milestonesPath, 'utf-8')
                   : '';
@@ -1169,6 +1169,141 @@ function cmdVerifySchemaDrift(cwd, phaseArg, skipFlag, raw) {
   }, raw);
 }
 
+// ─── Codebase Drift Detection (#2003) ────────────────────────────────────────
+
+/**
+ * Detect structural drift between the committed tree and
+ * `.planning/codebase/STRUCTURE.md`. Non-blocking: any failure returns a
+ * `{ skipped: true }` JSON result with a reason; the command never exits
+ * non-zero so `execute-phase`'s drift gate cannot fail the phase.
+ */
+function cmdVerifyCodebaseDrift(cwd, raw) {
+  const drift = require('./drift.cjs');
+
+  const emit = (payload) => output(payload, raw);
+
+  try {
+    const codebaseDir = path.join(planningDir(cwd), 'codebase');
+    const structurePath = path.join(codebaseDir, 'STRUCTURE.md');
+    if (!fs.existsSync(structurePath)) {
+      emit({
+        skipped: true,
+        reason: 'no-structure-md',
+        action_required: false,
+        directive: 'none',
+        elements: [],
+      });
+      return;
+    }
+
+    let structureMd;
+    try {
+      structureMd = fs.readFileSync(structurePath, 'utf-8');
+    } catch (err) {
+      emit({
+        skipped: true,
+        reason: 'cannot-read-structure-md: ' + err.message,
+        action_required: false,
+        directive: 'none',
+        elements: [],
+      });
+      return;
+    }
+
+    const lastMapped = drift.readMappedCommit(structurePath);
+
+    // Verify we're inside a git repo and resolve the diff range.
+    const revProbe = execGit(cwd, ['rev-parse', 'HEAD']);
+    if (revProbe.exitCode !== 0) {
+      emit({
+        skipped: true,
+        reason: 'not-a-git-repo',
+        action_required: false,
+        directive: 'none',
+        elements: [],
+      });
+      return;
+    }
+
+    // Empty-tree SHA is a stable fallback when no mapping commit is recorded.
+    const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+    let base = lastMapped;
+    if (!base) {
+      base = EMPTY_TREE;
+    } else {
+      // Verify the commit is reachable; if not, fall back to EMPTY_TREE.
+      const verify = execGit(cwd, ['cat-file', '-t', base]);
+      if (verify.exitCode !== 0) base = EMPTY_TREE;
+    }
+
+    const diff = execGit(cwd, ['diff', '--name-status', base, 'HEAD']);
+    if (diff.exitCode !== 0) {
+      emit({
+        skipped: true,
+        reason: 'git-diff-failed',
+        action_required: false,
+        directive: 'none',
+        elements: [],
+      });
+      return;
+    }
+
+    const added = [];
+    const modified = [];
+    const deleted = [];
+    for (const line of diff.stdout.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      const m = line.match(/^([A-Z])\d*\t(.+?)(?:\t(.+))?$/);
+      if (!m) continue;
+      const status = m[1];
+      // For renames (R), use the new path (m[3] if present, else m[2]).
+      const file = m[3] || m[2];
+      if (status === 'A' || status === 'R' || status === 'C') added.push(file);
+      else if (status === 'M') modified.push(file);
+      else if (status === 'D') deleted.push(file);
+    }
+
+    // Threshold and action read from config, with defaults.
+    const config = loadConfig(cwd);
+    const threshold = Number.isInteger(config?.workflow?.drift_threshold) && config.workflow.drift_threshold >= 1
+      ? config.workflow.drift_threshold
+      : 3;
+    const action = config?.workflow?.drift_action === 'auto-remap' ? 'auto-remap' : 'warn';
+
+    const result = drift.detectDrift({
+      addedFiles: added,
+      modifiedFiles: modified,
+      deletedFiles: deleted,
+      structureMd,
+      threshold,
+      action,
+    });
+
+    emit({
+      skipped: !!result.skipped,
+      reason: result.reason || null,
+      action_required: !!result.actionRequired,
+      directive: result.directive,
+      spawn_mapper: !!result.spawnMapper,
+      affected_paths: result.affectedPaths || [],
+      elements: result.elements || [],
+      threshold,
+      action,
+      last_mapped_commit: lastMapped,
+      message: result.message || '',
+    });
+  } catch (err) {
+    // Non-blocking: never bubble up an exception.
+    emit({
+      skipped: true,
+      reason: 'exception: ' + (err && err.message ? err.message : String(err)),
+      action_required: false,
+      directive: 'none',
+      elements: [],
+    });
+  }
+}
+
 module.exports = {
   cmdVerifySummary,
   cmdVerifyPlanStructure,
@@ -1181,4 +1316,5 @@ module.exports = {
   cmdValidateHealth,
   cmdValidateAgents,
   cmdVerifySchemaDrift,
+  cmdVerifyCodebaseDrift,
 };

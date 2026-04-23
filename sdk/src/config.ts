@@ -8,13 +8,8 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { relPlanningPath } from './workstream-utils.js';
-import type { Runtime } from './query/helpers.js';
-import type { AcceptedModelProfile } from './query/runtime-model-contract.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-
-export type ResolveModelIdsSetting = boolean | 'omit';
-export type ModelOverridesConfig = Record<string, string>;
 
 export interface GitConfig {
   branching_strategy: string;
@@ -39,13 +34,17 @@ export interface WorkflowConfig {
   research_before_questions: boolean;
   discuss_mode: string;
   skip_discuss: boolean;
-  cross_ai_execution: boolean;
-  cross_ai_command: string | null;
-  cross_ai_timeout: number;
   /** Maximum self-discuss passes in auto/headless mode before forcing proceed. Default: 3. */
   max_discuss_passes: number;
   /** Subagent timeout in ms (matches `get-shit-done/bin/lib/core.cjs` default 300000). */
   subagent_timeout: number;
+  /**
+   * Issue #2492. When true (default), enforces that every trackable decision in
+   * CONTEXT.md `<decisions>` is referenced by at least one plan (translation
+   * gate, blocking) and reports decisions not honored by shipped artifacts at
+   * verify-phase (validation gate, non-blocking). Set false to disable both.
+   */
+  context_coverage_gate: boolean;
 }
 
 export interface HooksConfig {
@@ -53,10 +52,7 @@ export interface HooksConfig {
 }
 
 export interface GSDConfig {
-  model_profile: AcceptedModelProfile;
-  model_overrides?: ModelOverridesConfig;
-  resolve_model_ids?: ResolveModelIdsSetting;
-  runtime?: Runtime;
+  model_profile: string;
   commit_docs: boolean;
   parallelization: boolean;
   search_gitignored: boolean;
@@ -80,9 +76,6 @@ export interface GSDConfig {
 
 export const CONFIG_DEFAULTS: GSDConfig = {
   model_profile: 'balanced',
-  model_overrides: {},
-  resolve_model_ids: false,
-  runtime: undefined,
   commit_docs: true,
   parallelization: true,
   search_gitignored: false,
@@ -110,11 +103,9 @@ export const CONFIG_DEFAULTS: GSDConfig = {
     research_before_questions: false,
     discuss_mode: 'discuss',
     skip_discuss: false,
-    cross_ai_execution: false,
-    cross_ai_command: null,
-    cross_ai_timeout: 300,
     max_discuss_passes: 3,
     subagent_timeout: 300000,
+    context_coverage_gate: true,
   },
   hooks: {
     context_warnings: true,
@@ -160,7 +151,7 @@ export async function loadConfig(projectDir: string, workstream?: string): Promi
 
   let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    parsed = JSON.parse(trimmed);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     throw new Error(`Failed to parse config at ${configPath}: ${msg}`);
@@ -189,10 +180,6 @@ export async function loadConfig(projectDir: string, workstream?: string): Promi
     agent_skills: {
       ...CONFIG_DEFAULTS.agent_skills,
       ...(parsed.agent_skills as Record<string, unknown> ?? {}),
-    },
-    model_overrides: {
-      ...CONFIG_DEFAULTS.model_overrides,
-      ...(parsed.model_overrides as ModelOverridesConfig ?? {}),
     },
   };
 }

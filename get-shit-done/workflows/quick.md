@@ -126,13 +126,13 @@ If `$VALIDATE_MODE` only:
 
 ```bash
 if ! command -v gsd-sdk &>/dev/null; then
-  echo "⚠ gsd-sdk not found in PATH — /gsd-quick requires it."
+  echo "⚠ gsd-sdk not found in PATH — /gsd:quick requires it."
   echo ""
   echo "Install the GSD SDK:"
   echo "  npm install -g @gsd-build/sdk"
   echo ""
   echo "Or update GSD to get the latest packages:"
-  echo "  /gsd-update"
+  echo "  /gsd:update"
   exit 1
 fi
 ```
@@ -148,10 +148,6 @@ AGENT_SKILLS_VERIFIER=$(gsd-sdk query agent-skills gsd-verifier 2>/dev/null)
 
 Parse JSON for: `planner_model`, `executor_model`, `checker_model`, `verifier_model`, `commit_docs`, `branch_name`, `quick_id`, `slug`, `date`, `timestamp`, `quick_dir`, `task_dir`, `roadmap_exists`, `planning_exists`.
 
-`init.quick` also emits additive `runtime_model` metadata. Treat that metadata as the canonical visibility surface for the four runtime-model paths: explicit binding, `inherit`, runtime-default omission via `resolve_model_ids: "omit"`, and explicit `cross_ai_execution` fallback. Quick mode should propagate those semantics consistently instead of inferring them from token strings alone.
-
-**Model resolution:** When a spawned agent model token is empty, omit the `model=` parameter from the corresponding `Task()` call. Empty init tokens now intentionally represent either `inherit` or runtime-default omission, so the runtime should keep the distinction visible through `runtime_model` rather than flattening it into a fake empty-model binding.
-
 ```bash
 USE_WORKTREES=$(gsd-sdk query config-get workflow.use_worktrees 2>/dev/null || echo "true")
 ```
@@ -165,7 +161,7 @@ if [ -f .gitmodules ]; then
 fi
 ```
 
-**If `roadmap_exists` is false:** Error — Quick mode requires an active project with ROADMAP.md. Run `/gsd-new-project` first.
+**If `roadmap_exists` is false:** Error — Quick mode requires an active project with ROADMAP.md. Run `/gsd:new-project` first.
 
 Quick tasks can run mid-phase - validation only checks ROADMAP.md exists, not phase status.
 
@@ -934,7 +930,7 @@ Commit: ${commit_hash}
 
 ---
 
-Ready for next task: /gsd-quick ${GSD_WS}
+Ready for next task: /gsd:quick ${GSD_WS}
 ```
 
 **If NOT `$VALIDATE_MODE`:**
@@ -951,7 +947,7 @@ Commit: ${commit_hash}
 
 ---
 
-Ready for next task: /gsd-quick ${GSD_WS}
+Ready for next task: /gsd:quick ${GSD_WS}
 ```
 
 </process>

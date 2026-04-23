@@ -282,8 +282,6 @@
 
 **Purpose:** Research the implementation domain and produce verified, atomic execution plans.
 
-Runtime-model semantics for planning follow the canonical four-path model in `docs/CONFIGURATION.md`: explicit binding, `inherit`, runtime-default omission, and explicit `cross_ai_execution` fallback.
-
 **Requirements:**
 - REQ-PLAN-01: System MUST spawn a phase researcher to investigate implementation approaches
 - REQ-PLAN-02: System MUST produce plans with 2-3 tasks each, sized for a single context window
@@ -334,8 +332,6 @@ Runtime-model semantics for planning follow the canonical four-path model in `do
 
 **Purpose:** Execute all plans in a phase using wave-based parallelization with fresh context windows per executor.
 
-Execution keeps direct runtime support and explicit external fallback distinct: direct bindings stay direct when supported, while `cross_ai_execution` is the explicit fallback path rather than an automatic provider translation layer.
-
 **Requirements:**
 - REQ-EXEC-01: System MUST analyze plan dependencies and group into execution waves
 - REQ-EXEC-02: System MUST spawn independent plans in parallel within each wave
@@ -379,8 +375,6 @@ Execution keeps direct runtime support and explicit external fallback distinct: 
 **Command:** `/gsd-verify-work [N]`
 
 **Purpose:** User acceptance testing — walk the user through testing each deliverable and auto-diagnose failures.
-
-Verification and any follow-up replanning should preserve the same four runtime-model paths documented in `docs/CONFIGURATION.md` instead of collapsing `inherit`, runtime-default omission, and explicit fallback into one generic “no model” state.
 
 **Requirements:**
 - REQ-VERIFY-01: System MUST extract testable deliverables from the phase
@@ -807,6 +801,45 @@ Verification and any follow-up replanning should preserve the same four runtime-
 | `STRUCTURE.md` | Directory layout and file organization |
 | `TESTING.md` | Test infrastructure, coverage, patterns |
 | `INTEGRATIONS.md` | External services, APIs, third-party dependencies |
+
+**Incremental remap — `--paths` (#2003):** The mapper accepts an optional
+`--paths <p1,p2,...>` scope hint. When provided, it restricts exploration
+to the listed repo-relative prefixes instead of scanning the whole tree.
+This is the pathway used by the post-execute codebase-drift gate to refresh
+only the subtrees the phase actually changed. Each produced document carries
+`last_mapped_commit` in its YAML frontmatter so drift can be measured
+against the mapping point, not HEAD.
+
+### 27a. Post-Execute Codebase Drift Detection
+
+**Introduced by:** #2003
+**Trigger:** Runs automatically at the end of every `/gsd:execute-phase`
+**Configuration:**
+- `workflow.drift_threshold` (integer, default `3`) — minimum new
+  structural elements before the gate acts.
+- `workflow.drift_action` (`warn` | `auto-remap`, default `warn`) —
+  warn-only or spawn `gsd-codebase-mapper` with `--paths` scoped to
+  affected subtrees.
+
+**What counts as drift:**
+- New directory outside mapped paths
+- New barrel export at `(packages|apps)/*/src/index.*`
+- New migration file (supabase/prisma/drizzle/src/migrations/…)
+- New route module under `routes/` or `api/`
+
+**Non-blocking guarantee:** any internal failure (missing STRUCTURE.md,
+git errors, mapper spawn failure) logs a single line and the phase
+continues. Drift detection cannot fail verification.
+
+**Requirements:**
+- REQ-DRIFT-01: System MUST detect the four drift categories from `git diff
+  --name-status last_mapped_commit..HEAD`
+- REQ-DRIFT-02: Action fires only when element count ≥ `workflow.drift_threshold`
+- REQ-DRIFT-03: `warn` action MUST NOT spawn any agent
+- REQ-DRIFT-04: `auto-remap` action MUST pass sanitized `--paths` to the mapper
+- REQ-DRIFT-05: Detection/remap failure MUST be non-blocking for `/gsd:execute-phase`
+- REQ-DRIFT-06: `last_mapped_commit` round-trip through YAML frontmatter
+  on each `.planning/codebase/*.md` file
 
 ---
 
@@ -2367,8 +2400,6 @@ Test suite that scans all agent, workflow, and command files for embedded inject
 - REQ-CROSSAI-05: On failure, user chooses: retry, skip (fall back to normal executor), or abort
 
 **Configuration:** `workflow.cross_ai_execution`, `workflow.cross_ai_command`, `workflow.cross_ai_timeout`
-
-This feature is the fourth path in the canonical runtime-model model: explicit external fallback after explicit binding, `inherit`, and runtime-default omission.
 
 ---
 

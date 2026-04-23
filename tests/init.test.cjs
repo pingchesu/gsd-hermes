@@ -67,43 +67,6 @@ describe('init commands', () => {
       'model_overrides must take precedence even when resolve_model_ids is omit');
   });
 
-  test('init execute-phase omits literal inherit bindings from payload models', () => {
-    const phaseDir = path.join(tmpDir, '.planning', 'phases', '01-foundation');
-    fs.mkdirSync(phaseDir, { recursive: true });
-    fs.writeFileSync(path.join(phaseDir, '01-01-PLAN.md'), '# Plan');
-    fs.writeFileSync(path.join(tmpDir, '.planning', 'config.json'), JSON.stringify({
-      model_profile: 'inherit',
-    }));
-
-    const result = runGsdTools('init execute-phase 1 --raw', tmpDir, { HOME: tmpDir });
-    assert.ok(result.success, `Command failed: ${result.error}`);
-
-    const output = JSON.parse(result.output);
-    assert.strictEqual(output.executor_model, '',
-      'init payload must omit executor model token when binding is inherit');
-    assert.strictEqual(output.verifier_model, '',
-      'init payload must omit verifier model token when binding is inherit');
-  });
-
-  test('init execute-phase preserves runtime-default omission for non-Claude installs', () => {
-    const phaseDir = path.join(tmpDir, '.planning', 'phases', '01-foundation');
-    fs.mkdirSync(phaseDir, { recursive: true });
-    fs.writeFileSync(path.join(phaseDir, '01-01-PLAN.md'), '# Plan');
-    fs.writeFileSync(path.join(tmpDir, '.planning', 'config.json'), JSON.stringify({
-      model_profile: 'balanced',
-      resolve_model_ids: 'omit',
-    }));
-
-    const result = runGsdTools('init execute-phase 1 --raw', tmpDir, { HOME: tmpDir });
-    assert.ok(result.success, `Command failed: ${result.error}`);
-
-    const output = JSON.parse(result.output);
-    assert.strictEqual(output.executor_model, '',
-      'runtime-default binding must stay omitted for init payloads');
-    assert.strictEqual(output.verifier_model, '',
-      'runtime-default binding must stay omitted for init payloads');
-  });
-
   test('init plan-phase returns file paths', () => {
     const phaseDir = path.join(tmpDir, '.planning', 'phases', '03-api');
     fs.mkdirSync(phaseDir, { recursive: true });

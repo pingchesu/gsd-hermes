@@ -30,10 +30,12 @@ GSD stores project settings in `.planning/config.json`. Created during `/gsd-new
     "nyquist_validation": true,
     "ui_phase": true,
     "ui_safety_gate": true,
+    "ui_review": true,
     "node_repair": true,
     "node_repair_budget": 2,
     "research_before_questions": false,
     "discuss_mode": "discuss",
+    "max_discuss_passes": 3,
     "skip_discuss": false,
     "tdd_mode": false,
     "text_mode": false,
@@ -50,7 +52,8 @@ GSD stores project settings in `.planning/config.json`. Created during `/gsd-new
     "cross_ai_timeout": 300,
     "security_enforcement": true,
     "security_asvs_level": 1,
-    "security_block_on": "high"
+    "security_block_on": "high",
+    "post_planning_gaps": true
   },
   "hooks": {
     "context_warnings": true,
@@ -109,9 +112,12 @@ GSD stores project settings in `.planning/config.json`. Created during `/gsd-new
 |---------|------|---------|---------|-------------|
 | `mode` | enum | `interactive`, `yolo` | `interactive` | `yolo` auto-approves decisions; `interactive` confirms at each step |
 | `granularity` | enum | `coarse`, `standard`, `fine` | `standard` | Controls phase count: `coarse` (3-5), `standard` (5-8), `fine` (8-12) |
-| `model_profile` | enum | `quality`, `balanced`, `budget`, `inherit` | `balanced` | Model tier for each agent (see [Model Profiles](#model-profiles)) |
+| `model_profile` | enum | `quality`, `balanced`, `budget`, `adaptive`, `inherit` | `balanced` | Model tier for each agent (see [Model Profiles](#model-profiles)). `adaptive` was added per [#1713](https://github.com/gsd-build/get-shit-done/issues/1713) / [#1806](https://github.com/gsd-build/get-shit-done/issues/1806) and resolves the same way as the other tiers under runtime-aware profiles. |
+| `runtime` | string | `claude`, `codex`, or any string | (none) | Active runtime for [runtime-aware profile resolution](#runtime-aware-profiles-2517). When set, profile tiers (opus/sonnet/haiku) resolve to runtime-native model IDs. Today only the Codex install path emits per-agent model IDs from this resolver; other runtimes (`opencode`, `gemini`, `qwen`, `copilot`, …) consume the resolver at spawn time and gain dedicated install-path support in [#2612](https://github.com/gsd-build/get-shit-done/issues/2612). When unset (default), behavior is unchanged from prior versions. Added in v1.39 |
+| `model_profile_overrides.<runtime>.<tier>` | string \| object | per-runtime tier override | (none) | Override the runtime-aware tier mapping for a specific `(runtime, tier)`. Tier is one of `opus`, `sonnet`, `haiku`. Value is either a model ID string (e.g. `"gpt-5-pro"`) or `{ model, reasoning_effort }`. See [Runtime-Aware Profiles](#runtime-aware-profiles-2517). Added in v1.39 |
 | `project_code` | string | any short string | (none) | Prefix for phase directory names (e.g., `"ABC"` produces `ABC-01-setup/`). Added in v1.31 |
 | `response_language` | string | language code | (none) | Language for agent responses (e.g., `"pt"`, `"ko"`, `"ja"`). Propagates to all spawned agents for cross-phase language consistency. Added in v1.32 |
+| `context_window` | number | any integer | `200000` | Context window size in tokens. Set `1000000` for 1M-context models (e.g., `claude-opus-4-7[1m]`). Values `>= 500000` enable adaptive context enrichment (full-body reads of prior SUMMARY.md, deeper anti-pattern reads). Configured via `/gsd-settings-advanced`. |
 | `context_profile` | string | `dev`, `research`, `review` | (none) | Execution context preset that applies a pre-configured bundle of mode, model, and workflow settings for the current type of work. Added in v1.34 |
 | `claude_md_path` | string | any file path | `./CLAUDE.md` | Custom output path for the generated CLAUDE.md file. Useful for monorepos or projects that need CLAUDE.md in a non-root location. Defaults to `./CLAUDE.md` at the project root. Added in v1.36 |
 | `claude_md_assembly.mode` | enum | `embed`, `link` | `embed` | Controls how managed sections are written into CLAUDE.md. `embed` (default) inlines content between GSD markers. `link` writes `@.planning/<source-path>` instead — Claude Code expands the reference at runtime, reducing CLAUDE.md size by ~65% on typical projects. `link` only applies to sections that have a real source file; `workflow` and fallback sections always embed. Per-block overrides: `claude_md_assembly.blocks.<section>` (e.g. `claude_md_assembly.blocks.architecture: link`). Added in v1.38 |
@@ -123,6 +129,41 @@ GSD stores project settings in `.planning/config.json`. Created during `/gsd-new
 | `search_gitignored` | boolean | `true`/`false` | `false` | Legacy top-level alias for `planning.search_gitignored`. Prefer the namespaced form; this alias is accepted for backward compatibility |
 
 > **Note:** `granularity` was renamed from `depth` in v1.22.3. Existing configs are auto-migrated.
+
+---
+
+## Integration Settings
+
+Configured interactively via [`/gsd-settings-integrations`](COMMANDS.md#gsd-settings-integrations). These are *connectivity* settings — API keys and cross-tool routing — and are intentionally kept separate from `/gsd-settings` (workflow toggles).
+
+### Search API keys
+
+API key fields accept a string value (the key itself). They can also be set to the sentinels `true`/`false`/`null` to override auto-detection from env vars / `~/.gsd/*_api_key` files (legacy behavior, see rows above).
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `brave_search` | string \| boolean \| null | `null` | Brave Search API key used for web research. Displayed as `****<last-4>` in all UI / `config-set` output; never echoed plaintext |
+| `firecrawl` | string \| boolean \| null | `null` | Firecrawl API key for deep-crawl scraping. Masked in display |
+| `exa_search` | string \| boolean \| null | `null` | Exa Search API key for semantic search. Masked in display |
+
+**Masking convention (`get-shit-done/bin/lib/secrets.cjs`):** keys 8+ characters render as `****<last-4>`; shorter keys render as `****`; `null`/empty renders as `(unset)`. Plaintext is written as-is to `.planning/config.json` — that file is the security boundary — but the CLI, confirmation tables, logs, and `AskUserQuestion` descriptions never display the plaintext. This applies to the `config-set` command output itself: `config-set brave_search <key>` returns a JSON payload with the value masked.
+
+### Code-review CLI routing
+
+`review.models.<cli>` maps a reviewer flavor to a shell command. The code-review workflow shells out using this command when a matching flavor is requested.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `review.models.claude` | string | (session model) | Command for Claude-flavored review. Defaults to the session model when unset |
+| `review.models.codex` | string | `null` | Command for Codex review, e.g. `"codex exec --model gpt-5"` |
+| `review.models.gemini` | string | `null` | Command for Gemini review, e.g. `"gemini -m gemini-2.5-pro"` |
+| `review.models.opencode` | string | `null` | Command for OpenCode review, e.g. `"opencode run --model claude-sonnet-4"` |
+
+The `<cli>` slug is validated against `[a-zA-Z0-9_-]+`. Empty or path-containing slugs are rejected by `config-set`.
+
+### Agent-skill injection (dynamic)
+
+`agent_skills.<agent-type>` extends the `agent_skills` map documented below. Slug is validated against `[a-zA-Z0-9_-]+` — no path separators, no whitespace, no shell metacharacters. Configured interactively via `/gsd-settings-integrations`.
 
 ---
 
@@ -139,10 +180,12 @@ All workflow toggles follow the **absent = enabled** pattern. If a key is missin
 | `workflow.nyquist_validation` | boolean | `true` | Test coverage mapping during plan-phase research |
 | `workflow.ui_phase` | boolean | `true` | Generate UI design contracts for frontend phases |
 | `workflow.ui_safety_gate` | boolean | `true` | Prompt to run /gsd-ui-phase for frontend phases during plan-phase |
+| `workflow.ui_review` | boolean | `true` | Run visual quality audit (`/gsd-ui-review`) after phase execution in autonomous mode. When `false`, the UI audit step is skipped. |
 | `workflow.node_repair` | boolean | `true` | Autonomous task repair on verification failure |
 | `workflow.node_repair_budget` | number | `2` | Max repair attempts per failed task |
 | `workflow.research_before_questions` | boolean | `false` | Run research before discussion questions instead of after |
 | `workflow.discuss_mode` | string | `'discuss'` | Controls how `/gsd-discuss-phase` gathers context. `'discuss'` (default) asks questions one-by-one. `'assumptions'` reads the codebase first, generates structured assumptions with confidence levels, and only asks you to correct what's wrong. Added in v1.28 |
+| `workflow.max_discuss_passes` | number | `3` | Maximum number of question rounds in discuss-phase before the workflow stops asking. Useful in headless/auto mode to prevent infinite discussion loops. |
 | `workflow.skip_discuss` | boolean | `false` | When `true`, `/gsd-autonomous` bypasses the discuss-phase entirely, writing minimal CONTEXT.md from the ROADMAP phase goal. Useful for projects where developer preferences are fully captured in PROJECT.md/REQUIREMENTS.md. Added in v1.28 |
 | `workflow.text_mode` | boolean | `false` | Replaces AskUserQuestion TUI menus with plain-text numbered lists. Required for Claude Code remote sessions (`/rc` mode) where TUI menus don't render. Can also be set per-session with `--text` flag on discuss-phase. Added in v1.28 |
 | `workflow.use_worktrees` | boolean | `true` | When `false`, disables git worktree isolation for parallel execution. Users who prefer sequential execution or whose environment does not support worktrees can disable this. Added in v1.31 |
@@ -151,42 +194,20 @@ All workflow toggles follow the **absent = enabled** pattern. If a key is missin
 | `workflow.plan_bounce` | boolean | `false` | Run external validation script against generated plans. When enabled, the plan-phase orchestrator pipes each PLAN.md through the script specified by `plan_bounce_script` and blocks on non-zero exit. Added in v1.36 |
 | `workflow.plan_bounce_script` | string | (none) | Path to the external script invoked for plan bounce validation. Receives the PLAN.md path as its first argument. Required when `plan_bounce` is `true`. Added in v1.36 |
 | `workflow.plan_bounce_passes` | number | `2` | Number of sequential bounce passes to run. Each pass feeds the previous pass's output back into the validator. Higher values increase rigor at the cost of latency. Added in v1.36 |
+| `workflow.post_planning_gaps` | boolean | `true` | Unified post-planning gap report (#2493). After all plans are generated and committed, scans REQUIREMENTS.md and CONTEXT.md `<decisions>` against every PLAN.md in the phase directory, then prints one `Source \| Item \| Status` table. Word-boundary matching (REQ-1 vs REQ-10) and natural sort (REQ-02 before REQ-10). Non-blocking — informational report only. Set to `false` to skip Step 13e of plan-phase. |
 | `workflow.plan_chunked` | boolean | `false` | Enable chunked planning mode. When `true` (or when `--chunked` flag is passed to `/gsd-plan-phase`), the orchestrator splits the single long-lived planner Task into a short outline Task followed by N short per-plan Tasks (~3-5 min each). Each plan is committed individually for crash resilience. If a Task hangs and the terminal is force-killed, rerunning with `--chunked` resumes from the last completed plan. Particularly useful on Windows where long-lived Tasks may hang on stdio. Added in v1.38 |
 | `workflow.code_review_command` | string | (none) | Shell command for external code review integration in `/gsd-ship`. Receives changed file paths via stdin. Non-zero exit blocks the ship workflow. Added in v1.36 |
 | `workflow.tdd_mode` | boolean | `false` | Enable TDD pipeline as a first-class execution mode. When `true`, the planner aggressively applies `type: tdd` to eligible tasks (business logic, APIs, validations, algorithms) and the executor enforces RED/GREEN/REFACTOR gate sequence. An end-of-phase collaborative review checkpoint verifies gate compliance. Added in v1.36 |
-| `workflow.cross_ai_execution` | boolean | `false` | Enable explicit external cross-AI routing when direct runtime binding is unavailable. Routing precedence is `CLI flags > config > plan frontmatter`, so this config setting overrides plan-level `cross_ai: true` requests unless `--cross-ai` or `--no-cross-ai` is passed. Hermes mixed-provider direct bindings remain a direct runtime path and are not forced through cross-AI unless the operator explicitly forces it. Added in v1.36 |
-| `workflow.cross_ai_command` | string | (none) | Shell command template for cross-AI execution. Receives the phase prompt via stdin. Required when cross-AI routing is enabled or forced. Successful output must satisfy the minimum accepted SUMMARY contract with a completion summary, what changed, verification results, and an explicit failure/deviation section whenever the result is not a clean full completion. Added in v1.36 |
-| `workflow.cross_ai_timeout` | number | `300` | Timeout in seconds for cross-AI execution commands. Prevents runaway external processes. Timeout, non-zero exit, malformed summary, and partial execution are all treated as explicit failures rather than silent success. Added in v1.36 |
+| `workflow.cross_ai_execution` | boolean | `false` | Delegate phase execution to an external AI CLI instead of spawning local executor agents. Useful for leveraging a different model's strengths for specific phases. Added in v1.36 |
+| `workflow.cross_ai_command` | string | (none) | Shell command template for cross-AI execution. Receives the phase prompt via stdin. Must produce SUMMARY.md-compatible output. Required when `cross_ai_execution` is `true`. Added in v1.36 |
+| `workflow.cross_ai_timeout` | number | `300` | Timeout in seconds for cross-AI execution commands. Prevents runaway external processes. Added in v1.36 |
 | `workflow.ai_integration_phase` | boolean | `true` | Enable the `/gsd-ai-integration-phase` command. When `false`, the command exits with a configuration gate message |
 | `workflow.auto_prune_state` | boolean | `false` | When `true`, automatically prune stale entries from STATE.md at phase boundaries instead of prompting |
 | `workflow.pattern_mapper` | boolean | `true` | Run the `gsd-pattern-mapper` agent between research and planning to map new files to existing codebase analogs |
 | `workflow.subagent_timeout` | number | `600` | Timeout in seconds for individual subagent invocations. Increase for long-running research or execution phases |
 | `workflow.inline_plan_threshold` | number | `3` | Maximum number of tasks in a phase before the planner generates a separate PLAN.md file instead of inlining tasks in the prompt |
-
-### Provider-switching paths
-
-There are two distinct supported ways to run mixed-provider work:
-
-1. Direct mixed-provider binding under `runtime: "hermes"`.
-   Hermes is the preferred direct path when the configured provider/model bindings are actually supported. In that case, keep using normal execution and do not enable cross-AI just to translate providers.
-
-2. Explicit external delegation via `workflow.cross_ai_execution`.
-   Use this only for provider-restricted runtimes that cannot honor the configured binding directly. The external command produces candidate execution output, but the orchestrator remains the source of truth for accepting SUMMARY output and updating shared planning state.
-
-Unsupported direct bindings still fail fast. GSD does not do silent provider translation or automatic fallback from an invalid direct binding into `cross_ai_execution`.
-
-### Canonical runtime-model semantics
-
-Use this document as the canonical operator reference for runtime-model behavior. Adjacent docs should summarize or link here instead of redefining the contract.
-
-The supported four-path model is:
-
-1. Explicit binding — a specific model is requested directly, either from `model_overrides` or a resolved profile token.
-2. `inherit` — GSD intentionally omits the per-agent model token so the current session/runtime model is inherited.
-3. Runtime-default omission — `resolve_model_ids: "omit"` intentionally omits model IDs so the active runtime chooses its configured default model.
-4. Explicit `cross_ai_execution` fallback — an external command is used only when direct runtime support is unavailable or the operator explicitly forces that route.
-
-Migration guidance is additive, not mutating. GSD will fail fast on unsupported explicit bindings, but it does not auto-rewrite your config. Keep valid legacy `inherit` and `resolve_model_ids: "omit"` setups when they match your runtime, switch to explicit binding only when the runtime can honor it directly, and enable `workflow.cross_ai_execution` only when you need an explicit external fallback.
+| `workflow.drift_threshold` | number | `3` | Minimum number of new structural elements (new directories, barrel exports, migrations, route modules) introduced during a phase before the post-execute codebase-drift gate takes action. See [#2003](https://github.com/gsd-build/get-shit-done/issues/2003). Added in v1.39 |
+| `workflow.drift_action` | string | `warn` | What to do when `workflow.drift_threshold` is exceeded after `/gsd-execute-phase`. `warn` prints a message suggesting `/gsd-map-codebase --paths …`; `auto-remap` spawns `gsd-codebase-mapper` scoped to the affected paths. Added in v1.39 |
 
 ### Recommended Presets
 
@@ -218,6 +239,7 @@ If `.planning/` is in `.gitignore`, `commit_docs` is automatically `false` regar
 |---------|------|---------|-------------|
 | `hooks.context_warnings` | boolean | `true` | Show context window usage warnings via context monitor hook |
 | `hooks.workflow_guard` | boolean | `false` | Warn when file edits happen outside GSD workflow context (advises using `/gsd-quick` or `/gsd-fast`) |
+| `statusline.show_last_command` | boolean | `false` | Append `last: /<cmd>` suffix to the statusline showing the most recently invoked slash command. Opt-in; reads the active session transcript to extract the latest `<command-name>` tag (closes #2538) |
 
 The prompt injection guard hook (`gsd-prompt-guard.js`) is always active and cannot be disabled — it's a security feature, not a workflow toggle.
 
@@ -432,6 +454,60 @@ These keys live under `workflow.*` — that is where the workflows and installer
 
 ---
 
+## Decision Coverage Gates (`workflow.context_coverage_gate`)
+
+When `discuss-phase` writes implementation decisions into CONTEXT.md
+`<decisions>`, two gates ensure those decisions survive the trip into
+plans and shipped code (issue #2492).
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `workflow.context_coverage_gate` | boolean | `true` | Toggle for both decision-coverage gates. When `false`, both the plan-phase translation gate and the verify-phase validation gate skip silently. |
+
+### What the gates do
+
+**Plan-phase translation gate (BLOCKING).** Runs immediately after the
+existing requirements coverage gate, before plans are committed. For each
+trackable decision in `<decisions>`, it checks that the decision id
+(`D-NN`) or its text appears in at least one plan's `must_haves`,
+`truths`, or body. A miss surfaces the missing decision by id and refuses
+to mark the phase planned.
+
+**Verify-phase validation gate (NON-BLOCKING).** Runs alongside the other
+verify steps. Searches every shipped artifact (PLAN.md, SUMMARY.md, files
+modified, recent commit subjects) for each trackable decision. Misses are
+written to VERIFICATION.md as a warning section but do **not** flip the
+overall verification status. The asymmetry is deliberate — by verify time
+the work is done, and a fuzzy substring miss should not fail an otherwise
+green phase.
+
+### How to write decisions the gates accept
+
+The discuss-phase template already produces `D-NN`-numbered decisions.
+The gate is happiest when:
+
+1. Every plan that implements a decision **cites the id** somewhere —
+   `must_haves.truths: ["D-12: bit offsets exposed"]` or a `D-12:` mention
+   in the plan body. Strict id match is the cheapest, deterministic path.
+2. Soft phrase matching is a fallback for paraphrases — if a 6+-word slice
+   of the decision text appears verbatim in a plan/summary, it counts.
+
+### Opt-outs
+
+A decision is **not** subject to the gates when any of the following
+apply:
+
+- It lives under the `### Claude's Discretion` heading inside `<decisions>`.
+- It is tagged `[informational]`, `[folded]`, or `[deferred]` in its
+  bullet (e.g., `- **D-08 [informational]:** Naming style for internal
+  helpers`).
+
+Use these escape hatches when a decision genuinely doesn't need plan
+coverage — implementation discretion, future ideas captured for the
+record, or items already deferred to a later phase.
+
+---
+
 ## Review Settings
 
 Configure per-CLI model selection for `/gsd-review`. When set, overrides the CLI's default model for that reviewer.
@@ -533,43 +609,34 @@ Override specific agents without changing the entire profile:
 
 Valid override values: `opus`, `sonnet`, `haiku`, `inherit`, or any fully-qualified model ID (e.g., `"openai/o3"`, `"google/gemini-2.5-pro"`).
 
-### Non-Claude Runtimes (Codex, OpenCode, Gemini CLI, Kilo, Hermes)
+### Non-Claude Runtimes (Codex, OpenCode, Gemini CLI, Kilo)
 
 When GSD is installed for a non-Claude runtime, the installer automatically sets `resolve_model_ids: "omit"` in `~/.gsd/defaults.json`. This causes GSD to return an empty model parameter for all agents, so each agent uses whatever model the runtime is configured with. No additional setup is needed for the default case.
 
-That installer default is the runtime-default omission path from the canonical four-path model above. It is a valid steady-state configuration, not a missing setting.
-
-If you want different agents to use different models, use `model_overrides` with fully-qualified model IDs that your runtime recognizes. For Hermes, this is the direct **Cross-Provider Agent Execution** path:
+If you want different agents to use different models, use `model_overrides` with fully-qualified model IDs that your runtime recognizes:
 
 ```json
 {
-  "runtime": "hermes",
-  "model_profile": "inherit",
   "resolve_model_ids": "omit",
   "model_overrides": {
-    "gsd-phase-researcher": "claude-opus-4-7",
-    "gsd-planner": "claude-opus-4-7",
-    "gsd-plan-checker": "openai/gpt-5.4",
-    "gsd-executor": "openai/gpt-5.4",
-    "gsd-verifier": "openai/gpt-5.4"
+    "gsd-planner": "o3",
+    "gsd-executor": "o4-mini",
+    "gsd-debugger": "o3",
+    "gsd-codebase-mapper": "o4-mini"
   }
 }
 ```
 
-In this setup Hermes stays on the direct runtime path: GSD asks for the configured bindings directly and only accepts them when the runtime can honor them. Unsupported direct bindings fail fast with explicit diagnostics instead of silently translating into `cross_ai_execution`.
-
-The intent is the same as the Claude profile tiers -- use a stronger model for planning and debugging (where reasoning quality matters most), and a cheaper or faster model for execution and verification when that trade-off makes sense.
+The intent is the same as the Claude profile tiers -- use a stronger model for planning and debugging (where reasoning quality matters most), and a cheaper model for execution and mapping (where the plan already contains the reasoning).
 
 **When to use which approach:**
 
 | Scenario | Setting | Effect |
 |----------|---------|--------|
 | Non-Claude runtime, single model | `resolve_model_ids: "omit"` (installer default) | All agents use the runtime's default model |
-| Hermes, mixed-provider direct execution | `runtime: "hermes"` + `resolve_model_ids: "omit"` + fully-qualified `model_overrides` | Hermes honors each agent's configured provider/model directly |
 | Non-Claude runtime, tiered models | `resolve_model_ids: "omit"` + `model_overrides` | Named agents use specific models, others use runtime default |
 | Claude Code with OpenRouter/local provider | `model_profile: "inherit"` | All agents follow the session model |
 | Claude Code with OpenRouter, tiered | `model_profile: "inherit"` + `model_overrides` | Named agents use specific models, others inherit |
-| Provider-restricted runtime needing external delegation | `workflow.cross_ai_execution: true` + `workflow.cross_ai_command` | Execution uses an explicit external fallback path |
 
 **`resolve_model_ids` values:**
 
@@ -577,17 +644,65 @@ The intent is the same as the Claude profile tiers -- use a stronger model for p
 |-------|----------|----------|
 | `false` (default) | Returns Claude aliases (`opus`, `sonnet`, `haiku`) | Claude Code with native Anthropic API |
 | `true` | Maps aliases to full Claude model IDs (`claude-opus-4-6`) | Claude Code with API that requires full IDs |
-| `"omit"` | Returns empty string (runtime picks its default) | Non-Claude runtimes (Codex, OpenCode, Gemini CLI, Kilo, Hermes) |
+| `"omit"` | Returns empty string (runtime picks its default) | Non-Claude runtimes (Codex, OpenCode, Gemini CLI, Kilo) |
 
-### Cross-Provider Agent Execution (Hermes example)
+### Runtime-Aware Profiles (#2517)
 
-The flagship `gsd-hermes` v1.2.0 capability is direct mixed-provider execution under `runtime: "hermes"`. The important rule is simple:
+When `runtime` is set, profile tiers (`opus`/`sonnet`/`haiku`) resolve to runtime-native model IDs instead of Claude aliases. This lets a single shared `.planning/config.json` work cleanly across Claude and Codex.
 
-- If Hermes can honor the configured provider/model binding directly, GSD keeps it on the direct runtime path.
-- If the configured direct binding is unsupported, GSD fails fast with an actionable error.
-- GSD does **not** silently rewrite an invalid direct binding into `cross_ai_execution`.
+**Built-in tier maps:**
 
-That separation keeps runtime truthfulness intact: Hermes can serve as a multi-provider runtime adapter, while `cross_ai_execution` stays an explicit external fallback rather than an invisible downgrade.
+| Runtime | `opus` | `sonnet` | `haiku` | reasoning_effort |
+|---------|--------|----------|---------|------------------|
+| `claude` | `claude-opus-4-6` | `claude-sonnet-4-6` | `claude-haiku-4-5` | (not used) |
+| `codex` | `gpt-5.4` | `gpt-5.3-codex` | `gpt-5.4-mini` | `xhigh` / `medium` / `medium` |
+
+**Codex example** — one config, tiered models, no large `model_overrides` block:
+
+```json
+{
+  "runtime": "codex",
+  "model_profile": "balanced"
+}
+```
+
+This resolves `gsd-planner` → `gpt-5.4` (xhigh), `gsd-executor` → `gpt-5.3-codex` (medium), `gsd-codebase-mapper` → `gpt-5.4-mini` (medium). The Codex installer embeds `model = "..."` and `model_reasoning_effort = "..."` in each generated agent TOML.
+
+**Claude example** — explicit opt-in resolves to full Claude IDs (no `resolve_model_ids: true` needed):
+
+```json
+{
+  "runtime": "claude",
+  "model_profile": "quality"
+}
+```
+
+**Per-runtime overrides** — replace one or more tier defaults:
+
+```json
+{
+  "runtime": "codex",
+  "model_profile": "quality",
+  "model_profile_overrides": {
+    "codex": {
+      "opus": "gpt-5-pro",
+      "haiku": { "model": "gpt-5-nano", "reasoning_effort": "low" }
+    }
+  }
+}
+```
+
+**Precedence (highest to lowest):**
+
+1. `model_overrides[<agent>]` — explicit per-agent ID always wins.
+2. **Runtime-aware tier resolution** (this section) — when `runtime` is set and profile is not `inherit`.
+3. `resolve_model_ids: "omit"` — returns empty string when no `runtime` is set.
+4. Claude-native default — `model_profile` tier as alias (current default).
+5. `inherit` — propagates literal `inherit` for `Task(model="inherit")` semantics.
+
+**Backwards compatibility.** Setups without `runtime` set see zero behavior change — every existing config continues to work identically. Codex installs that auto-set `resolve_model_ids: "omit"` continue to omit the model field unless the user opts in by setting `runtime: "codex"`.
+
+**Unknown runtimes.** If `runtime` is set to a value with no built-in tier map and no `model_profile_overrides[<runtime>]`, GSD falls back to the Claude-alias safe default rather than emit a model ID the runtime cannot accept. To support a new runtime, populate `model_profile_overrides.<runtime>.{opus,sonnet,haiku}` with valid IDs.
 
 ### Profile Philosophy
 

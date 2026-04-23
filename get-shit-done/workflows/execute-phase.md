@@ -272,19 +272,10 @@ executor skips them.
 
 **Activation logic:**
 
-Routing precedence is explicit and deterministic: CLI flags override config, and config overrides plan frontmatter.
-Hermes mixed-provider direct bindings remain on the normal direct execution path unless cross-AI is explicitly forced.
-That direct path is the direct runtime support path when the active runtime can honor the configured binding.
-Cross-AI is only the explicit fallback when direct runtime binding is unavailable or the operator forces it.
-
 1. If `CROSS_AI_DISABLED` is true (`--no-cross-ai` flag): skip this step entirely.
 2. If `CROSS_AI_FORCE` is true (`--cross-ai` flag): mark ALL incomplete plans for cross-AI execution.
-3. Otherwise, prefer direct execution whenever the active runtime can honor the configured provider/model directly.
-4. If direct execution is not valid, `workflow.cross_ai_execution` is the next routing authority.
-   - `true` => mark eligible incomplete plans for cross-AI execution.
-   - `false` => do not route into cross-AI, even if a plan frontmatter requests `cross_ai: true`.
-5. Plan frontmatter `cross_ai: true` is lower priority than CLI and config. It only requests cross-AI
-   when neither CLI flags nor config already decided otherwise.
+3. Otherwise: check each plan's frontmatter for `cross_ai: true` AND verify config
+   `workflow.cross_ai_execution` is `true`. Plans matching both conditions are marked for cross-AI.
 
 ```bash
 CROSS_AI_ENABLED=$(gsd-sdk query config-get workflow.cross_ai_execution 2>/dev/null || echo "false")
@@ -296,7 +287,6 @@ CROSS_AI_TIMEOUT=$(gsd-sdk query config-get workflow.cross_ai_timeout 2>/dev/nul
 
 **If plans are marked but `cross_ai_command` is empty:** Error — tell user to set
 `workflow.cross_ai_command` via `gsd-sdk query config-set workflow.cross_ai_command "<command>"`.
-Missing `workflow.cross_ai_command` is a fail-fast error whenever routing requires cross-AI.
 
 **For each cross-AI plan (sequentially):**
 
@@ -322,22 +312,17 @@ Missing `workflow.cross_ai_command` is a fail-fast error whenever routing requir
 4. **Evaluate the result:**
 
    **Success (exit 0 + valid summary):**
-   - Read `$CANDIDATE_SUMMARY` and validate it against the minimum accepted SUMMARY contract.
-   - Accepted output must include a completion summary, what changed, and verification results.
-   - If the external result reports failures, deviations, or partial execution, it must say so explicitly.
-   - External AI output is candidate execution output, not authoritative shared-state mutation.
-   - Successful cross-AI execution still depends on orchestrator-side acceptance of the resulting SUMMARY artifact.
-   - The external command may propose code changes and summary text, but the orchestrator remains the source of truth for SUMMARY.md finalization and any subsequent STATE.md / ROADMAP.md updates.
-   - Write the accepted candidate as the plan's SUMMARY.md file
+   - Read `$CANDIDATE_SUMMARY` and validate it contains meaningful content
+     (not empty, has at least a heading and description — a valid SUMMARY.md structure)
+   - Write it as the plan's SUMMARY.md file
    - Update STATE.md plan status to complete
    - Update ROADMAP.md progress
    - Mark plan as handled — skip it in execute_waves
 
-   **Failure (timeout, non-zero exit, malformed summary, and partial execution are all explicit failure classes):**
+   **Failure (non-zero exit or invalid summary):**
    - Display the error output and exit code
    - Warn: "The external command may have left uncommitted changes or partial edits
      in the working tree. Review `git status` and `git diff` before proceeding."
-   - None of these failure classes may silently mark the plan complete.
    - Offer three choices:
      - **retry** — run the same plan through cross-AI again
      - **skip** — fall back to normal executor for this plan (re-add to execute_waves list)
@@ -978,13 +963,13 @@ If `SECURITY_CFG` is `true` AND `SECURITY_FILE` is empty (no SECURITY.md yet):
 Include in the next-steps routing output:
 ```
 ⚠ Security enforcement enabled — run before advancing:
-  /gsd-secure-phase {PHASE} ${GSD_WS}
+  /gsd:secure-phase {PHASE} ${GSD_WS}
 ```
 
 If `SECURITY_CFG` is `true` AND SECURITY.md exists: check frontmatter `threats_open`. If > 0:
 ```
 ⚠ Security gate: {threats_open} threats open
-  /gsd-secure-phase {PHASE} — resolve before advancing
+  /gsd:secure-phase {PHASE} — resolve before advancing
 ```
 </step>
 
@@ -1054,8 +1039,8 @@ Apply the same "incomplete" filtering rules as earlier:
 
 Selected wave finished successfully. This phase still has incomplete plans, so phase-level verification and completion were intentionally skipped.
 
-/gsd-execute-phase {phase} ${GSD_WS}                # Continue remaining waves
-/gsd-execute-phase {phase} --wave {next} ${GSD_WS}  # Run the next wave explicitly
+/gsd:execute-phase {phase} ${GSD_WS}                # Continue remaining waves
+/gsd:execute-phase {phase} --wave {next} ${GSD_WS}  # Run the next wave explicitly
 ```
 
 **If no incomplete plans remain after the selected wave finishes:**
@@ -1088,7 +1073,7 @@ REVIEW_STATUS=$(sed -n '/^---$/,/^---$/p' "$REVIEW_FILE" | grep "^status:" | hea
 If REVIEW_STATUS is not "clean" and not "skipped" and not empty, display:
 ```
 Code review found issues. Consider running:
-/gsd-code-review-fix ${PHASE_NUMBER}
+/gsd:code-review-fix ${PHASE_NUMBER}
 ```
 
 **Error handling:** If the Skill invocation fails or throws, catch the error, display "Code review encountered an error (non-blocking): {error}" and proceed to next step. Review failures must never block execution.
@@ -1285,6 +1270,17 @@ If `TEXT_MODE` is true, present as a plain-text numbered list. Otherwise use Ask
 **If user selects option 3:** Stop execution. Report partial completion.
 </step>
 
+<step name="codebase_drift_gate">
+Post-execution structural drift detection (#2003). Non-blocking by contract:
+any internal error here MUST fall through to `verify_phase_goal`. The phase
+is never failed by this gate.
+
+Load and follow the full step spec from
+`get-shit-done/workflows/execute-phase/steps/codebase-drift-gate.md` —
+covers the SDK call, JSON contract, `warn` vs `auto-remap` branches, mapper
+spawn template, and the two `workflow.drift_*` config keys.
+</step>
+
 <step name="verify_phase_goal">
 Verify phase achieved its GOAL, not just completed tasks.
 
@@ -1329,7 +1325,7 @@ grep "^status:" "$PHASE_DIR"/*-VERIFICATION.md | cut -d: -f2 | tr -d ' '
 |--------|--------|
 | `passed` | → update_roadmap |
 | `human_needed` | Present items for human testing, get approval or feedback |
-| `gaps_found` | Present gap summary, offer `/gsd-plan-phase {phase} --gaps ${GSD_WS}` |
+| `gaps_found` | Present gap summary, offer `/gsd:plan-phase {phase} --gaps ${GSD_WS}` |
 
 **If human_needed:**
 
@@ -1384,12 +1380,12 @@ All automated checks passed. {N} items need human testing:
 
 {From VERIFICATION.md human_verification section}
 
-Items saved to `{phase_num}-HUMAN-UAT.md` — they will appear in `/gsd-progress` and `/gsd-audit-uat`.
+Items saved to `{phase_num}-HUMAN-UAT.md` — they will appear in `/gsd:progress` and `/gsd:audit-uat`.
 
 "approved" → continue | Report issues → gap closure
 ```
 
-**If user says "approved":** Proceed to `update_roadmap`. The HUMAN-UAT.md file persists with `status: partial` and will surface in future progress checks until the user runs `/gsd-verify-work` on it.
+**If user says "approved":** Proceed to `update_roadmap`. The HUMAN-UAT.md file persists with `status: partial` and will surface in future progress checks until the user runs `/gsd:verify-work` on it.
 
 **If user reports issues:** Proceed to gap closure as currently implemented.
 
@@ -1408,13 +1404,13 @@ Items saved to `{phase_num}-HUMAN-UAT.md` — they will appear in `/gsd-progress
 
 `/clear` then:
 
-`/gsd-plan-phase {X} --gaps ${GSD_WS}`
+`/gsd:plan-phase {X} --gaps ${GSD_WS}`
 
 Also: `cat {phase_dir}/{phase_num}-VERIFICATION.md` — full report
-Also: `/gsd-verify-work {X} ${GSD_WS}` — manual testing first
+Also: `/gsd:verify-work {X} ${GSD_WS}` — manual testing first
 ```
 
-Gap closure cycle: `/gsd-plan-phase {X} --gaps ${GSD_WS}` reads VERIFICATION.md → creates gap plans with `gap_closure: true` → user runs `/gsd-execute-phase {X} --gaps-only ${GSD_WS}` → verifier re-runs.
+Gap closure cycle: `/gsd:plan-phase {X} --gaps ${GSD_WS}` reads VERIFICATION.md → creates gap plans with `gap_closure: true` → user runs `/gsd:execute-phase {X} --gaps-only ${GSD_WS}` → verifier re-runs.
 </step>
 
 <step name="update_roadmap">
@@ -1440,7 +1436,7 @@ Extract from result: `next_phase`, `next_phase_name`, `is_last_phase`, `warnings
 
 {list each warning}
 
-These items are tracked and will appear in `/gsd-progress` and `/gsd-audit-uat`.
+These items are tracked and will appear in `/gsd:progress` and `/gsd:audit-uat`.
 ```
 
 ```bash
@@ -1527,7 +1523,7 @@ gsd-sdk query commit "docs(phase-{X}): evolve PROJECT.md after phase completion"
 
 <step name="offer_next">
 
-**Exception:** If `gaps_found`, the `verify_phase_goal` step already presents the gap-closure path (`/gsd-plan-phase {X} --gaps`). No additional routing needed — skip auto-advance.
+**Exception:** If `gaps_found`, the `verify_phase_goal` step already presents the gap-closure path (`/gsd:plan-phase {X} --gaps`). No additional routing needed — skip auto-advance.
 
 **No-transition check (spawned by auto-advance chain):**
 
@@ -1590,10 +1586,10 @@ If CONTEXT.md does **not** exist for the next phase, present:
 ```
 ## ✓ Phase {X}: {Name} Complete
 
-/gsd-progress ${GSD_WS} — see updated roadmap
-/gsd-discuss-phase {next} ${GSD_WS} — start here: discuss next phase before planning  ← recommended
-/gsd-plan-phase {next} ${GSD_WS} — plan next phase (skip discuss)
-/gsd-execute-phase {next} ${GSD_WS} — execute next phase (skip discuss and plan)
+/gsd:progress ${GSD_WS} — see updated roadmap
+/gsd:discuss-phase {next} ${GSD_WS} — start here: discuss next phase before planning  ← recommended
+/gsd:plan-phase {next} ${GSD_WS} — plan next phase (skip discuss)
+/gsd:execute-phase {next} ${GSD_WS} — execute next phase (skip discuss and plan)
 ```
 
 If CONTEXT.md **exists** for the next phase, present:
@@ -1601,10 +1597,10 @@ If CONTEXT.md **exists** for the next phase, present:
 ```
 ## ✓ Phase {X}: {Name} Complete
 
-/gsd-progress ${GSD_WS} — see updated roadmap
-/gsd-plan-phase {next} ${GSD_WS} — start here: plan next phase (CONTEXT.md already present)  ← recommended
-/gsd-discuss-phase {next} ${GSD_WS} — re-discuss next phase
-/gsd-execute-phase {next} ${GSD_WS} — execute next phase (skip planning)
+/gsd:progress ${GSD_WS} — see updated roadmap
+/gsd:plan-phase {next} ${GSD_WS} — start here: plan next phase (CONTEXT.md already present)  ← recommended
+/gsd:discuss-phase {next} ${GSD_WS} — re-discuss next phase
+/gsd:execute-phase {next} ${GSD_WS} — execute next phase (skip planning)
 ```
 
 Only suggest the commands listed above. Do not invent or hallucinate command names.
@@ -1631,7 +1627,7 @@ For 1M+ context models, consider:
 </failure_handling>
 
 <resumption>
-Re-run `/gsd-execute-phase {phase}` → discover_plans finds completed SUMMARYs → skips them → resumes from first incomplete plan → continues wave execution.
+Re-run `/gsd:execute-phase {phase}` → discover_plans finds completed SUMMARYs → skips them → resumes from first incomplete plan → continues wave execution.
 
 STATE.md tracks: last completed plan, current wave, pending checkpoints.
 </resumption>

@@ -744,12 +744,6 @@ cd ~/gsd-workspaces/feature-b
 
 전체 설명은 [Configuration Reference](CONFIGURATION.md#non-claude-runtimes-codex-opencode-gemini-cli-kilo)를 참고하세요.
 
-### 마이그레이션 시 런타임-모델 경로 선택
-
-엄격한 검증으로 이전보다 더 분명한 오류가 보이면, 네 가지 런타임-모델 경로 중 하나를 의도적으로 선택하세요: 직접 명시 바인딩, `inherit`, `resolve_model_ids: "omit"` 기반 런타임 기본값, 그리고 명시적 `cross_ai_execution` 폴백.
-
-GSD는 실패를 조기에 알려주고 업그레이드 가이드를 제공하지만 설정을 자동으로 고쳐 쓰지 않습니다. 유효한 omit/inherit 구성은 그대로 유지하고, 직접 런타임 지원이 없을 때만 `cross_ai_execution`을 사용하세요.
-
 ### 비Anthropic 공급자와 함께 Claude Code 사용 (OpenRouter, 로컬)
 
 GSD 서브에이전트가 Anthropic 모델을 호출하는데 OpenRouter나 로컬 공급자를 통해 비용을 지불하고 있다면 `inherit` 프로필로 전환하세요: `/gsd-set-profile inherit`. 이렇게 하면 모든 에이전트가 특정 Anthropic 모델 대신 현재 세션 모델을 사용합니다. `/gsd-settings` → Model Profile → Inherit도 참고하세요.
