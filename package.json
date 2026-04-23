@@ -62,5 +62,9 @@
     "test": "node scripts/run-tests.cjs",
     "pretest:coverage": "npm --prefix sdk ci && npm --prefix sdk run build",
     "test:coverage": "c8 --check-coverage --lines 70 --reporter text --include 'get-shit-done/bin/lib/*.cjs' --exclude 'tests/**' --all node scripts/run-tests.cjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.84",
+    "ws": "^8.20.0"
   }
 }
