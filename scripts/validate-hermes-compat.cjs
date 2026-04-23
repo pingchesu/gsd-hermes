@@ -11,6 +11,14 @@ const testFiles = [
   'tests/bugs-1656-1657.test.cjs',
 ];
 
+console.log('Verifying fork identity...');
+const identityResult = spawnSync(process.execPath, ['scripts/verify-fork-identity.cjs'], {
+  stdio: 'inherit',
+});
+if (identityResult.status !== 0) {
+  process.exit(identityResult.status === null ? 1 : identityResult.status);
+}
+
 console.log('Running Hermes compatibility validation...');
 
 const result = spawnSync(process.execPath, ['--test', ...testFiles], {
