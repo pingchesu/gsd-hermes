@@ -8,8 +8,22 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { relPlanningPath } from './workstream-utils.js';
+import type { AcceptedModelProfile } from './query/runtime-model-contract.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
+
+/**
+ * Hermes v1.2 compatibility: optional "omit" sentinel allows config to opt out
+ * of alias→model-id resolution (keeping logical aliases in emitted artifacts).
+ */
+export type ResolveModelIdsSetting = boolean | 'omit';
+
+/**
+ * Hermes v1.2 compatibility: per-agent model override map
+ * (e.g., `{ "gsd-planner": "inherit" }`). Keys are agent slugs, values are
+ * model aliases or the literal `"inherit"` sentinel.
+ */
+export type ModelOverridesConfig = Record<string, string>;
 
 export interface GitConfig {
   branching_strategy: string;
@@ -52,7 +66,13 @@ export interface HooksConfig {
 }
 
 export interface GSDConfig {
-  model_profile: string;
+  model_profile: AcceptedModelProfile;
+  /** Hermes v1.2: per-agent model overrides (optional). */
+  model_overrides?: ModelOverridesConfig;
+  /** Hermes v1.2: whether to resolve logical aliases to concrete model IDs. */
+  resolve_model_ids?: ResolveModelIdsSetting;
+  /** Hermes v1.2: runtime hint (claude-code/openai/gemini/...). */
+  runtime?: string;
   commit_docs: boolean;
   parallelization: boolean;
   search_gitignored: boolean;
@@ -76,6 +96,8 @@ export interface GSDConfig {
 
 export const CONFIG_DEFAULTS: GSDConfig = {
   model_profile: 'balanced',
+  model_overrides: {},
+  resolve_model_ids: false,
   commit_docs: true,
   parallelization: true,
   search_gitignored: false,
