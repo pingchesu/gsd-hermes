@@ -110,8 +110,8 @@ function cmdInitExecutePhase(cwd, phase, raw, options = {}) {
 
   const result = {
     // Models
-    executor_model: resolveModelInternal(cwd, 'gsd-executor'),
-    verifier_model: resolveModelInternal(cwd, 'gsd-verifier'),
+    executor_model: resolveModelInternal(cwd, 'gsd-executor', { initContext: true }),
+    verifier_model: resolveModelInternal(cwd, 'gsd-verifier', { initContext: true }),
 
     // Config flags
     tdd_mode: options.tdd || config.tdd_mode || false,
@@ -526,10 +526,10 @@ function cmdInitQuick(cwd, description, raw) {
 
   const result = {
     // Models
-    planner_model: resolveModelInternal(cwd, 'gsd-planner'),
-    executor_model: resolveModelInternal(cwd, 'gsd-executor'),
-    checker_model: resolveModelInternal(cwd, 'gsd-plan-checker'),
-    verifier_model: resolveModelInternal(cwd, 'gsd-verifier'),
+    planner_model: resolveModelInternal(cwd, 'gsd-planner', { initContext: true }),
+    executor_model: resolveModelInternal(cwd, 'gsd-executor', { initContext: true }),
+    checker_model: resolveModelInternal(cwd, 'gsd-plan-checker', { initContext: true }),
+    verifier_model: resolveModelInternal(cwd, 'gsd-verifier', { initContext: true }),
 
     // Config
     commit_docs: config.commit_docs,
@@ -1328,8 +1328,8 @@ function cmdInitProgress(cwd, raw) {
 
   const result = {
     // Models
-    executor_model: resolveModelInternal(cwd, 'gsd-executor'),
-    planner_model: resolveModelInternal(cwd, 'gsd-planner'),
+    executor_model: resolveModelInternal(cwd, 'gsd-executor', { initContext: true }),
+    planner_model: resolveModelInternal(cwd, 'gsd-planner', { initContext: true }),
 
     // Config
     commit_docs: config.commit_docs,
