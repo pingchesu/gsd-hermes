@@ -47,18 +47,24 @@ describe('#1656: community .sh hooks must be present in hooks/dist', () => {
   });
 });
 
-// ─── #1657 ───────────────────────────────────────────────────────────────────
+// ─── #1657 / #2385 — updated for upstream fix/2441-sdk-decouple ────────────
 //
 // Historical context: #1657 originally guarded against a broken `promptSdk()`
-// flow that shipped when `@gsd-build/sdk` did not yet exist on npm. The
-// package was published at v0.1.0 and is now a hard runtime requirement for
-// every /gsd-* command (they all shell out to `gsd-sdk query …`).
+// flow. #2385 restored --sdk / --no-sdk flags and made SDK install the
+// default path — back when the installer still built from source.
 //
-// #2385 restored the `--sdk` flag and made SDK install the default path in
-// bin/install.js. These guards are inverted: we now assert that SDK install
-// IS wired up, and that the old broken `promptSdk()` prompt is still gone.
+// POST-#2441 CONTRACT (Phase 7.2 Plan 04, commit e9447dac): the installer
+// NO LONGER builds from source. sdk/dist/ ships prebuilt inside the tarball;
+// root package.json declares `bin.gsd-sdk` so npm wires the shim correctly
+// at tarball-extract time. See tests/bug-2441-sdk-decouple.test.cjs for the
+// authoritative post-#2441 regression gates (F10/F11/F12/F13/F14).
+//
+// Fork-ownership (docs/fork-ownership.md): upstream-carried test file.
+// Per Phase 7.2 D-03, the SDK-install subtests are updated to assert the
+// post-#2441 Hermes contract: --sdk / --no-sdk flags still honored, dist is
+// verified not built, tarball ships sdk/dist. promptSdk() still forbidden.
 
-describe('#1657 / #2385: SDK install must be wired into installer source', () => {
+describe('#1657 / #2385: SDK handling wired into installer (post-#2441)', () => {
   let src;
   test('install.js does not contain the legacy promptSdk() prompt (#1657)', () => {
     src = fs.readFileSync(INSTALL_SRC, 'utf-8');
@@ -80,59 +86,55 @@ describe('#1657 / #2385: SDK install must be wired into installer source', () =>
     );
   });
 
-  test('install.js builds gsd-sdk from in-repo sdk/ source (#2385)', () => {
+  test('install.js verifies prebuilt sdk/dist/cli.js instead of building from source (post-#2441)', () => {
     src = src || fs.readFileSync(INSTALL_SRC, 'utf-8');
-    // The installer must locate the in-repo sdk/ directory, run the build,
-    // and install it globally. We intentionally do NOT install
-    // @gsd-build/sdk from npm because that published version lags the source
-    // tree and shipping it breaks query handlers added since the last
-    // publish.
+    // Post-#2441: the installer references sdk/dist/cli.js and calls
+    // fs.existsSync on it. It does NOT spawn `npm run build` or
+    // `npm install -g` — those paths were removed by Phase 7.2 Plan 04.
     assert.ok(
-      src.includes("path.resolve(__dirname, '..', 'sdk')") ||
-      src.includes('path.resolve(__dirname, "..", "sdk")'),
-      'installer must locate the in-repo sdk/ directory'
+      src.includes('sdk/dist/cli.js') ||
+      src.includes("'sdk', 'dist', 'cli.js'"),
+      'installer must reference sdk/dist/cli.js as the dist-verify target (post-#2441)'
     );
     assert.ok(
-      src.includes("'npm install -g .'") ||
-      src.includes("['install', '-g', '.']"),
-      'installer must run `npm install -g .` from sdk/ to install the built package globally'
-    );
-    assert.ok(
-      src.includes("['run', 'build']"),
-      'installer must compile TypeScript via `npm run build` before installing globally'
+      src.includes("path.resolve(__dirname, '..', 'sdk'"),
+      'installer must locate sdk/ via path.resolve(__dirname, "..", "sdk", ...)'
     );
   });
 
-  test('install.js falls back to a user npm prefix when global SDK install fails', () => {
+  test('install.js exits fatally when sdk/dist/cli.js is missing (post-#2441)', () => {
     src = src || fs.readFileSync(INSTALL_SRC, 'utf-8');
+    const fnStart = src.indexOf('function installSdkIfNeeded()');
+    assert.ok(fnStart !== -1, 'installSdkIfNeeded function must exist in install.js');
+    const fnEnd = src.indexOf('\nfunction ', fnStart + 1);
+    const fnBody = fnEnd !== -1 ? src.slice(fnStart, fnEnd) : src.slice(fnStart);
+
     assert.ok(
-      src.includes('GSD_NPM_PREFIX'),
-      'installer must allow overriding the user-writable npm prefix'
+      fnBody.includes('process.exit(1)'),
+      'installSdkIfNeeded must exit fatally (process.exit(1)) when sdk/dist/cli.js is missing — ' +
+      'post-#2441 contract: no silent build-from-source fallback'
     );
     assert.ok(
-      src.includes("path.join(os.homedir(), '.local')"),
-      'installer must default the user-writable npm prefix to ~/.local'
-    );
-    assert.ok(
-      src.includes("['install', '-g', '--prefix', userPrefix, '.']"),
-      'installer must retry SDK install with npm install -g --prefix <userPrefix> .'
-    );
-    assert.ok(
-      src.includes('Global SDK install failed. Retrying with user npm prefix'),
-      'installer must explain that the global install failed and user-prefix fallback is being used'
-    );
-    assert.ok(
-      src.includes('not on PATH'),
-      'installer must warn when the user-prefix bin directory is not on PATH'
+      fnBody.includes('cd sdk'),
+      'installSdkIfNeeded must print a hint directing git-clone users to build the SDK manually ' +
+      '(hint string uses concatenation to avoid bare-substring collision — Option α)'
     );
   });
 
-  test('package.json ships sdk source in published tarball (#2385)', () => {
+  test('package.json ships prebuilt sdk/dist in published tarball (post-#2441 F14)', () => {
     const rootPkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf-8'));
     const files = rootPkg.files || [];
+    // Post-#2441: the tarball ships the prebuilt sdk/dist/ directory so
+    // every install has an immediately-usable gsd-sdk shim without a
+    // build-from-source step.
     assert.ok(
-      files.some((f) => f === 'sdk' || f.startsWith('sdk/')),
-      'root package.json `files` must include sdk source so npm-registry installs can build gsd-sdk from source'
+      files.includes('sdk/dist'),
+      'root package.json `files` must include sdk/dist so the prebuilt CLI ships in the tarball (post-#2441)'
+    );
+    // Dev/clone builds still need sdk/src — preserved post-#2441 for source parity.
+    assert.ok(
+      files.some((f) => f === 'sdk/src' || f.startsWith('sdk/src')),
+      'root package.json `files` should still include sdk/src for developer builds'
     );
   });
 });
