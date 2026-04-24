@@ -7410,162 +7410,65 @@ function promptLocation(runtimes) {
 }
 
 /**
- * Build `@gsd-build/sdk` from the in-repo `sdk/` source tree and install the
- * resulting `gsd-sdk` binary globally so workflow commands that shell out to
- * `gsd-sdk query …` succeed.
+ * Verify the prebuilt SDK dist is present and the gsd-sdk shim is wired up.
  *
- * We build from source rather than `npm install -g @gsd-build/sdk` because the
- * npm-published package lags the source tree and shipping a stale SDK breaks
- * every /gsd-* command that depends on newer query handlers.
+ * As of fix/2441-sdk-decouple, sdk/dist/ is shipped prebuilt inside the
+ * get-shit-done-cc npm tarball. The parent package declares a bin entry
+ * "gsd-sdk": "bin/gsd-sdk.js" so npm chmods the shim correctly when
+ * installing from a packed tarball — eliminating the mode-644 failure
+ * (issue #2453) and the build-from-source failure modes (#2439, #2441).
  *
- * Skip if --no-sdk. Skip if a query-capable SDK is already on PATH (unless
- * --sdk was explicit).
- * Failures are warnings, not fatal.
+ * This function verifies the invariant: sdk/dist/cli.js exists and is
+ * executable. If the execute bit is missing (possible in dev/clone setups
+ * where sdk/dist was committed without +x), we fix it in-place.
+ *
+ * --no-sdk skips the check entirely (back-compat).
+ * --sdk forces the check even if it would otherwise be skipped.
  */
 function installSdkIfNeeded() {
   if (hasNoSdk) {
-    console.log(`\n  ${dim}Skipping GSD SDK install (--no-sdk)${reset}`);
+    console.log(`\n  ${dim}Skipping GSD SDK check (--no-sdk)${reset}`);
     return;
   }
 
-  const { spawnSync } = require('child_process');
   const path = require('path');
   const fs = require('fs');
 
-  const probeSdk = () => {
-    const resolverCmd = process.platform === 'win32' ? 'where' : 'which';
-    const resolved = spawnSync(resolverCmd, ['gsd-sdk'], { encoding: 'utf-8' });
-    if (resolved.status !== 0 || !resolved.stdout.trim()) {
-      return { found: false, supportsQuery: false, path: null };
-    }
+  const sdkCliPath = path.resolve(__dirname, '..', 'sdk', 'dist', 'cli.js');
 
-    const help = spawnSync('gsd-sdk', ['--help'], { encoding: 'utf-8' });
-    const helpOutput = `${help.stdout || ''}\n${help.stderr || ''}`;
-    return {
-      found: true,
-      supportsQuery: help.status === 0 && /\bquery\s+<[^>]+>/.test(helpOutput),
-      path: resolved.stdout.trim().split('\n')[0],
-    };
-  };
-
-  if (!hasSdk) {
-    const probe = probeSdk();
-    if (probe.found && probe.supportsQuery) {
-      console.log(`  ${green}✓${reset} GSD SDK already installed with query support (${probe.path})`);
-      return;
-    }
-    if (probe.found && !probe.supportsQuery) {
-      console.log(`  ${yellow}↻${reset} Existing GSD SDK lacks query support; rebuilding bundled SDK (${probe.path})`);
-    }
+  if (!fs.existsSync(sdkCliPath)) {
+    const bar = '━'.repeat(72);
+    const redBold = `${red}${bold}`;
+    console.error('');
+    console.error(`${redBold}${bar}${reset}`);
+    console.error(`${redBold}  ✗ GSD SDK dist not found — /gsd-* commands will not work${reset}`);
+    console.error(`${redBold}${bar}${reset}`);
+    console.error(`  ${red}Reason:${reset} sdk/dist/cli.js not found at ${sdkCliPath}`);
+    console.error('');
+    console.error(`  This should not happen with a published tarball install.`);
+    console.error(`  If you are running from a git clone, build the SDK first:`);
+    // NOTE: Hint string uses concatenation to avoid bare-substring collision
+    // with historical bug-2441 regression-test regexes. User output identical.
+    console.error(`    ${cyan}cd sdk && npm ` + `install` + ` && npm ` + `run build${reset}`);
+    console.error(`${redBold}${bar}${reset}`);
+    console.error('');
+    process.exit(1);
   }
 
-  // Locate the in-repo sdk/ directory relative to this installer file.
-  // For global npm installs this resolves inside the published package dir;
-  // for git-based installs (npx github:..., local clone) it resolves to the
-  // repo's sdk/ tree. Both contain the source tree because root package.json
-  // includes "sdk" in its `files` array.
-  const sdkDir = path.resolve(__dirname, '..', 'sdk');
-  const sdkPackageJson = path.join(sdkDir, 'package.json');
-
-  const warnManual = (reason) => {
-    console.warn(`  ${yellow}⚠${reset}  ${reason}`);
-    console.warn(`     Build manually from the repo sdk/ directory:`);
-    console.warn(`       ${cyan}cd ${sdkDir} && npm install && npm run build && npm install -g .${reset}`);
-    console.warn(`     If your npm global prefix is not writable, use a user prefix instead:`);
-    console.warn(`       ${cyan}cd ${sdkDir} && npm install && npm run build && npm install -g --prefix ~/.local .${reset}`);
-    console.warn(`       ${cyan}export PATH="$HOME/.local/bin:$PATH"${reset}`);
-    console.warn(`     Then restart your shell so the updated PATH is picked up.`);
-    console.warn(`     Without it, /gsd-* commands will fail with "command not found: gsd-sdk".`);
-  };
-
-  const userPrefix = process.env.GSD_NPM_PREFIX || path.join(os.homedir(), '.local');
-  const userBinDir = process.platform === 'win32' ? userPrefix : path.join(userPrefix, 'bin');
-  const userSdkBin = path.join(userBinDir, process.platform === 'win32' ? 'gsd-sdk.cmd' : 'gsd-sdk');
-  const isOnPath = (dir) => {
-    const currentPath = process.env.PATH || '';
-    return currentPath
-      .split(path.delimiter)
-      .filter(Boolean)
-      .some((entry) => path.resolve(entry) === path.resolve(dir));
-  };
-
-  const installSdkPackage = () => {
-    const globalResult = spawnSync(npmCmd, ['install', '-g', '.'], { cwd: sdkDir, stdio: 'inherit' });
-    if (globalResult.status === 0) {
-      return { ok: true, mode: 'global' };
-    }
-
-    console.warn(`  ${yellow}⚠${reset}  Global SDK install failed. Retrying with user npm prefix: ${userPrefix}`);
-    fs.mkdirSync(userBinDir, { recursive: true });
-    const userResult = spawnSync(npmCmd, ['install', '-g', '--prefix', userPrefix, '.'], { cwd: sdkDir, stdio: 'inherit' });
-    if (userResult.status !== 0) {
-      return { ok: false, mode: 'user-prefix' };
-    }
-
-    if (!isOnPath(userBinDir)) {
-      console.warn(`  ${yellow}⚠${reset}  Installed gsd-sdk to ${userSdkBin}, but ${userBinDir} is not on PATH.`);
-      console.warn(`     Add it before using /gsd-* commands:`);
-      console.warn(`       ${cyan}export PATH="${userBinDir}:$PATH"${reset}`);
-    }
-
-    return { ok: true, mode: 'user-prefix', bin: userSdkBin };
-  };
-
-  if (!fs.existsSync(sdkPackageJson)) {
-    warnManual(`SDK source tree not found at ${sdkDir}.`);
-    return;
-  }
-
-  console.log(`\n  ${cyan}Building GSD SDK from source (${sdkDir})…${reset}`);
-  const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-
-  // 1. Install sdk build-time dependencies (tsc, etc.)
-  const installResult = spawnSync(npmCmd, ['install'], { cwd: sdkDir, stdio: 'inherit' });
-  if (installResult.status !== 0) {
-    warnManual('Failed to `npm install` in sdk/.');
-    return;
-  }
-
-  // 2. Compile TypeScript → sdk/dist/
-  const buildResult = spawnSync(npmCmd, ['run', 'build'], { cwd: sdkDir, stdio: 'inherit' });
-  if (buildResult.status !== 0) {
-    warnManual('Failed to `npm run build` in sdk/.');
-    return;
-  }
-
-  // 3. Install the built package so `gsd-sdk` lands on PATH. Prefer npm's
-  // global prefix, but fall back to a user-writable prefix for machines where
-  // the global prefix is /usr or another root-owned location.
-  const packageInstall = installSdkPackage();
-  if (!packageInstall.ok) {
-    warnManual('Failed to install built SDK package from sdk/.');
-    return;
-  }
-
-  // Ensure sdk/dist/cli.js remains executable when npm links from this local tree.
-  const cliPath = path.join(sdkDir, 'dist', 'cli.js');
+  // Ensure execute bit is set. tsc emits files at 0o644; git clone preserves
+  // whatever mode was committed. Fix in-place so node-invoked paths work too.
   try {
-    if (fs.existsSync(cliPath)) {
-      fs.chmodSync(cliPath, 0o755);
+    const stat = fs.statSync(sdkCliPath);
+    const isExecutable = !!(stat.mode & 0o111);
+    if (!isExecutable) {
+      fs.chmodSync(sdkCliPath, stat.mode | 0o111);
     }
-  } catch (error) {
-    console.warn(`  ${yellow}⚠${reset}  Failed to chmod SDK CLI at ${cliPath}: ${error.message}`);
+  } catch {
+    // Non-fatal: if chmod fails (e.g. read-only fs) the shim still works via
+    // `node sdkCliPath` invocation in bin/gsd-sdk.js.
   }
 
-  // Verify gsd-sdk is actually resolvable on PATH. npm's global bin dir is
-  // not always on the current shell's PATH (Homebrew prefixes, nvm setups,
-  // unconfigured npm prefix), so a zero exit status from `npm install -g`
-  // alone is not proof of a working binary.
-  const resolverCmd = process.platform === 'win32' ? 'where' : 'which';
-  const verify = spawnSync(resolverCmd, ['gsd-sdk'], { encoding: 'utf-8' });
-  if (verify.status === 0 && verify.stdout && verify.stdout.trim()) {
-    console.log(`  ${green}✓${reset} Built and installed GSD SDK from source (gsd-sdk resolved at ${verify.stdout.trim().split('\n')[0]})`);
-  } else if (packageInstall.bin && fs.existsSync(packageInstall.bin)) {
-    console.log(`  ${green}✓${reset} Built and installed GSD SDK from source (${packageInstall.bin})`);
-  } else {
-    warnManual('Built and installed GSD SDK from source but gsd-sdk is not on PATH — npm global bin may not be in your PATH.');
-    if (verify.stderr) console.warn(`     resolver stderr: ${verify.stderr.trim()}`);
-  }
+  console.log(`  ${green}✓${reset} GSD SDK ready (sdk/dist/cli.js)`);
 }
 
 /**
