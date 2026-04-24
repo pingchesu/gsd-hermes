@@ -108,7 +108,7 @@ jobs:
         run: |
           set -euo pipefail
           npm pack --silent
-          TARBALL=$(ls get-shit-done-cc-*.tgz | head -1)
+          TARBALL=$(ls gsd-hermes-*.tgz | head -1)
           echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
           echo "Packed: $TARBALL"
 
