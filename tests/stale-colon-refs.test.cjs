@@ -19,6 +19,42 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 
 /**
+ * Upstream-owned path prefixes per docs/fork-ownership.md Path Ownership Matrix.
+ * Hermes preserves upstream's /gsd: colon-form slash syntax (post-#2543 migration)
+ * in these paths while Hermes adapter-seam paths (docs/hermes-*.md, bin/install.js,
+ * tests/hermes-*.test.cjs) use /gsd- dash form for discovery compatibility.
+ *
+ * Phase 7 D-11 dual-track coexistence decision.
+ * See docs/hermes-compatibility.md §Slash Command Inventory for full rationale.
+ */
+const UPSTREAM_OWNED_PREFIXES = [
+  'commands/gsd/',
+  'agents/',
+  'get-shit-done/',
+  'docs/AGENTS.md',
+  'docs/ARCHITECTURE.md',
+  'docs/FEATURES.md',
+  'docs/USER-GUIDE.md',
+  'sdk/src/',
+  'hooks/',
+  // Upstream-carried tests asserting upstream /gsd: slash-namespace contract:
+  'tests/bug-2543-gsd-slash-namespace.test.cjs',
+  'tests/claude-md.test.cjs',
+  'tests/execute-phase-wave.test.cjs',
+  'tests/gsd-settings-advanced.test.cjs',
+  'tests/import-command.test.cjs',
+  'tests/settings-integrations.test.cjs',
+  'tests/ultraplan-phase.test.cjs',
+  'tests/verify-work-auto-transition.test.cjs',
+];
+
+function isUpstreamOwnedPath(relPath) {
+  return UPSTREAM_OWNED_PREFIXES.some(prefix =>
+    relPath === prefix || relPath.startsWith(prefix)
+  );
+}
+
+/**
  * Recursively collect files matching the given extensions, excluding
  * CHANGELOG.md, node_modules/, .git/, dist/, local planning overlays, and
  * root CLAUDE.md (gitignored local IDE overlay — see repo .gitignore).
@@ -56,6 +92,11 @@ function collectFiles(dir, extensions, results = []) {
 function isTestInput(filePath, line) {
   const rel = path.relative(ROOT, filePath).replace(/\\/g, '/');
 
+  // Phase 7 D-11 dual-track: upstream-owned paths keep /gsd: colon form
+  // (upstream #2543 migration); Hermes-owned paths still use /gsd- dash form.
+  // See docs/hermes-compatibility.md §Slash Command Inventory.
+  if (isUpstreamOwnedPath(rel)) return true;
+
   // SDK test files (.ts) that test sanitizer stripping of /gsd: patterns
   if (rel === 'sdk/src/prompt-sanitizer.test.ts') return true;
   if (rel === 'sdk/src/init-runner.test.ts') return true;
@@ -85,7 +126,12 @@ function isTestInput(filePath, line) {
 }
 
 describe('No stale /gsd: colon references (#1748)', () => {
-  test('all /gsd: references should be hyphenated except test inputs', () => {
+  // Phase 7 D-11 dual-track: Hermes SKILL.md + adapter seam use /gsd-<cmd>;
+  // upstream commands/gsd/, agents/, get-shit-done/, upstream docs, sdk/src/,
+  // and upstream-carried tests keep /gsd:<cmd>. Exemptions via
+  // UPSTREAM_OWNED_PREFIXES. See docs/hermes-compatibility.md
+  // §Slash Command Inventory.
+  test('all /gsd: references are hyphenated in Hermes-owned paths (upstream-owned paths keep colon form per D-11)', () => {
     const extensions = new Set(['.md', '.js', '.cjs', '.ts', '.yml', '.sh', '.svg']);
     const files = collectFiles(ROOT, extensions);
 

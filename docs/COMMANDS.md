@@ -159,10 +159,6 @@ Research, plan, and verify a phase.
 **Prerequisites:** `.planning/ROADMAP.md` exists
 **Produces:** `{phase}-RESEARCH.md`, `{phase}-{N}-PLAN.md`, `{phase}-VALIDATION.md`
 
-Runtime-model semantics for this command follow the canonical four-path model in [`CONFIGURATION.md`](CONFIGURATION.md#canonical-runtime-model-semantics): explicit binding, `inherit`, runtime-default omission, and explicit `cross_ai_execution` fallback.
-
-For the `gsd-hermes` v1.2.0 Cross-Provider Agent Execution path, that means phase research, planning, and plan checking may each resolve to different provider/model bindings under `runtime: "hermes"`. Unsupported explicit direct bindings fail before planning starts and surface a suggested fix instead of silently falling back.
-
 ```bash
 /gsd-plan-phase 1                   # Research + plan + verify phase 1
 /gsd-plan-phase 3 --skip-research   # Plan without research (familiar domain)
@@ -225,10 +221,6 @@ Execute all plans in a phase with wave-based parallelization, or run a specific 
 **Prerequisites:** Phase has PLAN.md files
 **Produces:** per-plan `{phase}-{N}-SUMMARY.md`, git commits, and `{phase}-VERIFICATION.md` when the phase is fully complete
 
-This command prefers direct runtime support when available. `--cross-ai` and `workflow.cross_ai_execution` opt into the explicit external fallback path; they do not imply automatic provider translation.
-
-In the `gsd-hermes` v1.2.0 Cross-Provider Agent Execution model, Hermes can execute directly with mixed provider/model bindings (for example, planner on Claude and executor/verifier on OpenAI) as long as the runtime can honor those bindings. `--cross-ai` remains the explicit fallback knob when you want external delegation instead.
-
 ```bash
 /gsd-execute-phase 1                # Execute phase 1
 /gsd-execute-phase 1 --wave 2       # Execute only Wave 2
@@ -248,8 +240,6 @@ User acceptance testing with auto-diagnosis.
 
 **Prerequisites:** Phase has been executed
 **Produces:** `{phase}-UAT.md`, fix plans if issues found
-
-Any follow-up fix planning should keep the same four runtime-model paths visible instead of treating `inherit`, runtime-default omission, and external fallback as equivalent “unset model” states.
 
 ```bash
 /gsd-verify-work 1                  # UAT for phase 1
@@ -1047,11 +1037,72 @@ Manage parallel workstreams for concurrent work on different milestone areas.
 
 ### `/gsd-settings`
 
-Interactive configuration of workflow toggles and model profile.
+Interactive configuration of workflow toggles and model profile. Questions are grouped into six visual sections:
+
+- **Planning** — Research, Plan Checker, Pattern Mapper, Nyquist, UI Phase, UI Gate, AI Phase
+- **Execution** — Verifier, TDD Mode, Code Review, Code Review Depth _(conditional — only when Code Review is on)_, UI Review
+- **Docs & Output** — Commit Docs, Skip Discuss, Worktrees
+- **Features** — Intel, Graphify
+- **Model & Pipeline** — Model Profile, Auto-Advance, Branching
+- **Misc** — Context Warnings, Research Qs
+
+All answers are merged via `gsd-sdk query config-set` into the resolved project config path (`.planning/config.json` for a standard install, or `.planning/workstreams/<active>/config.json` when a workstream is active), preserving unrelated keys. After confirmation, the user may save the full settings object to `~/.gsd/defaults.json` so future `/gsd-new-project` runs start from the same baseline.
 
 ```bash
 /gsd-settings                       # Interactive config
 ```
+
+### `/gsd-settings-advanced`
+
+Interactive configuration of power-user knobs — plan bounce, subagent timeouts, branch templates, cross-AI delegation, context window, and runtime output. Use after `/gsd-settings` once the common-case toggles are dialed in.
+
+Six sections, each a focused prompt batch:
+
+| Section | Keys |
+|---------|------|
+| Planning Tuning | `workflow.plan_bounce`, `workflow.plan_bounce_passes`, `workflow.plan_bounce_script`, `workflow.subagent_timeout`, `workflow.inline_plan_threshold` |
+| Execution Tuning | `workflow.node_repair`, `workflow.node_repair_budget`, `workflow.auto_prune_state` |
+| Discussion Tuning | `workflow.max_discuss_passes` |
+| Cross-AI Execution | `workflow.cross_ai_execution`, `workflow.cross_ai_command`, `workflow.cross_ai_timeout` |
+| Git Customization | `git.base_branch`, `git.phase_branch_template`, `git.milestone_branch_template` |
+| Runtime / Output | `response_language`, `context_window`, `search_gitignored`, `graphify.build_timeout` |
+
+Current values are pre-selected; an empty input keeps the existing value. Numeric fields reject non-numeric input and re-prompt. Null-allowed fields (`plan_bounce_script`, `cross_ai_command`, `response_language`) accept an empty input as a clear. Writes route through `gsd-sdk query config-set`, which preserves every unrelated key.
+
+```bash
+/gsd-settings-advanced              # Six-section interactive config
+```
+
+See [CONFIGURATION.md](CONFIGURATION.md) for the full schema and defaults.
+
+### `/gsd-settings-integrations`
+
+Interactive configuration of third-party integrations and cross-tool routing.
+Distinct from `/gsd-settings` (workflow toggles) — this command handles
+connectivity: API keys, reviewer CLI routing, and agent-skill injection.
+
+Covers:
+
+- **Search integrations:** `brave_search`, `firecrawl`, `exa_search` API keys,
+  and the `search_gitignored` toggle.
+- **Code-review CLI routing:** `review.models.{claude,codex,gemini,opencode}`
+  — a shell command per reviewer flavor.
+- **Agent-skill injection:** `agent_skills.<agent-type>` — skill names
+  injected into an agent's spawn frontmatter. Agent-type slugs are validated
+  against `[a-zA-Z0-9_-]+` so path separators and shell metacharacters are
+  rejected.
+
+API keys are stored plaintext in `.planning/config.json` but displayed masked
+(`****<last-4>`) in every interactive output, confirmation table, and
+`config-set` stdout/stderr line. Plaintext is never echoed, never logged,
+and never written to any file outside `config.json` by this workflow.
+
+```bash
+/gsd-settings-integrations           # Interactive config (three sections)
+```
+
+See [`docs/CONFIGURATION.md`](CONFIGURATION.md) for the per-field reference and
+[`docs/CLI-TOOLS.md`](CLI-TOOLS.md) for the reviewer-CLI routing contract.
 
 ### `/gsd-set-profile`
 

@@ -5,12 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const { loadConfig, resolveModelBindingInternal, resolveModelInternal, findPhaseInternal, getRoadmapPhaseInternal, pathExistsInternal, generateSlugInternal, getMilestoneInfo, getMilestonePhaseFilter, stripShippedMilestones, extractCurrentMilestone, normalizePhaseName, planningPaths, planningDir, planningRoot, toPosixPath, output, error, checkAgentsInstalled, phaseTokenMatches } = require('./core.cjs');
-const { toInitModelToken } = require('./model-profiles.cjs');
-
-function resolveInitModelInternal(cwd, agentType) {
-  return toInitModelToken(resolveModelBindingInternal(cwd, agentType));
-}
+const { loadConfig, resolveModelInternal, findPhaseInternal, getRoadmapPhaseInternal, pathExistsInternal, generateSlugInternal, getMilestoneInfo, getMilestonePhaseFilter, stripShippedMilestones, extractCurrentMilestone, normalizePhaseName, planningPaths, planningDir, planningRoot, toPosixPath, output, error, checkAgentsInstalled, phaseTokenMatches } = require('./core.cjs');
 
 function getLatestCompletedMilestone(cwd) {
   const milestonesPath = path.join(planningRoot(cwd), 'MILESTONES.md');
@@ -115,8 +110,8 @@ function cmdInitExecutePhase(cwd, phase, raw, options = {}) {
 
   const result = {
     // Models
-    executor_model: resolveInitModelInternal(cwd, 'gsd-executor'),
-    verifier_model: resolveInitModelInternal(cwd, 'gsd-verifier'),
+    executor_model: resolveModelInternal(cwd, 'gsd-executor', { initContext: true }),
+    verifier_model: resolveModelInternal(cwd, 'gsd-verifier', { initContext: true }),
 
     // Config flags
     tdd_mode: options.tdd || config.tdd_mode || false,
@@ -248,9 +243,9 @@ function cmdInitPlanPhase(cwd, phase, raw, options = {}) {
 
   const result = {
     // Models
-    researcher_model: resolveInitModelInternal(cwd, 'gsd-phase-researcher'),
-    planner_model: resolveInitModelInternal(cwd, 'gsd-planner'),
-    checker_model: resolveInitModelInternal(cwd, 'gsd-plan-checker'),
+    researcher_model: resolveModelInternal(cwd, 'gsd-phase-researcher'),
+    planner_model: resolveModelInternal(cwd, 'gsd-planner'),
+    checker_model: resolveModelInternal(cwd, 'gsd-plan-checker'),
 
     // Workflow flags
     tdd_mode: options.tdd || config.tdd_mode || false,
@@ -421,9 +416,9 @@ function cmdInitNewProject(cwd, raw) {
 
   const result = {
     // Models
-    researcher_model: resolveInitModelInternal(cwd, 'gsd-project-researcher'),
-    synthesizer_model: resolveInitModelInternal(cwd, 'gsd-research-synthesizer'),
-    roadmapper_model: resolveInitModelInternal(cwd, 'gsd-roadmapper'),
+    researcher_model: resolveModelInternal(cwd, 'gsd-project-researcher'),
+    synthesizer_model: resolveModelInternal(cwd, 'gsd-research-synthesizer'),
+    roadmapper_model: resolveModelInternal(cwd, 'gsd-roadmapper'),
 
     // Config
     commit_docs: config.commit_docs,
@@ -474,9 +469,9 @@ function cmdInitNewMilestone(cwd, raw) {
 
   const result = {
     // Models
-    researcher_model: resolveInitModelInternal(cwd, 'gsd-project-researcher'),
-    synthesizer_model: resolveInitModelInternal(cwd, 'gsd-research-synthesizer'),
-    roadmapper_model: resolveInitModelInternal(cwd, 'gsd-roadmapper'),
+    researcher_model: resolveModelInternal(cwd, 'gsd-project-researcher'),
+    synthesizer_model: resolveModelInternal(cwd, 'gsd-research-synthesizer'),
+    roadmapper_model: resolveModelInternal(cwd, 'gsd-roadmapper'),
 
     // Config
     commit_docs: config.commit_docs,
@@ -531,10 +526,10 @@ function cmdInitQuick(cwd, description, raw) {
 
   const result = {
     // Models
-    planner_model: resolveInitModelInternal(cwd, 'gsd-planner'),
-    executor_model: resolveInitModelInternal(cwd, 'gsd-executor'),
-    checker_model: resolveInitModelInternal(cwd, 'gsd-plan-checker'),
-    verifier_model: resolveInitModelInternal(cwd, 'gsd-verifier'),
+    planner_model: resolveModelInternal(cwd, 'gsd-planner', { initContext: true }),
+    executor_model: resolveModelInternal(cwd, 'gsd-executor', { initContext: true }),
+    checker_model: resolveModelInternal(cwd, 'gsd-plan-checker', { initContext: true }),
+    verifier_model: resolveModelInternal(cwd, 'gsd-verifier', { initContext: true }),
 
     // Config
     commit_docs: config.commit_docs,
@@ -635,8 +630,8 @@ function cmdInitVerifyWork(cwd, phase, raw) {
 
   const result = {
     // Models
-    planner_model: resolveInitModelInternal(cwd, 'gsd-planner'),
-    checker_model: resolveInitModelInternal(cwd, 'gsd-plan-checker'),
+    planner_model: resolveModelInternal(cwd, 'gsd-planner'),
+    checker_model: resolveModelInternal(cwd, 'gsd-plan-checker'),
 
     // Config
     commit_docs: config.commit_docs,
@@ -898,7 +893,7 @@ function cmdInitMapCodebase(cwd, raw) {
 
   const result = {
     // Models
-    mapper_model: resolveInitModelInternal(cwd, 'gsd-codebase-mapper'),
+    mapper_model: resolveModelInternal(cwd, 'gsd-codebase-mapper'),
 
     // Config
     commit_docs: config.commit_docs,
@@ -934,10 +929,10 @@ function cmdInitManager(cwd, raw) {
 
   // Validate prerequisites
   if (!fs.existsSync(paths.roadmap)) {
-    error('No ROADMAP.md found. Run /gsd-new-milestone first.');
+    error('No ROADMAP.md found. Run /gsd:new-milestone first.');
   }
   if (!fs.existsSync(paths.state)) {
-    error('No STATE.md found. Run /gsd-new-milestone first.');
+    error('No STATE.md found. Run /gsd:new-milestone first.');
   }
   const rawContent = fs.readFileSync(paths.roadmap, 'utf-8');
   const content = extractCurrentMilestone(rawContent, cwd);
@@ -1116,7 +1111,7 @@ function cmdInitManager(cwd, raw) {
         phase_name: phase.name,
         action: 'execute',
         reason: `${phase.plan_count} plans ready, dependencies met`,
-        command: `/gsd-execute-phase ${phase.number}`,
+        command: `/gsd:execute-phase ${phase.number}`,
       });
     } else if (phase.disk_status === 'discussed' || phase.disk_status === 'researched') {
       recommendedActions.push({
@@ -1124,7 +1119,7 @@ function cmdInitManager(cwd, raw) {
         phase_name: phase.name,
         action: 'plan',
         reason: 'Context gathered, ready for planning',
-        command: `/gsd-plan-phase ${phase.number}`,
+        command: `/gsd:plan-phase ${phase.number}`,
       });
     } else if ((phase.disk_status === 'empty' || phase.disk_status === 'no_directory') && phase.is_next_to_discuss) {
       recommendedActions.push({
@@ -1132,7 +1127,7 @@ function cmdInitManager(cwd, raw) {
         phase_name: phase.name,
         action: 'discuss',
         reason: 'Unblocked, ready to gather context',
-        command: `/gsd-discuss-phase ${phase.number}`,
+        command: `/gsd:discuss-phase ${phase.number}`,
       });
     }
   }
@@ -1333,8 +1328,8 @@ function cmdInitProgress(cwd, raw) {
 
   const result = {
     // Models
-    executor_model: resolveInitModelInternal(cwd, 'gsd-executor'),
-    planner_model: resolveInitModelInternal(cwd, 'gsd-planner'),
+    executor_model: resolveModelInternal(cwd, 'gsd-executor', { initContext: true }),
+    planner_model: resolveModelInternal(cwd, 'gsd-planner', { initContext: true }),
 
     // Config
     commit_docs: config.commit_docs,

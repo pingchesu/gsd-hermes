@@ -9,7 +9,17 @@ const testFiles = [
   'tests/hermes-docs.test.cjs',
   'tests/multi-runtime-select.test.cjs',
   'tests/bugs-1656-1657.test.cjs',
+  'tests/runtime-model-parity.test.cjs',
+  'tests/hermes-sdk-query.test.cjs',
 ];
+
+console.log('Verifying fork identity...');
+const identityResult = spawnSync(process.execPath, ['scripts/verify-fork-identity.cjs'], {
+  stdio: 'inherit',
+});
+if (identityResult.status !== 0) {
+  process.exit(identityResult.status === null ? 1 : identityResult.status);
+}
 
 console.log('Running Hermes compatibility validation...');
 

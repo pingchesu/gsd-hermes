@@ -82,11 +82,13 @@ should_skip_file() {
     *.pdf|*.doc|*.docx|*.xls|*.xlsx) return 0 ;;
   esac
   # Skip lockfiles and node_modules
+  # NOTE: patterns use both `*/X` and `X` to match at any depth INCLUDING repo-root
+  # (bash case `*/foo` requires a prefix and won't match bare `foo`).
   case "$file" in
-    */node_modules/*) return 0 ;;
-    */package-lock.json) return 0 ;;
-    */yarn.lock) return 0 ;;
-    */pnpm-lock.yaml) return 0 ;;
+    */node_modules/*|node_modules/*) return 0 ;;
+    */package-lock.json|package-lock.json) return 0 ;;
+    */yarn.lock|yarn.lock) return 0 ;;
+    */pnpm-lock.yaml|pnpm-lock.yaml) return 0 ;;
   esac
   # Skip the scan scripts themselves and test files
   case "$file" in
@@ -99,7 +101,7 @@ should_skip_file() {
 is_data_uri() {
   local context="$1"
   # data:image/png;base64,... or data:application/font-woff;base64,...
-  [[ "$context" =~ data:[a-zA-Z]+/[a-zA-Z0-9.+-]+\;base64, ]]
+  echo "$context" | grep -qE 'data:[a-zA-Z]+/[a-zA-Z0-9.+-]+;base64,' 2>/dev/null
 }
 
 # ─── File Collection ─────────────────────────────────────────────────────────
@@ -146,15 +148,10 @@ collect_files() {
 extract_and_check_blobs() {
   local file="$1"
   local found=0
-  local base64_regex='[A-Za-z0-9+/]{'"$MIN_BLOB_LENGTH"',}={0,3}'
+  local line_num=0
 
-  if ! LC_ALL=C grep -qE "$base64_regex" "$file" 2>/dev/null; then
-    return 0
-  fi
-
-  while IFS= read -r candidate; do
-    local line_num="${candidate%%:*}"
-    local line="${candidate#*:}"
+  while IFS= read -r line; do
+    line_num=$((line_num + 1))
 
     # Skip data URIs — legitimate base64 usage
     if is_data_uri "$line"; then
@@ -163,7 +160,7 @@ extract_and_check_blobs() {
 
     # Extract base64-like blobs (alphanumeric + / + = padding, >= MIN_BLOB_LENGTH)
     local blobs
-    blobs=$(printf '%s\n' "$line" | grep -oE "$base64_regex" 2>/dev/null || true)
+    blobs=$(echo "$line" | grep -oE '[A-Za-z0-9+/]{'"$MIN_BLOB_LENGTH"',}={0,3}' 2>/dev/null || true)
 
     if [[ -z "$blobs" ]]; then
       continue
@@ -179,7 +176,7 @@ extract_and_check_blobs() {
 
       # Try to decode — if it fails, not valid base64
       local decoded
-      decoded=$(printf '%s' "$blob" | base64 -d 2>/dev/null | tr -d '\000' || echo "")
+      decoded=$(echo "$blob" | base64 -d 2>/dev/null || echo "")
 
       if [[ -z "$decoded" ]]; then
         continue
@@ -202,7 +199,7 @@ extract_and_check_blobs() {
 
       # Scan decoded content against injection patterns
       for pattern in "${DECODED_PATTERNS[@]}"; do
-        if printf '%s\n' "$decoded" | grep -iqE "$pattern" 2>/dev/null; then
+        if echo "$decoded" | grep -iqE "$pattern" 2>/dev/null; then
           if [[ $found -eq 0 ]]; then
             echo "FAIL: $file"
             found=1
@@ -215,7 +212,7 @@ extract_and_check_blobs() {
         fi
       done
     done <<< "$blobs"
-  done < <(LC_ALL=C grep -nE "$base64_regex" "$file" 2>/dev/null || true)
+  done < "$file"
 
   return $found
 }

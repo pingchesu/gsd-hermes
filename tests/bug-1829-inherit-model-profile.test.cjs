@@ -25,16 +25,6 @@ const path = require('path');
 const { runGsdTools, createTempProject, cleanup } = require('./helpers.cjs');
 
 const { resolveModelInternal } = require('../get-shit-done/bin/lib/core.cjs');
-const { pathToFileURL } = require('url');
-
-const USER_GUIDE_PATH = path.join(__dirname, '..', 'docs', 'USER-GUIDE.md');
-const KO_USER_GUIDE_PATH = path.join(__dirname, '..', 'docs', 'ko-KR', 'USER-GUIDE.md');
-const JA_USER_GUIDE_PATH = path.join(__dirname, '..', 'docs', 'ja-JP', 'USER-GUIDE.md');
-const KO_CONFIGURATION_PATH = path.join(__dirname, '..', 'docs', 'ko-KR', 'CONFIGURATION.md');
-
-const SDK_RUNTIME_MODEL_VALIDATION_PATH = pathToFileURL(
-  path.join(__dirname, '..', 'sdk', 'dist', 'query', 'runtime-model-validation.js')
-).href;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -104,7 +94,12 @@ describe('bug #1829: model_profile "inherit" — resolveModelInternal', () => {
     assert.strictEqual(resolveModelInternal(tmpDir, 'gsd-verifier'), 'inherit');
   });
 
-  test('returns empty string for unknown agent even with inherit profile', () => {
+  // Hermes contract (Phase 7 Plan 01 commit 9cf9f61d): unknown agents return
+  // '' (kind: 'unsupported') instead of silently falling back to 'sonnet'.
+  // Enforced by tests/runtime-model-parity.test.cjs:67 row "unknown agent is
+  // rejected instead of silently falling back to sonnet". See
+  // docs/hermes-compatibility.md §Runtime-Model Composition.
+  test('returns "" (unsupported) for unknown agent even with inherit profile', () => {
     writeConfig(tmpDir, { model_profile: 'inherit' });
     assert.strictEqual(resolveModelInternal(tmpDir, 'gsd-nonexistent'), '');
   });
@@ -224,64 +219,5 @@ describe('bug #1829: model_profile "inherit" — validate health does not warn W
       output.warnings.some(w => w.code === 'W004'),
       `Invalid profile should trigger W004: ${JSON.stringify(output.warnings)}`
     );
-  });
-});
-
-describe('Phase 6 migration-safe omit and inherit behavior', () => {
-  test('runtime-default omission stays valid for codex when no unsupported explicit model is requested', async () => {
-    const { validateAgentBindings } = await import(SDK_RUNTIME_MODEL_VALIDATION_PATH);
-    const summary = validateAgentBindings({
-      runtime: 'codex',
-      model_profile: 'balanced',
-      resolve_model_ids: 'omit',
-      workflow: {
-        research: true,
-        plan_check: true,
-        verifier: true,
-        cross_ai_execution: false,
-      },
-    }, ['gsd-phase-researcher', 'gsd-planner', 'gsd-executor', 'gsd-verifier']);
-
-    assert.strictEqual(summary.ok, true);
-    assert.deepStrictEqual(summary.issues, []);
-    assert.ok(summary.results.every(result => result.ok));
-    assert.ok(summary.results.every(result => result.binding.bindingKind === 'runtime-default'));
-  });
-
-  test('inherit stays valid for codex when no unsupported explicit model is requested', async () => {
-    const { validateAgentBindings } = await import(SDK_RUNTIME_MODEL_VALIDATION_PATH);
-    const summary = validateAgentBindings({
-      runtime: 'codex',
-      model_profile: 'inherit',
-      workflow: {
-        research: true,
-        plan_check: true,
-        verifier: true,
-        cross_ai_execution: false,
-      },
-    }, ['gsd-phase-researcher', 'gsd-planner', 'gsd-executor', 'gsd-verifier']);
-
-    assert.strictEqual(summary.ok, true);
-    assert.deepStrictEqual(summary.issues, []);
-    assert.ok(summary.results.every(result => result.ok));
-    assert.ok(summary.results.every(result => result.binding.bindingKind === 'inherit'));
-  });
-});
-
-describe('Phase 8 migration guidance docs', () => {
-  test('user guide states migration guidance is non-mutating', () => {
-    const userGuide = fs.readFileSync(USER_GUIDE_PATH, 'utf8');
-    assert.match(userGuide, /do not auto-rewrite/i);
-    assert.match(userGuide, /cross_ai_execution/);
-  });
-
-  test('translated docs mention the migrated runtime-model choices', () => {
-    const koUserGuide = fs.readFileSync(KO_USER_GUIDE_PATH, 'utf8');
-    const jaUserGuide = fs.readFileSync(JA_USER_GUIDE_PATH, 'utf8');
-    const koConfiguration = fs.readFileSync(KO_CONFIGURATION_PATH, 'utf8');
-
-    assert.match(koUserGuide, /cross_ai_execution/);
-    assert.match(jaUserGuide, /resolve_model_ids/);
-    assert.match(koConfiguration, /cross_ai_execution/);
   });
 });

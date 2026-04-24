@@ -238,9 +238,9 @@ the project auto-closes PRs without proper approval gates.
 Produce a structured triage report:
 
 ```
--------------------------------------------------------------------
+===================================================================
   GSD INBOX TRIAGE — {repo} — {date}
--------------------------------------------------------------------
+===================================================================
 
 SUMMARY
 -------
@@ -287,7 +287,7 @@ STALE ITEMS (>30 days, no activity)
 ------------------------------------
 {Issues and PRs with no updates in 30+ days}
 
--------------------------------------------------------------------
+===================================================================
 ```
 
 Write this report to `.planning/INBOX-TRIAGE.md` if a `.planning/` directory exists,
@@ -370,10 +370,10 @@ Next steps:
 <offer_next>
 After triage:
 
-- /gsd-review — Run cross-AI peer review on a specific phase plan
-- /gsd-ship — Create a PR from completed work
-- /gsd-progress — See overall project state
-- /gsd-inbox --label — Re-run with auto-labeling enabled
+- /gsd:review — Run cross-AI peer review on a specific phase plan
+- /gsd:ship — Create a PR from completed work
+- /gsd:progress — See overall project state
+- /gsd:inbox --label — Re-run with auto-labeling enabled
 </offer_next>
 
 <success_criteria>

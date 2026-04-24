@@ -73,6 +73,93 @@ const MATRIX = [
     expectedLegacyToken: '',
     expectedInitToken: '',
   },
+  // ─── Phase 7 Plan 01: runtime-aware + cross-AI + overrides coverage ───────
+  // ARCHITECTURAL NOTE: the parity assertion (lines 197-205) enforces
+  // cjsLegacyToken === sdkLegacyToken. cjsLegacyToken comes from
+  // resolveModelInternal (which IS runtime-aware via resolveTierEntry at
+  // step 3 of core.cjs). sdkLegacyToken comes from SDK toLegacyModelToken
+  // applied to resolveAgentBinding (which is NOT runtime-aware — it is
+  // profile-based and shared with the CJS resolveAgentBinding in
+  // model-profiles.cjs).
+  //
+  // Consequence: rows whose config triggers resolveModelInternal step 3
+  // (runtime && runtime !== 'claude' && profile !== 'inherit' && !override
+  // && tier != null) CANNOT satisfy the parity assertion — CJS returns the
+  // runtime-aware token (e.g. 'gpt-5.4') while SDK returns the profile alias
+  // ('opus'). This is intentional per #2517 review finding #4 ("explicit
+  // opt-in beats resolve_model_ids: omit").
+  //
+  // Runtime-aware CJS behavior IS covered by the existing 52-subtest suite
+  // tests/issue-2517-runtime-aware-profiles.test.cjs (which asserts the CJS
+  // side only, no parity). Rows below exercise PROFILE-01 + PROFILE-02 +
+  // HERM-04 composition through paths that DO satisfy parity:
+  //   - explicit model_override (step 1, override wins over runtime-aware)
+  //   - runtime: codex + profile: inherit (step 5-inherit, returns 'inherit')
+  //   - runtime: codex + omit for gsd-unknown-agent (unsupported rejects both sides)
+  //   - runtime: hermes (unknown to KNOWN_RUNTIMES — resolveTierEntry returns
+  //     null, falls through to profile lookup; CJS and SDK agree on Claude alias)
+  //   - cross_ai_execution: true (no effect on token resolution; HERM-04 is
+  //     about the flag being preserved through the binding shape)
+  //   - resolve_model_ids: true + adaptive profile (alias mapping path)
+  {
+    name: 'runtime: codex + explicit model_override — override wins over runtime-aware resolution (shared binding agrees)',
+    agent: 'gsd-executor',
+    config: {
+      runtime: 'codex',
+      model_profile: 'quality',
+      model_overrides: { 'gsd-executor': 'openai/gpt-5-pro' },
+      workflow: {},
+    },
+    expectedLegacyToken: 'openai/gpt-5-pro',
+    expectedInitToken: 'openai/gpt-5-pro',
+  },
+  {
+    name: 'runtime: codex + inherit profile stays inherit (#2516 literal passthrough; runtime-aware bypassed)',
+    agent: 'gsd-planner',
+    config: { runtime: 'codex', model_profile: 'inherit', workflow: {} },
+    expectedLegacyToken: 'inherit',
+    expectedInitToken: '',
+  },
+  {
+    name: 'runtime: codex + omit + unknown agent — both resolvers reject (runtime-aware path bypassed)',
+    agent: 'gsd-unknown-agent-codex',
+    config: { runtime: 'codex', model_profile: 'balanced', resolve_model_ids: 'omit', workflow: {} },
+    expectedLegacyToken: '',
+    expectedInitToken: '',
+  },
+  {
+    name: 'runtime: hermes (absent from KNOWN_RUNTIMES) falls through to Claude-safe profile alias (PROFILE-01 fork-identity)',
+    agent: 'gsd-planner',
+    config: { runtime: 'hermes', model_profile: 'balanced', workflow: {} },
+    expectedLegacyToken: 'opus',
+    expectedInitToken: 'opus',
+  },
+  {
+    name: 'cross_ai_execution: true keeps legacy/init tokens on Claude default path (HERM-04 fallback flag preserved)',
+    agent: 'gsd-executor',
+    config: { workflow: { cross_ai_execution: true }, model_profile: 'balanced' },
+    expectedLegacyToken: 'sonnet',
+    expectedInitToken: 'sonnet',
+  },
+  {
+    name: 'resolve_model_ids: true + adaptive profile expands alias (verifies adaptive profile path)',
+    agent: 'gsd-executor',
+    config: { model_profile: 'adaptive', resolve_model_ids: true, workflow: {} },
+    expectedLegacyToken: 'claude-sonnet-4-6',
+    expectedInitToken: 'claude-sonnet-4-6',
+  },
+  {
+    name: 'runtime: codex + inherit + model_profile_overrides — inherit dominates, overrides ignored by both resolvers',
+    agent: 'gsd-planner',
+    config: {
+      runtime: 'codex',
+      model_profile: 'inherit',
+      model_profile_overrides: { codex: { opus: 'gpt-5-pro' } },
+      workflow: {},
+    },
+    expectedLegacyToken: 'inherit',
+    expectedInitToken: '',
+  },
 ];
 
 describe('runtime-model parity', () => {

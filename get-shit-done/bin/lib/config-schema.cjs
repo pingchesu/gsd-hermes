@@ -25,7 +25,6 @@ const VALID_CONFIG_KEYS = new Set([
   'workflow.discuss_mode',
   'workflow.skip_discuss',
   'workflow.auto_prune_state',
-  'workflow._auto_chain_active',
   'workflow.use_worktrees',
   'workflow.code_review',
   'workflow.code_review_depth',
@@ -35,15 +34,22 @@ const VALID_CONFIG_KEYS = new Set([
   'workflow.plan_bounce_script',
   'workflow.plan_bounce_passes',
   'workflow.plan_chunked',
+  'workflow.post_planning_gaps',
   'workflow.security_enforcement',
   'workflow.security_asvs_level',
   'workflow.security_block_on',
+  'workflow.drift_threshold',
+  'workflow.drift_action',
   'git.branching_strategy', 'git.base_branch', 'git.phase_branch_template', 'git.milestone_branch_template', 'git.quick_branch_template',
   'planning.commit_docs', 'planning.search_gitignored', 'planning.sub_repos',
   'workflow.cross_ai_execution', 'workflow.cross_ai_command', 'workflow.cross_ai_timeout',
   'workflow.subagent_timeout',
   'workflow.inline_plan_threshold',
   'hooks.context_warnings',
+  'hooks.workflow_guard',
+  'statusline.show_last_command',
+  'workflow.ui_review',
+  'workflow.max_discuss_passes',
   'features.thinking_partner',
   'context',
   'features.global_learnings',
@@ -51,11 +57,14 @@ const VALID_CONFIG_KEYS = new Set([
   'project_code', 'phase_naming',
   'manager.flags.discuss', 'manager.flags.plan', 'manager.flags.execute',
   'response_language',
+  'context_window',
   'intel.enabled',
   'graphify.enabled',
   'graphify.build_timeout',
   'claude_md_path',
   'claude_md_assembly.mode',
+  // #2517 — runtime-aware model profiles
+  'runtime',
 ]);
 
 /**
@@ -67,6 +76,10 @@ const DYNAMIC_KEY_PATTERNS = [
   { test: (k) => /^review\.models\.[a-zA-Z0-9_-]+$/.test(k),                 description: 'review.models.<cli-name>' },
   { test: (k) => /^features\.[a-zA-Z0-9_]+$/.test(k),                        description: 'features.<feature_name>' },
   { test: (k) => /^claude_md_assembly\.blocks\.[a-zA-Z0-9_]+$/.test(k),      description: 'claude_md_assembly.blocks.<section>' },
+  // #2517 — runtime-aware model profile overrides: model_profile_overrides.<runtime>.<tier>
+  // <runtime> is a free string (so users can map non-built-in runtimes); <tier> is enum-restricted.
+  { test: (k) => /^model_profile_overrides\.[a-zA-Z0-9_-]+\.(opus|sonnet|haiku)$/.test(k),
+    description: 'model_profile_overrides.<runtime>.<opus|sonnet|haiku>' },
 ];
 
 /**

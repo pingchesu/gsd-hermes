@@ -242,3 +242,119 @@ describe('Hermes local patch reporting', () => {
     assert.match(output, /for Hermes installs/, 'Hermes guidance does not use stale Phase 2 wording');
   });
 });
+
+// =============================================================================
+// Phase 7 Plan 02: HERM-01/02 install smoke triad + INST-01/02 SDK decouple triad
+// =============================================================================
+
+describe('HERM-01/02 install modes end-to-end', () => {
+  let tmpHome;
+  let tmpProject;
+
+  beforeEach(() => {
+    tmpHome = createTempDir('gsd-hermes-home-');
+    tmpProject = createTempDir('gsd-hermes-project-');
+  });
+
+  afterEach(() => {
+    cleanup(tmpHome);
+    cleanup(tmpProject);
+  });
+
+  test('HERM-01: --hermes --global writes ~/.hermes/skills/gsd-help/SKILL.md', () => {
+    const result = runInstaller(['--hermes', '--global', '--no-sdk'], { home: tmpHome, cwd: tmpProject });
+    assert.strictEqual(result.status, 0, `installer exit != 0:\n${result.stdout}\n${result.stderr}`);
+    const skillPath = path.join(tmpHome, '.hermes', 'skills', 'gsd-help', 'SKILL.md');
+    assert.ok(fs.existsSync(skillPath), `missing ${skillPath}`);
+    const skill = fs.readFileSync(skillPath, 'utf8');
+    assert.match(skill, /name:\s*gsd-help/, 'SKILL.md must declare name: gsd-help frontmatter');
+  });
+
+  test('HERM-02: --hermes --local writes .gsd-hermes/skills + registers external_dirs', () => {
+    const result = runInstaller(['--hermes', '--local', '--no-sdk'], { home: tmpHome, cwd: tmpProject });
+    assert.strictEqual(result.status, 0, `installer exit != 0:\n${result.stdout}\n${result.stderr}`);
+    const localSkill = path.join(tmpProject, '.gsd-hermes', 'skills', 'gsd-help', 'SKILL.md');
+    assert.ok(fs.existsSync(localSkill), `missing ${localSkill}`);
+    const configYamlPath = path.join(tmpHome, '.hermes', 'config.yaml');
+    assert.ok(fs.existsSync(configYamlPath), 'config.yaml must be written');
+    const yaml = fs.readFileSync(configYamlPath, 'utf8');
+    assert.match(yaml, /external_dirs:/, 'config.yaml must declare skills.external_dirs block');
+    // The registered path may be either tmpProject or its canonical form on macOS — accept both
+    const escaped = tmpProject.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const canonicalAlt = escaped.replace('/var/', '(?:/private)?/var/');
+    assert.match(yaml, new RegExp(canonicalAlt + '/\\.gsd-hermes/skills'),
+      `external_dirs must contain registered project skills path (accepting canonical form)`);
+  });
+
+  test('HERM-02 (macOS): /var/folders path canonicalizes to /private/var in external_dirs', () => {
+    if (process.platform !== 'darwin') return;  // platform-guarded spot check per §Assumption A2
+    const result = runInstaller(['--hermes', '--local', '--no-sdk'], { home: tmpHome, cwd: tmpProject });
+    assert.strictEqual(result.status, 0, `installer exit != 0:\n${result.stdout}\n${result.stderr}`);
+    const yaml = fs.readFileSync(path.join(tmpHome, '.hermes', 'config.yaml'), 'utf8');
+    // mktemp on macOS gives /var/folders/...; canonical form is /private/var/folders/...
+    assert.match(yaml, /\/private\/var\/folders\//,
+      'macOS canonicalization must rewrite /var/folders/... → /private/var/folders/... in external_dirs');
+  });
+});
+
+// INST-01 triad coverage map (D-14):
+//   Check 1 (direct require resolves)       — this describe, "check 1" test (below)
+//   Check 2 (semantic exercise — SDK load)  — Plan 02 Task 2 (tests/hermes-sdk-query.test.cjs)
+//                                             gsd-sdk query invocations load @anthropic-ai/claude-agent-sdk
+//                                             via the SDK runtime chain (session-runner.ts → claude-agent-sdk)
+//   Check 3 (decouple: esbuild/vitest absent from root deps + SDK tree) — this describe, "check 3" test (below)
+describe('INST-01: @anthropic-ai/claude-agent-sdk decouple + INST-02: chmod 0o755', () => {
+  test('INST-01 check 1: require("@anthropic-ai/claude-agent-sdk") resolves without throw', () => {
+    assert.doesNotThrow(() => require('@anthropic-ai/claude-agent-sdk'),
+      'SDK dependency must be resolvable — regression surface for upstream #2457 decoupling');
+  });
+
+  test('INST-01 check 3: esbuild and vitest are root devDeps, not runtime SDK deps (root decouple proof + SDK install-path check per D-14)', () => {
+    // Build-from-source decouple check: esbuild/vitest may exist at root as devDeps (for scripts/build-hooks.js
+    // and test harness), but MUST NOT appear as direct runtime deps of @anthropic-ai/claude-agent-sdk.
+    // Per D-14 literal wording "absent in the SDK's direct tree", we additionally verify sdk/package.json itself
+    // does not list esbuild/vitest in its own `dependencies` block — covers the SDK's install-path tree, not just
+    // the root #2457 decouple surface.
+    const rootPkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+    const runtimeDeps = rootPkg.dependencies || {};
+    assert.ok(!runtimeDeps.esbuild, 'esbuild must NOT be in root runtime dependencies (it is a devDep for hook builds)');
+    assert.ok(!runtimeDeps.vitest, 'vitest must NOT be in root runtime dependencies (it is a devDep for tests)');
+    assert.ok(runtimeDeps['@anthropic-ai/claude-agent-sdk'], 'Claude agent SDK must be a runtime dep');
+
+    // D-14 Check 3 (SDK install-path tree): sdk/package.json MUST NOT list esbuild/vitest as runtime deps.
+    // This closes the literal "absent in the SDK's direct tree" aspect of D-14 alongside the root decouple proof.
+    const sdkPkgPath = path.join(__dirname, '..', 'sdk', 'package.json');
+    if (fs.existsSync(sdkPkgPath)) {
+      const sdkPkg = JSON.parse(fs.readFileSync(sdkPkgPath, 'utf8'));
+      const sdkDeps = sdkPkg.dependencies || {};
+      assert.ok(!sdkDeps.esbuild,
+        'esbuild must NOT be in sdk/package.json dependencies (D-14 literal: "absent in the SDK\'s direct tree")');
+      assert.ok(!sdkDeps.vitest,
+        'vitest must NOT be in sdk/package.json dependencies (D-14 literal: "absent in the SDK\'s direct tree")');
+    }
+  });
+
+  test('INST-02: scripts/verify-fork-identity.cjs has mode 0o755 on non-Windows',
+    { skip: process.platform === 'win32' },
+    () => {
+      const scriptPath = path.join(__dirname, '..', 'scripts', 'verify-fork-identity.cjs');
+      assert.ok(fs.existsSync(scriptPath), 'verify-fork-identity.cjs must exist (Phase 6 Plan 01 scaffolding)');
+      const mode = fs.statSync(scriptPath).mode & 0o777;
+      assert.strictEqual(mode, 0o755,
+        `verify-fork-identity.cjs mode is 0o${mode.toString(8)}, expected 0o755 per Phase 6 Plan 01`);
+    });
+
+  test('INST-02: sdk/dist/cli.js has mode 0o755 on non-Windows (if built)',
+    { skip: process.platform === 'win32' },
+    () => {
+      const cliPath = path.join(__dirname, '..', 'sdk', 'dist', 'cli.js');
+      if (!fs.existsSync(cliPath)) {
+        // SDK dist not built in this environment — skip assertion (test:hermes does NOT auto-build SDK).
+        // Upstream #2525 regression: re-run after `npm install` to catch strip-exec-bit drift.
+        return;
+      }
+      const mode = fs.statSync(cliPath).mode & 0o777;
+      assert.strictEqual(mode, 0o755,
+        `sdk/dist/cli.js mode is 0o${mode.toString(8)}, expected 0o755 per upstream #2525`);
+    });
+});

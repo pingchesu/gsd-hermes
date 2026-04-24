@@ -117,7 +117,7 @@ User-facing entry points. Each file contains YAML frontmatter (name, description
 - **Copilot:** Slash commands (`/gsd-command-name`)
 - **Antigravity:** Skills
 
-**Total commands:** 83 (see [`docs/INVENTORY.md`](INVENTORY.md#commands) for the full roster).
+**Total commands:** 85 (see [`docs/INVENTORY.md`](INVENTORY.md#commands) for the full roster).
 
 ### Workflows (`get-shit-done/workflows/*.md`)
 
@@ -129,7 +129,34 @@ Orchestration logic that commands reference. Contains the step-by-step process i
 - State update patterns
 - Error handling and recovery
 
-**Total workflows:** 81 (see [`docs/INVENTORY.md`](INVENTORY.md#workflows) for the full roster).
+**Total workflows:** 83 (see [`docs/INVENTORY.md`](INVENTORY.md#workflows) for the full roster).
+
+#### Progressive disclosure for workflows
+
+Workflow files are loaded verbatim into Claude's context every time the
+corresponding `/gsd:*` command is invoked. To keep that cost bounded, the
+workflow size budget enforced by `tests/workflow-size-budget.test.cjs`
+mirrors the agent budget from #2361:
+
+| Tier      | Per-file line limit |
+|-----------|--------------------|
+| `XL`      | 1700 — top-level orchestrators (`execute-phase`, `plan-phase`, `new-project`) |
+| `LARGE`   | 1500 — multi-step planners and large feature workflows |
+| `DEFAULT` | 1000 — focused single-purpose workflows (the target tier) |
+
+`workflows/discuss-phase.md` is held to a stricter <500-line ceiling per
+issue #2551. When a workflow grows beyond its tier, extract per-mode bodies
+into `workflows/<workflow>/modes/<mode>.md`, templates into
+`workflows/<workflow>/templates/`, and shared knowledge into
+`get-shit-done/references/`. The parent file becomes a thin dispatcher that
+Reads only the mode and template files needed for the current invocation.
+
+`workflows/discuss-phase/` is the canonical example of this pattern —
+parent dispatches, modes/ holds per-flag behavior (`power.md`, `all.md`,
+`auto.md`, `chain.md`, `text.md`, `batch.md`, `analyze.md`, `default.md`,
+`advisor.md`), and templates/ holds CONTEXT.md, DISCUSSION-LOG.md, and
+checkpoint.json schemas that are read only when the corresponding output
+file is being written.
 
 ### Agents (`agents/*.md`)
 
@@ -384,7 +411,9 @@ plan-phase
     ├── Research gate (blocks if RESEARCH.md has unresolved open questions)
     ├── Phase Researcher → RESEARCH.md
     ├── Planner (with reachability check) → PLAN.md files
-    └── Plan Checker → Verify loop (max 3x)
+    ├── Plan Checker → Verify loop (max 3x)
+    ├── Requirements coverage gate (REQ-IDs → plans)
+    └── Decision coverage gate (CONTEXT.md `<decisions>` → plans, BLOCKING — #2492)
     │
     ▼
 state planned-phase → STATE.md (Planned/Ready to execute)
@@ -395,6 +424,7 @@ execute-phase (context reduction: truncated prompts, cache-friendly ordering)
     ├── Executor per plan → code + atomic commits
     ├── SUMMARY.md per plan
     └── Verifier → VERIFICATION.md
+        └── Decision coverage gate (CONTEXT.md decisions → shipped artifacts, NON-BLOCKING — #2492)
     │
     ▼
 verify-work → UAT.md (user acceptance testing)
@@ -427,7 +457,7 @@ UI-SPEC.md (per phase) ───────────────────
 
 ```
 ~/.claude/                          # Claude Code (global install)
-├── commands/gsd/*.md               # 83 slash commands
+├── commands/gsd/*.md               # 85 slash commands (authoritative roster: docs/INVENTORY.md)
 ├── get-shit-done/
 │   ├── bin/gsd-tools.cjs           # CLI utility
 │   ├── bin/lib/*.cjs               # Domain modules (authoritative roster: docs/INVENTORY.md)
@@ -467,8 +497,8 @@ Equivalent paths for other runtimes:
 │   ├── ARCHITECTURE.md
 │   └── PITFALLS.md
 ├── codebase/               # Brownfield mapping (from /gsd-map-codebase)
-│   ├── STACK.md
-│   ├── ARCHITECTURE.md
+│   ├── STACK.md            # YAML frontmatter carries `last_mapped_commit`
+│   ├── ARCHITECTURE.md     # for the post-execute drift gate (#2003)
 │   ├── CONVENTIONS.md
 │   ├── CONCERNS.md
 │   ├── STRUCTURE.md
@@ -501,6 +531,30 @@ Equivalent paths for other runtimes:
 ├── ui-reviews/             # Screenshots from /gsd-ui-review (gitignored)
 └── continue-here.md        # Context handoff (from pause-work)
 ```
+
+### Post-Execute Codebase Drift Gate (#2003)
+
+After the last wave of `/gsd:execute-phase` commits, the workflow runs a
+non-blocking `codebase_drift_gate` step (between `schema_drift_gate` and
+`verify_phase_goal`). It compares the diff `last_mapped_commit..HEAD`
+against `.planning/codebase/STRUCTURE.md` and counts four kinds of
+structural elements:
+
+1. New directories outside mapped paths
+2. New barrel exports at `(packages|apps)/<name>/src/index.*`
+3. New migration files
+4. New route modules under `routes/` or `api/`
+
+If the count meets `workflow.drift_threshold` (default 3), the gate either
+**warns** (default) with the suggested `/gsd:map-codebase --paths …` command,
+or **auto-remaps** (`workflow.drift_action = auto-remap`) by spawning
+`gsd-codebase-mapper` scoped to the affected paths. Any error in detection
+or remap is logged and the phase continues — drift detection cannot fail
+verification.
+
+`last_mapped_commit` lives in YAML frontmatter at the top of each
+`.planning/codebase/*.md` file; `bin/lib/drift.cjs` provides
+`readMappedCommit` and `writeMappedCommit` round-trip helpers.
 
 ---
 
