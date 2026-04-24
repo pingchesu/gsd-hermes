@@ -7,7 +7,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { execSync, execFileSync, spawnSync } = require('child_process');
-const { MODEL_PROFILES } = require('./model-profiles.cjs');
+const { MODEL_PROFILES, resolveAgentBinding } = require('./model-profiles.cjs');
 
 const WORKSTREAM_SESSION_ENV_KEYS = [
   'GSD_SESSION_KEY',
@@ -1641,6 +1641,18 @@ function _resolveRuntimeTier(config, tier) {
   });
 }
 
+/**
+ * v1.2 binding-resolver export surface — wraps resolveAgentBinding with on-disk
+ * config load. Consumed by tests/runtime-model-parity.test.cjs to exercise the
+ * disk-read integration path. Returns the full adapter binding shape:
+ *   { kind, agent, knownAgent, bindingKind, source, configuredModel,
+ *     resolvedModel, modelToken, profile, resolveModelIds, rejectionReason? }
+ */
+function resolveModelBindingInternal(cwd, agentType) {
+  const config = loadConfig(cwd);
+  return resolveAgentBinding(config, agentType);
+}
+
 function resolveModelInternal(cwd, agentType) {
   const config = loadConfig(cwd);
 
@@ -2007,6 +2019,7 @@ module.exports = {
   getArchivedPhaseDirs,
   getRoadmapPhaseInternal,
   resolveModelInternal,
+  resolveModelBindingInternal,
   resolveReasoningEffortInternal,
   RUNTIME_PROFILE_MAP,
   RUNTIMES_WITH_REASONING_EFFORT,
