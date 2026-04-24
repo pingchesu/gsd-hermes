@@ -35,7 +35,7 @@
   "scripts": {
     "build": "tsc",
     "postbuild": "chmod 755 dist/cli.js",
-    "prepublishOnly": "rm -rf dist && tsc && chmod 755 dist/cli.js",
+    "prepublishOnly": "rm -rf dist && tsc && chmod +x dist/cli.js",
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration"
