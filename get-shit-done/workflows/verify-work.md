@@ -1,3 +1,5 @@
+<!-- Hermes v1.2 runtime-model contract: verification accounts for the four runtime-model paths (explicit binding, inherit binding, runtime-default omission, cross-AI fallback). UAT runs the same contract regardless of active runtime. See docs/hermes-compatibility.md. -->
+
 <purpose>
 Validate built features through conversational testing with persistent state. Creates UAT.md that tracks test progress, survives /clear, and feeds gaps into /gsd:plan-phase --gaps.
 

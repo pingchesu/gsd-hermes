@@ -1,3 +1,5 @@
+<!-- Hermes v1.2 runtime-model contract: quick-mode planning accounts for the four runtime-model paths (explicit binding, inherit binding, runtime-default omission, cross-AI fallback). See docs/hermes-compatibility.md §Runtime-Model Composition. -->
+
 <purpose>
 Execute small, ad-hoc tasks with GSD guarantees (atomic commits, STATE.md tracking). Quick mode spawns gsd-planner (quick mode) + gsd-executor(s), tracks tasks in `.planning/quick/`, and updates STATE.md's "Quick Tasks Completed" table.
 

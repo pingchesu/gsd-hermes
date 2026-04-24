@@ -1,3 +1,5 @@
+<!-- Hermes v1.2 runtime-model contract: execute-phase has direct runtime support for the four runtime-model paths (explicit binding, inherit binding, runtime-default omission, cross-AI fallback). Executor model resolution is performed in init.execute-phase via resolveModelInternal + resolveModelBindingInternal. See docs/hermes-compatibility.md. -->
+
 <purpose>
 Execute all plans in a phase using wave-based parallel execution. Orchestrator stays lean — delegates plan execution to subagents.
 </purpose>

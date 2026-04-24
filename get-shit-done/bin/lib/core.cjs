@@ -1690,7 +1690,12 @@ function resolveModelInternal(cwd, agentType) {
   }
 
   // 5. Profile lookup (Claude-native default).
-  if (!agentModels) return 'sonnet';
+  // Unknown agent: reject by returning an empty token rather than silently
+  // defaulting to 'sonnet'. This matches the SDK runtime-model contract
+  // (resolveAgentBinding returns kind:'unsupported' with modelToken:null for
+  // unknown agents) and is enforced by tests/runtime-model-parity.test.cjs
+  // "unknown agent is rejected instead of silently falling back to sonnet".
+  if (!agentModels) return '';
   if (profile === 'inherit') return 'inherit';
   // `tier` is guaranteed truthy here: agentModels exists, and MODEL_PROFILES
   // entries always define `balanced`, so `agentModels[profile] || agentModels.balanced`
