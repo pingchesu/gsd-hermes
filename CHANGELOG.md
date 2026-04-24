@@ -10,6 +10,38 @@ syncs from.
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-04-24
+
+GSD Hermes package version: `1.3.0`
+Upstream GSD base: `upstream/main@0a049149` (97 commits above `v1.38.2` / `7397f580`)
+
+### Added
+- **Upstream sync to `upstream/main@0a049149`** — 97 commits merged from upstream into the Hermes fork, preserving independent `gsd-hermes` package identity, Hermes runtime support, and downstream release policy. Per-hunk classification recorded in `docs/sync-logs/2026-04-sync-0a049149.md`.
+- **Runtime-aware model profiles (upstream #2517)** — Upstream runtime-aware resolver composed with the Hermes v1.2 `model-profiles.cjs` adapter via the shared parity matrix (extended from 5 → 13 rows in `tests/runtime-model-parity.test.cjs`).
+- **`/gsd:` colon-form slash syntax (upstream #2543)** — Coexists with Hermes-owned legacy `/gsd-<cmd>` command paths under a dual-track policy recorded in `docs/hermes-compatibility.md §Slash Command Inventory`.
+
+### Changed
+- **Hermes adapter wraps upstream runtime-aware resolver** — `resolveModelInternal` gains an `options.initContext` projection flag that distinguishes init-context callers from general callers while preserving a single source of truth (Phase 7.1 Plan 02).
+- **`sdk/dist/cli.js` chmod 0o755 hardened** — `sdk/package.json::prepublishOnly` uses `chmod +x` (upstream alignment; publish-time umask 022 → 0o755); a new `postbuild` hook adds absolute `chmod 755 dist/cli.js` to defend against developer umask 002. `bin/install.js` retains install-time chmod (three-layer execute-bit defense per Phase 7.1 INST-02 / Phase 7.2 Cat D).
+- **SDK install decoupled from build-from-source (upstream #2441)** — `bin/install.js::installSdkIfNeeded` replaced with upstream dist-verify + chmod-in-place body (net −97 lines; Phase 7.2 Plan 04). Root `package.json` now declares a `bin.gsd-sdk` entry and ships `sdk/dist` in the tarball so `npm install gsd-hermes` lands `gsd-sdk` on `PATH` without rebuilding from source.
+
+### Fixed
+- **PROFILE-03 init-context inherit projection** — `resolveModelInternal` now returns `''` (not the literal `'inherit'`) when `options.initContext === true`, so `tests/bug-2516-inherit-model-execute-phase.test.cjs` subtest 5 goes green (Phase 7.1 Plan 02).
+- **INST-02 chmod 0o755 regression** — `sdk/dist/cli.js` is now 0o755 on fresh builds via the absolute `postbuild` hook (Phase 7.1 Plan 01).
+- **Parity test silent-rot in sync branch** — `resolveModelBindingInternal` re-exported from `core.cjs`; parity matrix enrolled in `scripts/validate-hermes-compat.cjs::testFiles[]` so future drift is caught by `npm run test:hermes` (Phase 7 Plan 01).
+- **16 `npm test` failures across 5 categories** — Cat A: `docs/ARCHITECTURE.md` numeric count drift (6 failures); Cat B: `resolveModelInternal` unknown-agent tests aligned to `''` contract (3 failures + 2 rollups); Cat C: upstream #2441 SDK-decouple test updates (5 failures); Cat D: #2453 chmod test refresh for post-#2441 contract (1 failure); Cat E: `/gsd:` colon-scan allowlist for upstream-owned paths (1 failure). `npm test` now exits 0 at 5505/5505 (Phase 7.2).
+
+### Docs
+- **`docs/hermes-compatibility.md §Runtime-Model Composition` + `§Slash Command Inventory`** — New sections document the 4 binding paths, HERM-04 fallback, SDK/CJS asymmetry contract, and the 6-row Hermes-owned slash command inventory with dual-track rationale (Phase 7 Plan 03).
+- **`docs/sync-logs/2026-04-sync-0a049149.md`** — Per-hunk sync log with 56 `bin/install.js` hunk rows, 226 per-file category rows, 6 `package.json` rows, plus Verification Evidence and Operator Notes (Phase 6 Plans 03–04).
+- **`docs/upstream-sync.md` cross-reference to `docs/sync-logs/`** — Closes the governance feedback loop for future syncs (Phase 6 Plan 04).
+- **`ws@^8.20.0` direct-dep correction** — Recorded as a direct root dependency (not transitive via `@anthropic-ai/claude-agent-sdk` as initially hypothesized; `docs/hermes-compatibility.md §Known Gaps`).
+
+## [1.2.0] — 2026-04-22
+
+GSD Hermes package version: `1.2.0`
+Upstream GSD base: `get-shit-done-cc@1.38.2`
+
 ### Added
 - **Cross-Provider Agent Execution release messaging** — README, CHANGELOG, release draft, and canonical operator docs now present the upcoming `gsd-hermes@1.2.0` release as a downstream capability milestone centered on strict per-agent runtime/model binding, Hermes mixed-provider direct execution, and explicit `cross_ai_execution` fallback semantics.
 - **`/gsd-ingest-docs` command** — Scan a repo containing mixed ADRs, PRDs, SPECs, and DOCs and bootstrap or merge the full `.planning/` setup from them in a single pass. Parallel classification (`gsd-doc-classifier`), synthesis with precedence rules and cycle detection (`gsd-doc-synthesizer`), three-bucket conflicts report (`INGEST-CONFLICTS.md`: auto-resolved, competing-variants, unresolved-blockers), and hard-block on LOCKED-vs-LOCKED ADR contradictions in both new and merge modes. Supports directory-convention discovery and `--manifest <file>` YAML override with per-doc precedence. v1 caps at 50 docs per invocation; `--resolve interactive` is reserved. Extracts shared conflict-detection contract into `references/doc-conflict-engine.md` which `/gsd-import` now also consumes (#2387)
