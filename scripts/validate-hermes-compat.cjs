@@ -9,6 +9,7 @@ const testFiles = [
   'tests/hermes-docs.test.cjs',
   'tests/multi-runtime-select.test.cjs',
   'tests/bugs-1656-1657.test.cjs',
+  'tests/runtime-model-parity.test.cjs',
 ];
 
 console.log('Verifying fork identity...');
