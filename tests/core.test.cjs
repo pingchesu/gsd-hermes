@@ -338,14 +338,21 @@ describe('resolveModelInternal', () => {
   });
 
   describe('edge cases', () => {
-    test('returns sonnet for unknown agent type', () => {
+    // Hermes contract (Phase 7 Plan 01 commit 9cf9f61d): unknown agents return
+    // '' per parity matrix row tests/runtime-model-parity.test.cjs:67 "unknown
+    // agent is rejected instead of silently falling back to sonnet". See
+    // docs/hermes-compatibility.md §Runtime-Model Composition.
+    test('returns "" (unsupported) for unknown agent type', () => {
       writeConfig({ model_profile: 'balanced' });
-      assert.strictEqual(resolveModelInternal(tmpDir, 'gsd-nonexistent'), 'sonnet');
+      assert.strictEqual(resolveModelInternal(tmpDir, 'gsd-nonexistent'), '');
     });
 
-    test('returns sonnet for unknown agent type even with inherit profile', () => {
+    // Hermes contract (Phase 7 Plan 01 commit 9cf9f61d): unknown agents return
+    // '' per tests/runtime-model-parity.test.cjs:67. See
+    // docs/hermes-compatibility.md §Runtime-Model Composition.
+    test('returns "" for unknown agent type even with inherit profile', () => {
       writeConfig({ model_profile: 'inherit' });
-      assert.strictEqual(resolveModelInternal(tmpDir, 'gsd-nonexistent'), 'sonnet');
+      assert.strictEqual(resolveModelInternal(tmpDir, 'gsd-nonexistent'), '');
     });
 
     test('defaults to balanced profile when model_profile missing', () => {
