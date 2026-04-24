@@ -297,12 +297,13 @@ export const configSetModelProfile: QueryHandler = async (args, projectDir, _wor
   }
 
   const normalized = profileName.toLowerCase().trim();
-  if (!VALID_PROFILES.includes(normalized)) {
+  if (!(VALID_PROFILES as readonly string[]).includes(normalized)) {
     throw new GSDError(
       `Invalid profile '${profileName}'. Valid profiles: ${VALID_PROFILES.join(', ')}`,
       ErrorClassification.Validation,
     );
   }
+  const normalizedProfile = normalized as (typeof VALID_PROFILES)[number];
 
   // D6: Lock protection for read-modify-write
   const paths = planningPaths(projectDir);
@@ -319,14 +320,16 @@ export const configSetModelProfile: QueryHandler = async (args, projectDir, _wor
 
     const prev =
       typeof config.model_profile === 'string' ? config.model_profile.toLowerCase().trim() : '';
-    previousProfile = VALID_PROFILES.includes(prev) ? prev : 'balanced';
-    config.model_profile = normalized;
+    previousProfile = (VALID_PROFILES as readonly string[]).includes(prev)
+      ? (prev as (typeof VALID_PROFILES)[number])
+      : 'balanced';
+    config.model_profile = normalizedProfile;
     await atomicWriteConfig(paths.config, config);
   } finally {
     await releaseStateLock(lockPath);
   }
 
-  const agentToModelMap = getAgentToModelMapForProfile(normalized);
+  const agentToModelMap = getAgentToModelMapForProfile(normalizedProfile);
   return {
     data: {
       updated: true,
