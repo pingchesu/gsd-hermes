@@ -1653,7 +1653,7 @@ function resolveModelBindingInternal(cwd, agentType) {
   return resolveAgentBinding(config, agentType);
 }
 
-function resolveModelInternal(cwd, agentType) {
+function resolveModelInternal(cwd, agentType, options = {}) {
   const config = loadConfig(cwd);
 
   // 1. Per-agent override — always respected; highest precedence.
@@ -1696,7 +1696,7 @@ function resolveModelInternal(cwd, agentType) {
   // unknown agents) and is enforced by tests/runtime-model-parity.test.cjs
   // "unknown agent is rejected instead of silently falling back to sonnet".
   if (!agentModels) return '';
-  if (profile === 'inherit') return 'inherit';
+  if (profile === 'inherit') return options.initContext ? '' : 'inherit';
   // `tier` is guaranteed truthy here: agentModels exists, and MODEL_PROFILES
   // entries always define `balanced`, so `agentModels[profile] || agentModels.balanced`
   // resolves to a string. Keep the local for readability — no defensive fallback.
