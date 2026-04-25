@@ -59,11 +59,16 @@ Plans:
   3. Batch/multi-agent workflows can assign different configured models to different agents where the runtime supports it.
   4. If no enforceable channel exists for a path, GSD emits a clear pre-spawn validation error that names the agent, configured model, runtime, and suggested fix.
 
-**Plans:** 0/3 plans executed
+**Plans:** 3/3 plans created; 0/3 plans executed
 
 Plans:
+**Wave 1**
 - [ ] 11-01-PLAN.md — Trace Hermes delegation entry points and choose the smallest upstream-syncable binding seam.
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 11-02-PLAN.md — Implement binding propagation for single and batch subagent spawns, preserving existing inheritance behavior when no explicit override is configured.
+
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 11-03-PLAN.md — Add pre-spawn unsupported-path errors and update runtime capability semantics so Hermes does not overclaim enforcement.
 
 ### Phase 12: Fail-Fast Validation and Proof Tests
@@ -136,7 +141,7 @@ Plans:
 
 ## Next Action
 
-Proceed to Phase 11: Hermes Per-Agent Binding Channel via `/gsd-discuss-phase 11` or `/gsd-plan-phase 11`.
+Proceed to Phase 11 execution via `/gsd-execute-phase 11`.
 
 ---
 *Roadmap created: 2026-04-25*
