@@ -14,7 +14,7 @@
 
 - [x] **Phase 10: Runtime Binding Receipt Surface** — Extend SDK init payloads and Hermes-visible workflow output so users can see per-agent model binding receipts before any GSD subagent is spawned.
 - [x] **Phase 11: Hermes Per-Agent Binding Channel** — Implement or prove the runtime channel that carries GSD per-agent model overrides into Hermes child agents; if the channel cannot enforce a binding, stop before spawn.
-- [ ] **Phase 12: Fail-Fast Validation and Proof Tests** — Add invalid-model, child-construction, receipt, and provider-request diagnostics tests proving explicit overrides cannot silently fall back.
+- [x] **Phase 12: Fail-Fast Validation and Proof Tests** — Add invalid-model, child-construction, receipt, and provider-request diagnostics tests proving explicit overrides cannot silently fall back.
 - [ ] **Phase 13: Tracker, Documentation, Release** — Open/maintain tracker issue, update docs and release notes, run CI/PR flow, and publish `gsd-hermes@1.4.0` after validation.
 
 ## Phase Details
@@ -86,13 +86,13 @@ Plans:
   4. `workflow.cross_ai_execution` stays explicit and observable; no automatic or silent cross-runtime fallback is introduced.
   5. Full relevant test gates pass (`npm run test:hermes`, runtime-model parity tests, and any new Hermes binding tests).
 
-**Plans:** 4/4 plans created; 0/4 plans executed
+**Plans:** 4/4 plans executed
 
 Plans:
-- [ ] 12-01-PLAN.md — Add SDK validation tests for enforceability errors and receipt metadata across override/inherit/runtime-default cases.
-- [ ] 12-02-PLAN.md — Add Hermes child-construction test proving expected child model/provider for GSD-originated override.
-- [ ] 12-03-PLAN.md — Add invalid-model no-silent-fallback smoke test and provider-request diagnostic coverage with credential redaction.
-- [ ] 12-04-PLAN.md — Run full regression gates and close any discovered compatibility drift.
+- [x] 12-01-PLAN.md — Add SDK validation tests for enforceability errors and receipt metadata across override/inherit/runtime-default cases.
+- [x] 12-02-PLAN.md — Add Hermes child-construction test proving expected child model/provider for GSD-originated override.
+- [x] 12-03-PLAN.md — Add invalid-model no-silent-fallback smoke test and provider-request diagnostic coverage with credential redaction.
+- [x] 12-04-PLAN.md — Run full regression gates and close any discovered compatibility drift.
 
 ### Phase 13: Tracker, Documentation, Release
 
@@ -121,7 +121,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 10. Runtime Binding Receipt Surface | 3/3 | Complete | 2026-04-26 |
 | 11. Hermes Per-Agent Binding Channel | 3/3 | Complete | 2026-04-26 |
-| 12. Fail-Fast Validation and Proof Tests | 0/4 | Planned | - |
+| 12. Fail-Fast Validation and Proof Tests | 4/4 | Complete | 2026-04-26 |
 | 13. Tracker, Documentation, Release | 0/3 | Planned | - |
 
 ## Validation Matrix
@@ -141,7 +141,7 @@ Plans:
 
 ## Next Action
 
-Proceed to Phase 12 execution via `/gsd-execute-phase 12`.
+Proceed to Phase 13 planning via `/gsd-plan-phase 13`.
 
 ---
 *Roadmap created: 2026-04-25*

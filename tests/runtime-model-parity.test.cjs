@@ -150,6 +150,30 @@ const MATRIX = [
     expectedInitToken: 'claude-sonnet-4-6',
   },
   {
+    name: 'runtime: hermes + invalid explicit override preserves token for no-silent-fallback proof',
+    agent: 'gsd-planner',
+    config: {
+      runtime: 'hermes',
+      model_profile: 'balanced',
+      model_overrides: { 'gsd-planner': 'definitely-not-a-real-model-gsd-binding-test' },
+      workflow: {},
+    },
+    expectedLegacyToken: 'definitely-not-a-real-model-gsd-binding-test',
+    expectedInitToken: 'definitely-not-a-real-model-gsd-binding-test',
+  },
+  {
+    name: 'runtime: hermes + cross_ai_execution flag remains metadata, not silent fallback',
+    agent: 'gsd-planner',
+    config: {
+      runtime: 'hermes',
+      model_profile: 'balanced',
+      workflow: { cross_ai_execution: true },
+      model_overrides: { 'gsd-planner': 'openai/o4-mini' },
+    },
+    expectedLegacyToken: 'openai/o4-mini',
+    expectedInitToken: 'openai/o4-mini',
+  },
+  {
     name: 'runtime: codex + inherit + model_profile_overrides — inherit dominates, overrides ignored by both resolvers',
     agent: 'gsd-planner',
     config: {
@@ -254,6 +278,7 @@ describe('runtime-model parity', () => {
           passed_to_runtime: cjsReceipt.passed_to_runtime,
           runtime_enforced: cjsReceipt.runtime_enforced,
           enforceability: cjsReceipt.enforceability,
+          runtime_binding_channel: cjsReceipt.runtime_binding_channel,
           rejection_reason: cjsReceipt.rejection_reason,
         },
         {
@@ -273,6 +298,7 @@ describe('runtime-model parity', () => {
           passed_to_runtime: sdkReceipt.passed_to_runtime,
           runtime_enforced: sdkReceipt.runtime_enforced,
           enforceability: sdkReceipt.enforceability,
+          runtime_binding_channel: sdkReceipt.runtime_binding_channel,
           rejection_reason: sdkReceipt.rejection_reason,
         },
         'legacy CJS binding receipt projection must match SDK receipt projection for the shared matrix'

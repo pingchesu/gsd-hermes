@@ -339,6 +339,107 @@ function resolveAgentBinding(config = {}, agent) {
   };
 }
 
+function buildBindingValidationIssue(binding, rejectionReason, reason) {
+  const crossAiExecutionSupported = !!(binding.runtimeCapability && binding.runtimeCapability.supportsCrossAiExecution);
+  const crossAiExecutionRecommended = rejectionReason === 'runtime-model-unsupported' && crossAiExecutionSupported;
+  return {
+    agent: binding.agent,
+    runtime: binding.runtime,
+    bindingKind: binding.bindingKind,
+    source: binding.source,
+    configuredModel: binding.configuredModel,
+    resolvedModel: binding.resolvedModel,
+    rejectionReason,
+    reason,
+    suggestedFix: rejectionReason === 'missing-runtime-binding-channel' && binding.runtime === 'hermes'
+      ? 'Upgrade or restart Hermes Agent with delegate_task.model / tasks[].model support, set the override to inherit, remove the explicit model_overrides entry, or use explicit cross-AI execution.'
+      : binding.suggestedFix || suggestedFixFor(binding),
+    crossAiExecutionSupported,
+    crossAiExecutionConfigured: !!binding.crossAiExecutionConfigured,
+    crossAiExecutionRecommended,
+    crossAiExecutionSuggestion: crossAiExecutionSupported
+      ? (crossAiExecutionRecommended
+          ? `Use workflow.cross_ai_execution as an explicit cross-provider path if you want this binding executed outside the active runtime; workflow.cross_ai_execution is ${binding.crossAiExecutionConfigured ? 'already enabled' : 'currently disabled'}.`
+          : `cross_ai_execution is available for this runtime; workflow.cross_ai_execution is ${binding.crossAiExecutionConfigured ? 'already enabled' : 'currently disabled'}.`)
+      : null,
+    availableAlternative: crossAiExecutionRecommended ? 'cross_ai_execution' : null,
+  };
+}
+
+function validateResolvedAgentBinding(binding, options = {}) {
+  if (binding.kind === 'unsupported') {
+    return {
+      ok: false,
+      agent: binding.agent,
+      runtime: binding.runtime,
+      bindingKind: binding.bindingKind,
+      source: binding.source,
+      configuredModel: binding.configuredModel,
+      resolvedModel: binding.resolvedModel,
+      issue: buildBindingValidationIssue(binding, binding.rejectionReason, binding.message || messageFor(binding)),
+      binding,
+    };
+  }
+
+  if (binding.bindingKind === 'inherit' || binding.bindingKind === 'runtime-default') {
+    return {
+      ok: true,
+      agent: binding.agent,
+      runtime: binding.runtime,
+      bindingKind: binding.bindingKind,
+      source: binding.source,
+      configuredModel: binding.configuredModel,
+      resolvedModel: binding.resolvedModel,
+      issue: null,
+      binding,
+    };
+  }
+
+  if (binding.runtime === 'hermes' && binding.bindingKind === 'explicit') {
+    const channel = runtimeBindingChannelForRuntime(binding.runtime, options);
+    if (!channel.available) {
+      return {
+        ok: false,
+        agent: binding.agent,
+        runtime: binding.runtime,
+        bindingKind: binding.bindingKind,
+        source: binding.source,
+        configuredModel: binding.configuredModel,
+        resolvedModel: binding.resolvedModel,
+        issue: buildBindingValidationIssue(
+          binding,
+          'missing-runtime-binding-channel',
+          channel.reason || 'Hermes delegate_task.model / tasks[].model binding channel is unavailable'
+        ),
+        binding,
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    agent: binding.agent,
+    runtime: binding.runtime,
+    bindingKind: binding.bindingKind,
+    source: binding.source,
+    configuredModel: binding.configuredModel,
+    resolvedModel: binding.resolvedModel,
+    issue: null,
+    binding,
+  };
+}
+
+function validateAgentBinding(config = {}, agent, options = {}) {
+  return validateResolvedAgentBinding(resolveAgentBinding(config, agent), options);
+}
+
+function validateAgentBindings(config = {}, agents = [], options = {}) {
+  const results = agents.map((agent) => validateAgentBinding(config, agent, options));
+  const issues = results.flatMap((result) => result.issue ? [result.issue] : []);
+  const runtime = results[0] ? results[0].runtime : detectRuntime(config);
+  return { ok: issues.length === 0, runtime, agents, results, issues };
+}
+
 function serializeRuntimeModelResolution(resolution) {
   const base = {
     agent: resolution.agent,
@@ -459,6 +560,9 @@ module.exports = {
   normalizeModelProfile,
   resolveAgentBinding,
   runtimeBindingChannelForRuntime,
+  validateAgentBinding,
+  validateAgentBindings,
+  validateResolvedAgentBinding,
   serializeRuntimeModelResolution,
   toBindingReceipt,
   toLegacyModelToken,

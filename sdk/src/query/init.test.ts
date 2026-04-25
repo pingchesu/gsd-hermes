@@ -430,10 +430,71 @@ describe('Hermes runtime model binding channel', () => {
       agent: 'gsd-planner',
       runtime: 'hermes',
       configuredModel: 'openai/o4-mini',
+      resolvedModel: 'openai/o4-mini',
+      bindingKind: 'explicit',
+      source: 'override',
       rejectionReason: 'missing-runtime-binding-channel',
+      crossAiExecutionSupported: true,
+      crossAiExecutionConfigured: false,
     });
     expect(result.issue?.reason).toContain('delegate_task.model / tasks[].model');
     expect(result.issue?.suggestedFix).toContain('Upgrade or restart Hermes Agent');
+  });
+
+  it('does not fail inherit or runtime-default bindings when Hermes delegate channel is unavailable', () => {
+    const inherit = validateAgentBinding(
+      { runtime: 'hermes', model_overrides: { 'gsd-planner': 'inherit' } },
+      'gsd-planner',
+      { hermesDelegateModelChannelAvailable: false },
+    );
+    const runtimeDefault = validateAgentBinding(
+      { runtime: 'hermes', resolve_model_ids: 'omit' },
+      'gsd-planner',
+      { hermesDelegateModelChannelAvailable: false },
+    );
+
+    expect(inherit.ok).toBe(true);
+    expect(inherit.issue).toBeNull();
+    expect(inherit.bindingKind).toBe('inherit');
+    expect(runtimeDefault.ok).toBe(true);
+    expect(runtimeDefault.issue).toBeNull();
+    expect(runtimeDefault.bindingKind).toBe('runtime-default');
+  });
+
+  it('preserves invalid explicit model tokens instead of silently inheriting defaults', () => {
+    const invalidModel = 'definitely-not-a-real-model-gsd-binding-test';
+    const result = validateAgentBinding(
+      {
+        runtime: 'hermes',
+        model_profile: 'balanced',
+        model_overrides: { 'gsd-planner': invalidModel },
+      },
+      'gsd-planner',
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.configuredModel).toBe(invalidModel);
+    expect(result.resolvedModel).toBe(invalidModel);
+    expect(result.binding.modelToken).toBe(invalidModel);
+    expect(result.bindingKind).toBe('explicit');
+  });
+
+  it('represents explicit cross-AI execution as configured metadata, not silent fallback', () => {
+    const result = validateAgentBinding(
+      {
+        runtime: 'hermes',
+        model_profile: 'balanced',
+        workflow: { cross_ai_execution: true },
+        model_overrides: { 'gsd-planner': 'openai/o4-mini' },
+      },
+      'gsd-planner',
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.binding.crossAiExecutionConfigured).toBe(true);
+    expect(result.binding.runtimeCapability.supportsCrossAiExecution).toBe(true);
+    expect(result.bindingKind).toBe('explicit');
+    expect(result.source).toBe('override');
   });
 });
 

@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { runGsdTools, createTempProject, cleanup } = require('./helpers.cjs');
+const { validateAgentBinding } = require('../get-shit-done/bin/lib/model-profiles.cjs');
 
 function assertReceiptRole(receipts, workflow, role, agent) {
   assert.strictEqual(receipts.workflow, workflow);
@@ -156,6 +157,67 @@ describe('init commands', () => {
     assertReceiptRole(output.model_binding_receipts, 'plan-phase', 'checker', 'gsd-plan-checker');
     assert.strictEqual(output.model_binding_receipts.agents.planner.model_token, 'openai/o4-mini');
     assert.strictEqual(output.model_binding_receipts.agents.planner.runtime_enforced, 'unknown');
+    assert.deepStrictEqual(output.model_binding_receipts.agents.planner.runtime_binding_channel, {
+      kind: 'hermes-delegate-task-model',
+      available: true,
+      proof_level: 'child-construction',
+      reason: null,
+      suggested_fix: null,
+    });
+  });
+
+  test('legacy CJS validation fails fast when Hermes delegate model channel is unavailable', () => {
+    const result = validateAgentBinding(
+      {
+        runtime: 'hermes',
+        model_profile: 'balanced',
+        model_overrides: { 'gsd-planner': 'openai/o4-mini' },
+      },
+      'gsd-planner',
+      { hermesDelegateModelChannelAvailable: false }
+    );
+
+    assert.strictEqual(result.ok, false);
+    assert.deepStrictEqual(
+      {
+        agent: result.issue.agent,
+        runtime: result.issue.runtime,
+        configuredModel: result.issue.configuredModel,
+        resolvedModel: result.issue.resolvedModel,
+        bindingKind: result.issue.bindingKind,
+        source: result.issue.source,
+        rejectionReason: result.issue.rejectionReason,
+      },
+      {
+        agent: 'gsd-planner',
+        runtime: 'hermes',
+        configuredModel: 'openai/o4-mini',
+        resolvedModel: 'openai/o4-mini',
+        bindingKind: 'explicit',
+        source: 'override',
+        rejectionReason: 'missing-runtime-binding-channel',
+      }
+    );
+    assert.match(result.issue.reason, /delegate_task\.model \/ tasks\[\]\.model/);
+    assert.match(result.issue.suggestedFix, /Upgrade or restart Hermes Agent/);
+  });
+
+  test('legacy CJS receipts preserve invalid explicit model tokens', () => {
+    const invalidModel = 'definitely-not-a-real-model-gsd-binding-test';
+    fs.writeFileSync(path.join(tmpDir, '.planning', 'config.json'), JSON.stringify({
+      runtime: 'hermes',
+      model_profile: 'balanced',
+      model_overrides: { 'gsd-planner': invalidModel },
+    }));
+
+    const result = runGsdTools('init plan-phase 03 --raw', tmpDir, { HOME: tmpDir });
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const output = JSON.parse(result.output);
+    assert.strictEqual(output.model_binding_receipts.agents.planner.configured_model, invalidModel);
+    assert.strictEqual(output.model_binding_receipts.agents.planner.resolved_model, invalidModel);
+    assert.strictEqual(output.model_binding_receipts.agents.planner.model_token, invalidModel);
+    assert.notStrictEqual(output.model_binding_receipts.agents.planner.model_token, 'opus');
   });
 
   test('init progress returns file paths', () => {
