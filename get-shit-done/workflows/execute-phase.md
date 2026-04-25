@@ -76,18 +76,14 @@ AGENT_SKILLS=$(gsd-sdk query agent-skills gsd-executor)
 
 Parse JSON for: `executor_model`, `verifier_model`, `model_binding_receipts`, `commit_docs`, `parallelization`, `branching_strategy`, `branch_name`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `plans`, `incomplete_plans`, `plan_count`, `incomplete_count`, `state_exists`, `roadmap_exists`, `phase_req_ids`, `response_language`.
 
-**Display runtime/model binding receipt before executor/verifier Task dispatch and before cross-AI fallback decisions.** Render `model_binding_receipts` concisely so the transcript shows the GSD resolver intent and current proof boundary:
+**Display runtime/model binding receipt before executor/verifier Task dispatch and before cross-AI fallback decisions.** Render `model_binding_receipts` concisely so the transcript shows GSD resolver intent and the proof boundary:
 
 ```text
-## Runtime/model binding receipt
-Workflow: {model_binding_receipts.workflow}
-Runtime: {model_binding_receipts.runtime}
+## Runtime/model binding receipt — workflow={model_binding_receipts.workflow} runtime={model_binding_receipts.runtime}
 - executor / gsd-executor: configured={configured_model} resolved={resolved_model} token={model_token} source={source} binding={binding_kind} provider={provider_family} resolved_by_gsd={resolved_by_gsd} passed_to_runtime={passed_to_runtime} runtime_enforced={runtime_enforced}
 - verifier / gsd-verifier: configured={configured_model} resolved={resolved_model} token={model_token} source={source} binding={binding_kind} provider={provider_family} resolved_by_gsd={resolved_by_gsd} passed_to_runtime={passed_to_runtime} runtime_enforced={runtime_enforced}
-
-Note: runtime_enforced=unknown is not runtime proof; it remains expected until Phase 11/12 add Hermes child/provider enforcement proof. passed_to_runtime=true means GSD has an explicit token ready to pass, not that Hermes has proven enforcement.
+Note: runtime_enforced=unknown is not runtime proof; passed_to_runtime=true means GSD has an explicit token ready to pass, not that Hermes has proven enforcement.
 ```
-
 Do not change Task dispatch semantics in this display step. Continue to preserve the existing `executor_model === "inherit"` guidance exactly: omit `model=` when inherit/empty.
 
 **Model resolution:** If `executor_model` is `"inherit"`, omit the `model=` parameter from all `Task()` calls — do NOT pass `model="inherit"` to Task. Omitting the `model=` parameter causes Claude Code to inherit the current orchestrator model automatically. Only set `model=` when `executor_model` is an explicit model name (e.g., `"claude-sonnet-4-6"`, `"claude-opus-4-7"`).
