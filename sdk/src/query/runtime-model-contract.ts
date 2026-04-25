@@ -136,6 +136,21 @@ export interface SerializedRuntimeModelResolution {
   message?: string;
 }
 
+export type RuntimeEnforcementStatus = 'unknown' | boolean;
+export type RuntimeModelReceiptEnforceability =
+  | 'explicit-token-needs-runtime-proof'
+  | 'inherits-or-runtime-default'
+  | 'unsupported';
+
+export interface RuntimeModelReceipt extends SerializedRuntimeModelResolution {
+  role: string;
+  provider_family: ModelFamily;
+  resolved_by_gsd: boolean;
+  passed_to_runtime: boolean;
+  runtime_enforced: RuntimeEnforcementStatus;
+  enforceability: RuntimeModelReceiptEnforceability;
+}
+
 export const MODEL_ALIAS_MAP: Record<string, string> = {
   opus: 'claude-opus-4-6',
   sonnet: 'claude-sonnet-4-6',
@@ -509,6 +524,31 @@ export function serializeRuntimeModelResolution(resolution: RuntimeModelResoluti
   }
 
   return base;
+}
+
+function receiptEnforceability(resolution: RuntimeModelResolution): RuntimeModelReceiptEnforceability {
+  if (resolution.kind === 'unsupported') return 'unsupported';
+  if (resolution.bindingKind === 'explicit' && !!resolution.modelToken) {
+    return 'explicit-token-needs-runtime-proof';
+  }
+  return 'inherits-or-runtime-default';
+}
+
+export function toRuntimeModelReceipt(
+  resolution: RuntimeModelResolution,
+  role: string,
+): RuntimeModelReceipt {
+  const serialized = serializeRuntimeModelResolution(resolution);
+  const providerModel = resolution.modelToken ?? resolution.resolvedModel ?? resolution.configuredModel;
+  return {
+    ...serialized,
+    role,
+    provider_family: detectModelFamily(providerModel),
+    resolved_by_gsd: resolution.kind === 'resolved',
+    passed_to_runtime: resolution.kind === 'resolved' && !!resolution.modelToken,
+    runtime_enforced: 'unknown',
+    enforceability: receiptEnforceability(resolution),
+  };
 }
 
 export function toLegacyModelToken(resolution: RuntimeModelResolution, fallback = ''): string {
