@@ -93,7 +93,7 @@ describe('init commands', () => {
     const output = JSON.parse(result.output);
     assertReceiptRole(output.model_binding_receipts, 'execute-phase', 'executor', 'gsd-executor');
     assertReceiptRole(output.model_binding_receipts, 'execute-phase', 'verifier', 'gsd-verifier');
-    assert.strictEqual(output.model_binding_receipts.agents.executor.model, 'openai/o4-mini');
+    assert.strictEqual(output.model_binding_receipts.agents.executor.model_token, 'openai/o4-mini');
     assert.strictEqual(output.model_binding_receipts.agents.executor.runtime_enforced, 'unknown');
   });
 
@@ -153,7 +153,7 @@ describe('init commands', () => {
     assertReceiptRole(output.model_binding_receipts, 'plan-phase', 'researcher', 'gsd-phase-researcher');
     assertReceiptRole(output.model_binding_receipts, 'plan-phase', 'planner', 'gsd-planner');
     assertReceiptRole(output.model_binding_receipts, 'plan-phase', 'checker', 'gsd-plan-checker');
-    assert.strictEqual(output.model_binding_receipts.agents.planner.model, 'openai/o4-mini');
+    assert.strictEqual(output.model_binding_receipts.agents.planner.model_token, 'openai/o4-mini');
     assert.strictEqual(output.model_binding_receipts.agents.planner.runtime_enforced, 'unknown');
   });
 
