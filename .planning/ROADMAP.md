@@ -36,9 +36,14 @@
 **Plans:** 0/3 plans executed
 
 Plans:
-- [ ] 10-01-PLAN.md — Add structured binding receipt metadata to SDK init queries for plan/execute phase without breaking existing flat `*_model` fields.
-- [ ] 10-02-PLAN.md — Render concise binding receipt table in workflows before Task/delegate spawn; preserve text-mode compatibility.
-- [ ] 10-03-PLAN.md — Add SDK/workflow tests for receipt shape, backward compatibility, and conservative enforcement status.
+**Wave 1**
+- [ ] 10-01-PLAN.md — Create the shared model-binding receipt projection used by Phase 10 init surfaces without changing legacy flat model-token behavior.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 10-02-PLAN.md — Add structured binding receipt payloads to `init.plan-phase` and `init.execute-phase` while preserving existing flat model fields and SDK/CJS golden parity.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 10-03-PLAN.md — Surface binding receipts in `/gsd-plan-phase` and `/gsd-execute-phase` transcript instructions so users see model intent and runtime proof status before subagents spawn.
 
 ### Phase 11: Hermes Per-Agent Binding Channel
 
