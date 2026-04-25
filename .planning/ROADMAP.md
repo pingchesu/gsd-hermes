@@ -12,7 +12,7 @@
 
 ## Phases
 
-- [ ] **Phase 10: Runtime Binding Receipt Surface** — Extend SDK init payloads and Hermes-visible workflow output so users can see per-agent model binding receipts before any GSD subagent is spawned.
+- [x] **Phase 10: Runtime Binding Receipt Surface** — Extend SDK init payloads and Hermes-visible workflow output so users can see per-agent model binding receipts before any GSD subagent is spawned.
 - [ ] **Phase 11: Hermes Per-Agent Binding Channel** — Implement or prove the runtime channel that carries GSD per-agent model overrides into Hermes child agents; if the channel cannot enforce a binding, stop before spawn.
 - [ ] **Phase 12: Fail-Fast Validation and Proof Tests** — Add invalid-model, child-construction, receipt, and provider-request diagnostics tests proving explicit overrides cannot silently fall back.
 - [ ] **Phase 13: Tracker, Documentation, Release** — Open/maintain tracker issue, update docs and release notes, run CI/PR flow, and publish `gsd-hermes@1.4.0` after validation.
@@ -33,17 +33,17 @@
   3. Hermes-visible `/gsd-plan-phase` and `/gsd-execute-phase` transcript output prints a concise pre-spawn receipt table and does not require users to manually inspect JSON.
   4. Receipt labels explicitly distinguish `resolved_by_gsd`, `passed_to_runtime`, and `runtime_enforced`; fields default to conservative/unknown values rather than claiming proof that does not exist.
 
-**Plans:** 0/3 plans executed
+**Plans:** 3/3 plans executed
 
 Plans:
 **Wave 1**
-- [ ] 10-01-PLAN.md — Create the shared model-binding receipt projection used by Phase 10 init surfaces without changing legacy flat model-token behavior.
+- [x] 10-01-PLAN.md — Create the shared model-binding receipt projection used by Phase 10 init surfaces without changing legacy flat model-token behavior.
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 10-02-PLAN.md — Add structured binding receipt payloads to `init.plan-phase` and `init.execute-phase` while preserving existing flat model fields and SDK/CJS golden parity.
+- [x] 10-02-PLAN.md — Add structured binding receipt payloads to `init.plan-phase` and `init.execute-phase` while preserving existing flat model fields and SDK/CJS golden parity.
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 10-03-PLAN.md — Surface binding receipts in `/gsd-plan-phase` and `/gsd-execute-phase` transcript instructions so users see model intent and runtime proof status before subagents spawn.
+- [x] 10-03-PLAN.md — Surface binding receipts in `/gsd-plan-phase` and `/gsd-execute-phase` transcript instructions so users see model intent and runtime proof status before subagents spawn.
 
 ### Phase 11: Hermes Per-Agent Binding Channel
 
@@ -114,7 +114,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 10. Runtime Binding Receipt Surface | 0/3 | Planned | - |
+| 10. Runtime Binding Receipt Surface | 3/3 | Complete | 2026-04-26 |
 | 11. Hermes Per-Agent Binding Channel | 0/3 | Planned | - |
 | 12. Fail-Fast Validation and Proof Tests | 0/4 | Planned | - |
 | 13. Tracker, Documentation, Release | 0/3 | Planned | - |
@@ -136,7 +136,7 @@ Plans:
 
 ## Next Action
 
-Start Phase 10: Runtime Binding Receipt Surface via `/gsd-discuss-phase 10` or `/gsd-plan-phase 10`.
+Proceed to Phase 11: Hermes Per-Agent Binding Channel via `/gsd-discuss-phase 11` or `/gsd-plan-phase 11`.
 
 ---
 *Roadmap created: 2026-04-25*
