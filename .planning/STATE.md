@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Hermes Runtime Model Binding Receipts
-status: ready_to_plan
-last_updated: "2026-04-26T03:01:52+08:00"
-last_activity: 2026-04-26 -- Phase 11 execution completed
+status: ready_to_execute
+last_updated: "2026-04-26T03:11:15+08:00"
+last_activity: 2026-04-26 -- Phase 12 planned
 progress:
   total_phases: 4
   completed_phases: 2
@@ -17,10 +17,10 @@ progress:
 
 ## Current Position
 
-Phase: 12 (Fail-Fast Validation and Proof Tests) — READY TO PLAN
+Phase: 12 (Fail-Fast Validation and Proof Tests) — PLANNED
 Plan: 0 of 4
-Status: Phase 11 complete; ready to plan Phase 12
-Last activity: 2026-04-26 -- Phase 11 execution completed
+Status: Ready to execute Phase 12
+Last activity: 2026-04-26 -- Phase 12 planned
 
 ## Project Reference
 
@@ -39,7 +39,7 @@ Goal: Make GSD/Hermes per-agent model overrides observable, enforceable, and imp
 
 Run:
 
-- `/gsd-plan-phase 12` — plan fail-fast validation, child-construction proof tests, provider-request diagnostics, and regression coverage.
+- `/gsd-execute-phase 12` — execute fail-fast validation, child-construction proof tests, provider-request diagnostics, and regression closeout.
 
 ## Accumulated Context
 
@@ -51,7 +51,8 @@ Run:
 - Phase 10 receipt semantics intentionally remain conservative: `runtime_enforced=unknown` is not runtime proof; actual Hermes binding propagation/proof remains Phase 11/12 scope.
 - Phase 11 plan-phase completed 2026-04-26. Research selected the canonical Hermes seam as direct `delegate_task(model=...)` plus batch `tasks[].model`, with `delegation.model` remaining a global fallback. The plan set preserved the proof boundary: child `AIAgent(model=...)` construction is Phase 11 proof; provider wire-level `model=` proof remains Phase 12 unless explicitly instrumented.
 - Phase 11 execution completed 2026-04-26. Local Hermes Agent now supports `delegate_task(model=...)` and batch `tasks[].model` with precedence `tasks[i].model > top-level model > delegation.model > parent inheritance`; tests prove child `AIAgent(model=...)` construction. GSD receipts now include `runtime_binding_channel` with Hermes child-construction metadata and fail-fast validation for unavailable explicit binding channels. Full GSD suite passed `5593/5593`.
+- Phase 12 plan-phase completed 2026-04-26. Plans cover SDK/CJS validation matrix, Hermes GSD-role child-construction tests, invalid-model no-silent-fallback diagnostics, redaction proof, and full regression closeout.
 
 ## Blockers
 
-None currently. Phase 12 should add provider/request diagnostics and invalid-model no-silent-fallback proof while keeping credentials redacted and `runtime_enforced` conservative until provider proof exists.
+None currently. Phase 12 is ready to execute.

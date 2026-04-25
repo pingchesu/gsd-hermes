@@ -86,7 +86,7 @@ Plans:
   4. `workflow.cross_ai_execution` stays explicit and observable; no automatic or silent cross-runtime fallback is introduced.
   5. Full relevant test gates pass (`npm run test:hermes`, runtime-model parity tests, and any new Hermes binding tests).
 
-**Plans:** 0/4 plans executed
+**Plans:** 4/4 plans created; 0/4 plans executed
 
 Plans:
 - [ ] 12-01-PLAN.md — Add SDK validation tests for enforceability errors and receipt metadata across override/inherit/runtime-default cases.
@@ -141,7 +141,7 @@ Plans:
 
 ## Next Action
 
-Proceed to Phase 12 planning via `/gsd-plan-phase 12`.
+Proceed to Phase 12 execution via `/gsd-execute-phase 12`.
 
 ---
 *Roadmap created: 2026-04-25*
