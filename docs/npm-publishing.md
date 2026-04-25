@@ -8,12 +8,14 @@ Use the `Publish npm` workflow in `.github/workflows/publish-npm.yml`.
 
 The workflow validates the package name and version, runs the test suite, checks the npm tarball with `npm pack --dry-run`, publishes to npm, and verifies that the expected package version is visible in the npm registry.
 
-For the upcoming `gsd-hermes@1.2.0` Cross-Provider Agent Execution release, keep the publishing flow simple:
+For the `gsd-hermes@1.4.0` upstream-sync release, use the formal `Release` workflow rather than republishing the already-published `1.3.0` package:
 
-1. Update README / CHANGELOG / release notes first.
-2. Run `Publish npm` with `dry_run: true`.
-3. If dry run is clean, rerun with `dry_run: false`.
-4. Prefer `auth_mode: trusted-publishing`, but keep `npm-token` as the break-glass fallback until issue #6 is closed.
+1. Merge release docs and workflow readiness updates to `main`.
+2. Run `Release` with `action=create`, `version=1.4.0`.
+3. Run `Release` with `action=rc`, `version=1.4.0` to publish `1.4.0-rc.1` to `next`.
+4. Validate the RC install path with `npx gsd-hermes@next`.
+5. Run `Release` with `action=finalize`, `version=1.4.0` to publish `latest`.
+6. Merge the release branch back to `main` so the repository version matches the published package.
 
 ## Publish Workflow Inputs
 

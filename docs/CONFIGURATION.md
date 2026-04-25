@@ -4,6 +4,12 @@
 
 ---
 
+## GSD Hermes v1.4 Release Note
+
+`gsd-hermes@1.4.0` carries upstream config and SDK query fixes through `upstream/main@cd057255`, including runtime-aware model override propagation, config-schema parity checks, workstream-aware query dispatch, ROADMAP checkbox precedence, and state frontmatter mutation guards. Hermes keeps the downstream default of avoiding silent model fallback: configured model bindings must resolve as configured or fail with actionable diagnostics.
+
+---
+
 ## Configuration File
 
 GSD stores project settings in `.planning/config.json`. Created during `/gsd-new-project`, updated via `/gsd-settings`.

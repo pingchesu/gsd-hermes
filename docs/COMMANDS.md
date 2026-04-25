@@ -4,6 +4,12 @@
 
 ---
 
+## GSD Hermes v1.4 Release Note
+
+`gsd-hermes@1.4.0` syncs the command surface with upstream `get-shit-done@cd057255` while keeping Hermes command files installable through the downstream package. Upstream-owned Claude/Qwen assets may reference the newer `gsd:<command>` identity, but Hermes-installed commands remain available through the `gsd-<command>` frontmatter names expected by Hermes command discovery.
+
+---
+
 ## Command Syntax
 
 - **Claude Code / Gemini / Copilot:** `/gsd-command-name [args]`
