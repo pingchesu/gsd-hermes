@@ -47,6 +47,7 @@ const VALID_CONFIG_KEYS = new Set([
   'workflow.inline_plan_threshold',
   'hooks.context_warnings',
   'hooks.workflow_guard',
+  'workflow.context_coverage_gate',
   'statusline.show_last_command',
   'workflow.ui_review',
   'workflow.max_discuss_passes',

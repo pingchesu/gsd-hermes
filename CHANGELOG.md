@@ -10,6 +10,13 @@ syncs from.
 
 ## [Unreleased]
 
+### Synced
+- **Upstream sync candidate to `upstream/main@cd057255`** — brings in 25 commits after the shipped v1.3.0 base `upstream/main@0a049149`. This is sync work only and is not part of the already-published `gsd-hermes@1.3.0` release.
+
+### Fixed
+- **`gsd-sdk query` parent `.planning/` root resolution in multi-repo (`sub_repos`) workspaces** — upstream fix for invoking SDK queries from a child repo listed under parent workspace `sub_repos` (#2623).
+- **Shell hooks falsely flagged as stale on every session** — upstream hook version header/substitution and stale-hook detector fixes for bash `#` comments (#2136, #2206, #2209, #2210, #2212).
+
 ## [1.3.0] — 2026-04-24
 
 GSD Hermes package version: `1.3.0`
