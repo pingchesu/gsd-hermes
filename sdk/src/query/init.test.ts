@@ -318,6 +318,22 @@ describe('initExecutePhase', () => {
     expect(data.phase_found).toBe(true);
     expect(data.phase_number).toBe('09');
     expect(data.executor_model).toBeDefined();
+    expect(data.verifier_model).toBeDefined();
+    const receipts = data.model_binding_receipts as {
+      workflow: string;
+      runtime: string;
+      agents: Record<string, Record<string, unknown>>;
+    };
+    expect(receipts.workflow).toBe('execute-phase');
+    expect(receipts.runtime).toBeDefined();
+    expect(receipts.agents.executor.agent).toBe('gsd-executor');
+    expect(receipts.agents.verifier.agent).toBe('gsd-verifier');
+    for (const role of ['executor', 'verifier']) {
+      expect(receipts.agents[role].role).toBe(role);
+      expect(receipts.agents[role]).toHaveProperty('resolved_by_gsd');
+      expect(receipts.agents[role]).toHaveProperty('passed_to_runtime');
+      expect(receipts.agents[role]).toHaveProperty('runtime_enforced');
+    }
     expect(data.commit_docs).toBeDefined();
     expect(data.project_root).toBe(tmpDir);
     expect(data.plans).toBeDefined();
@@ -340,6 +356,22 @@ describe('initPlanPhase', () => {
     expect(data.researcher_model).toBeDefined();
     expect(data.planner_model).toBeDefined();
     expect(data.checker_model).toBeDefined();
+    const receipts = data.model_binding_receipts as {
+      workflow: string;
+      runtime: string;
+      agents: Record<string, Record<string, unknown>>;
+    };
+    expect(receipts.workflow).toBe('plan-phase');
+    expect(receipts.runtime).toBeDefined();
+    expect(receipts.agents.researcher.agent).toBe('gsd-phase-researcher');
+    expect(receipts.agents.planner.agent).toBe('gsd-planner');
+    expect(receipts.agents.checker.agent).toBe('gsd-plan-checker');
+    for (const role of ['researcher', 'planner', 'checker']) {
+      expect(receipts.agents[role].role).toBe(role);
+      expect(receipts.agents[role]).toHaveProperty('resolved_by_gsd');
+      expect(receipts.agents[role]).toHaveProperty('passed_to_runtime');
+      expect(receipts.agents[role]).toHaveProperty('runtime_enforced');
+    }
     expect(data.research_enabled).toBeDefined();
     expect(data.has_research).toBe(true);
     expect(data.has_context).toBe(true);
