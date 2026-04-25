@@ -13,11 +13,11 @@ assert.ok(pkg.bin && pkg.bin['gsd-hermes'] === 'bin/install.js',
 assert.ok(pkg.bin['get-shit-done-cc'] === 'bin/install.js',
   'bin.get-shit-done-cc must still map to bin/install.js (upstream parity bin)');
 
-// Version is on downstream semver line (NOT upstream 1.38.x or 1.39.x)
-// Phase 6 accepts 1.2.x (pre-release-metadata) OR 1.3.x (post-release-metadata)
+// Version is on the downstream semver line (NOT upstream 1.38.x or 1.39.x).
+// gsd-hermes started at 1.2.x and advances by downstream minor releases (1.3.x, 1.4.x, ...).
 const version = pkg.version;
-assert.ok(/^1\.(2|3)\.\d+/.test(version),
-  `package.json version must be on gsd-hermes 1.2.x or 1.3.x line, got '${version}'`);
+assert.ok(/^1\.([2-9]|[1-9]\d+)\.\d+/.test(version),
+  `package.json version must be on gsd-hermes 1.2.x+ downstream line, got '${version}'`);
 assert.ok(!/^1\.3[89]\./.test(version),
   `package.json version must NOT be on upstream 1.38.x/1.39.x line (identity drift); got '${version}'`);
 
