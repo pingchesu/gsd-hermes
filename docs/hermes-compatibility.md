@@ -37,6 +37,20 @@ Tracks how the Hermes v1.2 runtime-model adapter composes with upstream #2517 ru
 
 Validation evidence: `node --test tests/runtime-model-parity.test.cjs` (enrolled in `scripts/validate-hermes-compat.cjs::testFiles[]` during Phase 7 Plan 01; 13 subtests green covering all five binding paths above).
 
+### Runtime Binding Receipt Layers
+
+Phase 10 adds `model_binding_receipts` to the plan-phase and execute-phase init payloads. These receipts are intentionally observational: they make the model-binding handoff visible without claiming that Hermes has already enforced the requested child model at provider request time.
+
+| Layer | Receipt field | Meaning | Proof boundary |
+| --- | --- | --- | --- |
+| Resolver | `resolved_by_gsd` | GSD recognized the agent and resolved the configured model/profile/omit path into a binding token or an explicit rejection. | Proves GSD resolver behavior only. |
+| Workflow handoff | `passed_to_runtime` | GSD has a non-empty explicit token ready for a workflow `Task(..., model=...)` style handoff. | Does not prove Hermes accepted or used that token. |
+| Runtime/provider proof | `runtime_enforced` | Whether runtime or provider request evidence proves the spawned child actually used the intended model. | Phase 10 reports `unknown` for Hermes unless later enforcement/proof code records concrete evidence. |
+
+`runtime_enforced=unknown is not runtime proof`. It means the GSD resolver and workflow can show intent, but Hermes child-agent construction and provider request metadata have not yet been observed. Preferred proof in later phases is provider request or wire-level `model=...` metadata, followed by runtime child-agent construction evidence. A subagent self-report is not proof and must not be treated as evidence of enforcement.
+
+Do not log secrets while collecting receipt evidence. Provider requests or diagnostic captures must redact API keys, tokens, cookies, passwords, and connection strings.
+
 ## Known Gaps
 
 - Project-linked mode depends on `~/.hermes/config.yaml` `skills.external_dirs`, so duplicate global and project-linked command names can depend on Hermes discovery order.

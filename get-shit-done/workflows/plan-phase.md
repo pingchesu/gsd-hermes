@@ -46,7 +46,22 @@ When `TDD_MODE` is `true`, the planner agent is instructed to apply `type: tdd` 
 
 When `CONTEXT_WINDOW >= 500000`, the planner prompt includes the 3 most recent prior phase CONTEXT.md and SUMMARY.md files PLUS any phases explicitly listed in the current phase's `Depends on:` field in ROADMAP.md. Explicit dependencies always load regardless of recency (e.g., Phase 7 declaring `Depends on: Phase 2` always sees Phase 2's context). Bounded recency keeps the planner's context budget focused on recent work.
 
-Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `research_enabled`, `plan_checker_enabled`, `nyquist_validation_enabled`, `commit_docs`, `text_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded_phase`, `has_research`, `has_context`, `has_reviews`, `has_plans`, `plan_count`, `planning_exists`, `roadmap_exists`, `phase_req_ids`, `response_language`.
+Parse JSON for: `researcher_model`, `planner_model`, `checker_model`, `model_binding_receipts`, `research_enabled`, `plan_checker_enabled`, `nyquist_validation_enabled`, `commit_docs`, `text_mode`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `padded_phase`, `has_research`, `has_context`, `has_reviews`, `has_plans`, `plan_count`, `planning_exists`, `roadmap_exists`, `phase_req_ids`, `response_language`.
+
+**Display runtime/model binding receipt before any researcher/planner/checker Task dispatch.** Render `model_binding_receipts` concisely so the transcript shows the GSD resolver intent and the current proof boundary:
+
+```text
+## Runtime/model binding receipt
+Workflow: {model_binding_receipts.workflow}
+Runtime: {model_binding_receipts.runtime}
+- researcher / gsd-phase-researcher: configured={configured_model} resolved={resolved_model} token={model_token} source={source} binding={binding_kind} provider={provider_family} resolved_by_gsd={resolved_by_gsd} passed_to_runtime={passed_to_runtime} runtime_enforced={runtime_enforced}
+- planner / gsd-planner: configured={configured_model} resolved={resolved_model} token={model_token} source={source} binding={binding_kind} provider={provider_family} resolved_by_gsd={resolved_by_gsd} passed_to_runtime={passed_to_runtime} runtime_enforced={runtime_enforced}
+- checker / gsd-plan-checker: configured={configured_model} resolved={resolved_model} token={model_token} source={source} binding={binding_kind} provider={provider_family} resolved_by_gsd={resolved_by_gsd} passed_to_runtime={passed_to_runtime} runtime_enforced={runtime_enforced}
+
+Note: runtime_enforced=unknown is not runtime proof; it means GSD has not yet observed Hermes child/provider enforcement. passed_to_runtime=true means GSD has an explicit token ready to hand off, not that Hermes or the provider has proven enforcement.
+```
+
+Do not change Task dispatch semantics in this display step. Keep using the flat `researcher_model`, `planner_model`, and `checker_model` fields for existing model-argument behavior.
 
 **If `response_language` is set:** Include `response_language: {value}` in all spawned subagent prompts so any user-facing output stays in the configured language.
 
