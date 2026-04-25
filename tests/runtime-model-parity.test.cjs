@@ -13,6 +13,7 @@ const PLAN_PHASE_WORKFLOW_PATH = path.join(__dirname, '..', 'get-shit-done', 'wo
 const QUICK_WORKFLOW_PATH = path.join(__dirname, '..', 'get-shit-done', 'workflows', 'quick.md');
 const VERIFY_WORKFLOW_PATH = path.join(__dirname, '..', 'get-shit-done', 'workflows', 'verify-work.md');
 const EXECUTE_PHASE_WORKFLOW_PATH = path.join(__dirname, '..', 'get-shit-done', 'workflows', 'execute-phase.md');
+const HERMES_COMPATIBILITY_DOC_PATH = path.join(__dirname, '..', 'docs', 'hermes-compatibility.md');
 
 const SDK_RUNTIME_MODEL_CONTRACT_PATH = pathToFileURL(
   path.join(__dirname, '..', 'sdk', 'dist', 'query', 'runtime-model-contract.js')
@@ -284,10 +285,31 @@ describe('runtime-model parity', () => {
     const quickWorkflow = fsNative.readFileSync(QUICK_WORKFLOW_PATH, 'utf8');
     const verifyWorkflow = fsNative.readFileSync(VERIFY_WORKFLOW_PATH, 'utf8');
     const executeWorkflow = fsNative.readFileSync(EXECUTE_PHASE_WORKFLOW_PATH, 'utf8');
+    const hermesDoc = fsNative.readFileSync(HERMES_COMPATIBILITY_DOC_PATH, 'utf8');
 
     assert.match(planWorkflow, /four runtime-model paths/i);
     assert.match(quickWorkflow, /four runtime-model paths/i);
     assert.match(verifyWorkflow, /four runtime-model paths/i);
     assert.match(executeWorkflow, /direct runtime support/i);
+
+    for (const [name, text] of [
+      ['plan-phase workflow', planWorkflow],
+      ['execute-phase workflow', executeWorkflow],
+    ]) {
+      assert.match(text, /model_binding_receipts/, `${name} must parse model_binding_receipts`);
+      assert.match(text, /runtime_enforced/, `${name} must display runtime_enforced`);
+      assert.match(text, /resolved_by_gsd/, `${name} must display resolved_by_gsd`);
+      assert.match(text, /passed_to_runtime/, `${name} must display passed_to_runtime`);
+      assert.match(
+        text,
+        /runtime_enforced=unknown is not runtime proof/i,
+        `${name} must warn that unknown enforcement is not runtime proof`
+      );
+    }
+
+    assert.match(hermesDoc, /resolved_by_gsd/);
+    assert.match(hermesDoc, /passed_to_runtime/);
+    assert.match(hermesDoc, /runtime_enforced/);
+    assert.match(hermesDoc, /subagent self-report is not proof/i);
   });
 });
