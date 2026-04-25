@@ -42,7 +42,7 @@ export type AcceptedModelProfile = (typeof ACCEPTED_MODEL_PROFILES)[number];
 
 export type BindingKind = 'explicit' | 'profile' | 'inherit' | 'runtime-default';
 export type BindingSource = 'override' | 'profile' | 'inherit-profile' | 'resolve-model-omit';
-export type RejectionReason = 'unknown-agent' | 'missing-contract-coverage' | 'runtime-model-unsupported';
+export type RejectionReason = 'unknown-agent' | 'missing-contract-coverage' | 'runtime-model-unsupported' | 'missing-runtime-binding-channel';
 export type ModelFamily = 'anthropic' | 'openai' | 'google' | 'unknown';
 
 export interface RuntimeCapability {
@@ -137,6 +137,17 @@ export interface SerializedRuntimeModelResolution {
 }
 
 export type RuntimeEnforcementStatus = 'unknown' | boolean;
+export type RuntimeBindingChannelKind = 'hermes-delegate-task-model' | 'runtime-native-model-parameter' | 'none';
+export type RuntimeBindingChannelProofLevel = 'child-construction' | 'runtime-dispatch' | 'none';
+
+export interface RuntimeBindingChannel {
+  kind: RuntimeBindingChannelKind;
+  available: boolean;
+  proof_level: RuntimeBindingChannelProofLevel;
+  reason: string | null;
+  suggested_fix: string | null;
+}
+
 export type RuntimeModelReceiptEnforceability =
   | 'explicit-token-needs-runtime-proof'
   | 'inherits-or-runtime-default'
@@ -149,6 +160,7 @@ export interface RuntimeModelReceipt extends SerializedRuntimeModelResolution {
   passed_to_runtime: boolean;
   runtime_enforced: RuntimeEnforcementStatus;
   enforceability: RuntimeModelReceiptEnforceability;
+  runtime_binding_channel: RuntimeBindingChannel;
 }
 
 export const MODEL_ALIAS_MAP: Record<string, string> = {
@@ -221,6 +233,44 @@ export function evaluateRuntimeModelCompatibility(runtime: Runtime, model: strin
 
   return { supported: true, runtime, model, family, reason: null };
 }
+
+export function runtimeBindingChannelForRuntime(
+  runtime: Runtime,
+  options: { hermesDelegateModelChannelAvailable?: boolean } = {},
+): RuntimeBindingChannel {
+  if (runtime === 'hermes') {
+    const available = options.hermesDelegateModelChannelAvailable ?? true;
+    return {
+      kind: 'hermes-delegate-task-model',
+      available,
+      proof_level: available ? 'child-construction' : 'none',
+      reason: available ? null : 'Hermes delegate_task.model / tasks[].model binding channel is unavailable.',
+      suggested_fix: available
+        ? null
+        : 'Upgrade or restart Hermes Agent with delegate_task.model / tasks[].model support, set the override to inherit, remove the explicit model_overrides entry, or use explicit cross-AI execution.',
+    };
+  }
+
+  const capability = RUNTIME_CAPABILITIES[runtime];
+  if (capability.supportsExplicitModel) {
+    return {
+      kind: 'runtime-native-model-parameter',
+      available: true,
+      proof_level: 'runtime-dispatch',
+      reason: null,
+      suggested_fix: null,
+    };
+  }
+
+  return {
+    kind: 'none',
+    available: false,
+    proof_level: 'none',
+    reason: `Runtime '${runtime}' does not expose an explicit model binding channel.`,
+    suggested_fix: 'Use inherit/runtime-default binding or route through a runtime with explicit model support.',
+  };
+}
+
 
 function normalizeString(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -548,6 +598,7 @@ export function toRuntimeModelReceipt(
     passed_to_runtime: resolution.kind === 'resolved' && !!resolution.modelToken,
     runtime_enforced: 'unknown',
     enforceability: receiptEnforceability(resolution),
+    runtime_binding_channel: runtimeBindingChannelForRuntime(resolution.runtime),
   };
 }
 

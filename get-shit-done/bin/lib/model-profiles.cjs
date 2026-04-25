@@ -85,6 +85,42 @@ function detectModelFamily(model) {
   return 'unknown';
 }
 
+function runtimeBindingChannelForRuntime(runtime, options = {}) {
+  if (runtime === 'hermes') {
+    const available = options.hermesDelegateModelChannelAvailable !== undefined
+      ? !!options.hermesDelegateModelChannelAvailable
+      : true;
+    return {
+      kind: 'hermes-delegate-task-model',
+      available,
+      proof_level: available ? 'child-construction' : 'none',
+      reason: available ? null : 'Hermes delegate_task.model / tasks[].model binding channel is unavailable.',
+      suggested_fix: available
+        ? null
+        : 'Upgrade or restart Hermes Agent with delegate_task.model / tasks[].model support, set the override to inherit, remove the explicit model_overrides entry, or use explicit cross-AI execution.',
+    };
+  }
+
+  const capability = runtimeCapability(runtime);
+  if (capability.supportsExplicitModel) {
+    return {
+      kind: 'runtime-native-model-parameter',
+      available: true,
+      proof_level: 'runtime-dispatch',
+      reason: null,
+      suggested_fix: null,
+    };
+  }
+
+  return {
+    kind: 'none',
+    available: false,
+    proof_level: 'none',
+    reason: `Runtime '${runtime}' does not expose an explicit model binding channel.`,
+    suggested_fix: 'Use inherit/runtime-default binding or route through a runtime with explicit model support.',
+  };
+}
+
 function detectRuntime(config = {}) {
   const envValue = process.env.GSD_RUNTIME;
   if (envValue && SUPPORTED_RUNTIMES.includes(envValue)) return envValue;
@@ -358,6 +394,7 @@ function toBindingReceipt(resolution, role) {
     passed_to_runtime: resolution.kind === 'resolved' && !!resolution.modelToken,
     runtime_enforced: 'unknown',
     enforceability: receiptEnforceability(resolution),
+    runtime_binding_channel: runtimeBindingChannelForRuntime(resolution.runtime || 'claude'),
   };
 }
 
@@ -421,6 +458,7 @@ module.exports = {
   getAgentToModelMapForProfile,
   normalizeModelProfile,
   resolveAgentBinding,
+  runtimeBindingChannelForRuntime,
   serializeRuntimeModelResolution,
   toBindingReceipt,
   toLegacyModelToken,

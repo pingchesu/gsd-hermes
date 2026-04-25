@@ -26,6 +26,7 @@ import {
   initRemoveWorkspace,
   initIngestDocs,
 } from './init.js';
+import { validateAgentBinding } from './runtime-model-validation.js';
 
 let tmpDir: string;
 
@@ -333,6 +334,7 @@ describe('initExecutePhase', () => {
       expect(receipts.agents[role]).toHaveProperty('resolved_by_gsd');
       expect(receipts.agents[role]).toHaveProperty('passed_to_runtime');
       expect(receipts.agents[role]).toHaveProperty('runtime_enforced');
+      expect(receipts.agents[role]).toHaveProperty('runtime_binding_channel');
     }
     expect(data.commit_docs).toBeDefined();
     expect(data.project_root).toBe(tmpDir);
@@ -371,6 +373,7 @@ describe('initPlanPhase', () => {
       expect(receipts.agents[role]).toHaveProperty('resolved_by_gsd');
       expect(receipts.agents[role]).toHaveProperty('passed_to_runtime');
       expect(receipts.agents[role]).toHaveProperty('runtime_enforced');
+      expect(receipts.agents[role]).toHaveProperty('runtime_binding_channel');
     }
     expect(data.research_enabled).toBeDefined();
     expect(data.has_research).toBe(true);
@@ -382,6 +385,55 @@ describe('initPlanPhase', () => {
     const result = await initPlanPhase([], tmpDir);
     const data = result.data as Record<string, unknown>;
     expect(data.error).toBeDefined();
+  });
+});
+
+describe('Hermes runtime model binding channel', () => {
+  it('marks Hermes receipts with delegate_task child-construction channel metadata', async () => {
+    await writeFile(join(tmpDir, '.planning', 'config.json'), JSON.stringify({
+      runtime: 'hermes',
+      model_profile: 'balanced',
+      model_overrides: { 'gsd-planner': 'openai/o4-mini' },
+    }));
+
+    const result = await initPlanPhase(['9'], tmpDir);
+    const data = result.data as Record<string, unknown>;
+    const receipts = data.model_binding_receipts as {
+      agents: Record<string, Record<string, unknown>>;
+    };
+    const plannerReceipt = receipts.agents.planner;
+
+    expect(plannerReceipt.model_token).toBe('openai/o4-mini');
+    expect(plannerReceipt.runtime_enforced).toBe('unknown');
+    expect(plannerReceipt.runtime_binding_channel).toEqual({
+      kind: 'hermes-delegate-task-model',
+      available: true,
+      proof_level: 'child-construction',
+      reason: null,
+      suggested_fix: null,
+    });
+  });
+
+  it('fails fast for explicit Hermes overrides when delegate model channel is unavailable', () => {
+    const result = validateAgentBinding(
+      {
+        runtime: 'hermes',
+        model_profile: 'balanced',
+        model_overrides: { 'gsd-planner': 'openai/o4-mini' },
+      },
+      'gsd-planner',
+      { hermesDelegateModelChannelAvailable: false },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.issue).toMatchObject({
+      agent: 'gsd-planner',
+      runtime: 'hermes',
+      configuredModel: 'openai/o4-mini',
+      rejectionReason: 'missing-runtime-binding-channel',
+    });
+    expect(result.issue?.reason).toContain('delegate_task.model / tasks[].model');
+    expect(result.issue?.suggestedFix).toContain('Upgrade or restart Hermes Agent');
   });
 });
 

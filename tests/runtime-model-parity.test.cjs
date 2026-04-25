@@ -302,9 +302,11 @@ describe('runtime-model parity', () => {
       assert.match(text, /passed_to_runtime/, `${name} must display passed_to_runtime`);
       assert.match(
         text,
-        /runtime_enforced=unknown is not runtime proof/i,
-        `${name} must warn that unknown enforcement is not runtime proof`
+        /runtime_enforced=unknown is not provider proof/i,
+        `${name} must warn that unknown enforcement is not provider proof`
       );
+      assert.match(text, /runtime_binding_channel/, `${name} must display the binding channel boundary`);
+      assert.match(text, /child-construction/i, `${name} must distinguish child construction from provider proof`);
     }
 
     assert.match(hermesDoc, /resolved_by_gsd/);

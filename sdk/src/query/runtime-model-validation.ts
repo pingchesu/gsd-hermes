@@ -13,6 +13,7 @@ import {
   type BindingKind,
   type BindingSource,
   type RejectionReason,
+  runtimeBindingChannelForRuntime,
   type RuntimeModelResolution,
 } from './runtime-model-contract.js';
 
@@ -43,6 +44,10 @@ export interface BindingValidationResult {
   resolvedModel: string | null;
   issue: BindingValidationIssue | null;
   binding: RuntimeModelResolution;
+}
+
+export interface RuntimeBindingChannelValidationOptions {
+  hermesDelegateModelChannelAvailable?: boolean;
 }
 
 export interface BindingValidationSummary {
@@ -286,7 +291,11 @@ export function evaluateCrossAiExecutionResult(options: {
   };
 }
 
-function buildSuggestedFix(binding: RuntimeModelResolution): string {
+function buildSuggestedFix(binding: RuntimeModelResolution, rejectionReason?: RejectionReason): string {
+  if (rejectionReason === 'missing-runtime-binding-channel' && binding.runtime === 'hermes') {
+    return 'Upgrade or restart Hermes Agent with delegate_task.model / tasks[].model support, set the override to inherit, remove the explicit model_overrides entry, or use explicit cross-AI execution.';
+  }
+
   if (binding.kind === 'unsupported') {
     return binding.suggestedFix;
   }
@@ -326,7 +335,7 @@ function buildIssue(binding: RuntimeModelResolution, rejectionReason: RejectionR
     resolvedModel: binding.resolvedModel,
     rejectionReason,
     reason,
-    suggestedFix: buildSuggestedFix(binding),
+    suggestedFix: buildSuggestedFix(binding, rejectionReason),
     crossAiExecutionSupported,
     crossAiExecutionConfigured: binding.crossAiExecutionConfigured,
     crossAiExecutionRecommended,
@@ -335,7 +344,10 @@ function buildIssue(binding: RuntimeModelResolution, rejectionReason: RejectionR
   };
 }
 
-export function validateResolvedAgentBinding(binding: RuntimeModelResolution): BindingValidationResult {
+export function validateResolvedAgentBinding(
+  binding: RuntimeModelResolution,
+  options: RuntimeBindingChannelValidationOptions = {},
+): BindingValidationResult {
   if (binding.kind === 'unsupported') {
     return {
       ok: false,
@@ -362,6 +374,27 @@ export function validateResolvedAgentBinding(binding: RuntimeModelResolution): B
       issue: null,
       binding,
     };
+  }
+
+  if (binding.runtime === 'hermes' && binding.bindingKind === 'explicit') {
+    const channel = runtimeBindingChannelForRuntime(binding.runtime, options);
+    if (!channel.available) {
+      return {
+        ok: false,
+        agent: binding.agent,
+        runtime: binding.runtime,
+        bindingKind: binding.bindingKind,
+        source: binding.source,
+        configuredModel: binding.configuredModel,
+        resolvedModel: binding.resolvedModel,
+        issue: buildIssue(
+          binding,
+          'missing-runtime-binding-channel',
+          channel.reason ?? 'Hermes delegate_task.model / tasks[].model binding channel is unavailable',
+        ),
+        binding,
+      };
+    }
   }
 
   const compatibility = evaluateRuntimeModelCompatibility(binding.runtime, binding.resolvedModel);
@@ -392,12 +425,20 @@ export function validateResolvedAgentBinding(binding: RuntimeModelResolution): B
   };
 }
 
-export function validateAgentBinding(config: GSDConfig | Record<string, unknown>, agent: string): BindingValidationResult {
-  return validateResolvedAgentBinding(resolveAgentBinding(config, agent));
+export function validateAgentBinding(
+  config: GSDConfig | Record<string, unknown>,
+  agent: string,
+  options: RuntimeBindingChannelValidationOptions = {},
+): BindingValidationResult {
+  return validateResolvedAgentBinding(resolveAgentBinding(config, agent), options);
 }
 
-export function validateAgentBindings(config: GSDConfig | Record<string, unknown>, agents: string[]): BindingValidationSummary {
-  const results = agents.map((agent) => validateAgentBinding(config, agent));
+export function validateAgentBindings(
+  config: GSDConfig | Record<string, unknown>,
+  agents: string[],
+  options: RuntimeBindingChannelValidationOptions = {},
+): BindingValidationSummary {
+  const results = agents.map((agent) => validateAgentBinding(config, agent, options));
   const issues = results.flatMap((result) => result.issue ? [result.issue] : []);
   const runtime = results[0]?.runtime ?? resolveAgentBinding(config, agents[0] ?? 'gsd-planner').runtime;
 
@@ -437,8 +478,9 @@ export function assertAgentBindingsSupported(
   config: GSDConfig | Record<string, unknown>,
   agents: string[],
   phaseLabel = 'workflow execution',
+  options: RuntimeBindingChannelValidationOptions = {},
 ): void {
-  const summary = validateAgentBindings(config, agents);
+  const summary = validateAgentBindings(config, agents, options);
   if (summary.ok) return;
   throw new GSDError(formatBindingValidationError(summary, phaseLabel), ErrorClassification.Validation);
 }

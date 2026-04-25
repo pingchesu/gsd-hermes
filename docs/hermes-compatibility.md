@@ -49,6 +49,8 @@ Phase 10 adds `model_binding_receipts` to the plan-phase and execute-phase init 
 
 `runtime_enforced=unknown is not runtime proof`. It means the GSD resolver and workflow can show intent, but Hermes child-agent construction and provider request metadata have not yet been observed. Preferred proof in later phases is provider request or wire-level `model=...` metadata, followed by runtime child-agent construction evidence. A subagent self-report is not proof and must not be treated as evidence of enforcement.
 
+Phase 11 selects the canonical direct Hermes binding seam as `delegate_task(model=...)` for single child spawns and `tasks[].model` for batch spawns. `delegation.model` remains a global default/fallback, not a per-agent GSD override channel. ACP `--model` remains transport-specific and is only relevant when ACP subprocess routing is selected. Phase 11 proof stops at child `AIAgent(model=...)` construction; provider request or wire-level `model=...` proof remains a later provider-instrumentation boundary.
+
 Do not log secrets while collecting receipt evidence. Provider requests or diagnostic captures must redact API keys, tokens, cookies, passwords, and connection strings.
 
 ## Known Gaps

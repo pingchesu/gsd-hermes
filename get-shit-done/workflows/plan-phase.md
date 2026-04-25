@@ -58,10 +58,10 @@ Runtime: {model_binding_receipts.runtime}
 - planner / gsd-planner: configured={configured_model} resolved={resolved_model} token={model_token} source={source} binding={binding_kind} provider={provider_family} resolved_by_gsd={resolved_by_gsd} passed_to_runtime={passed_to_runtime} runtime_enforced={runtime_enforced}
 - checker / gsd-plan-checker: configured={configured_model} resolved={resolved_model} token={model_token} source={source} binding={binding_kind} provider={provider_family} resolved_by_gsd={resolved_by_gsd} passed_to_runtime={passed_to_runtime} runtime_enforced={runtime_enforced}
 
-Note: runtime_enforced=unknown is not runtime proof; it means GSD has not yet observed Hermes child/provider enforcement. passed_to_runtime=true means GSD has an explicit token ready to hand off, not that Hermes or the provider has proven enforcement.
+Note: runtime_enforced=unknown is not provider proof. For Hermes, runtime_binding_channel.kind=hermes-delegate-task-model with proof_level=child-construction means pass explicit tokens via delegate_task(model=...) or tasks[].model; if unavailable, stop on the pre-spawn validation error instead of spawning.
 ```
 
-Do not change Task dispatch semantics in this display step. Keep using the flat `researcher_model`, `planner_model`, and `checker_model` fields for existing model-argument behavior.
+Keep using the flat `researcher_model`, `planner_model`, and `checker_model` fields for existing model-argument behavior; under Hermes these map to delegate_task model fields, not provider wire-level proof.
 
 **If `response_language` is set:** Include `response_language: {value}` in all spawned subagent prompts so any user-facing output stays in the configured language.
 

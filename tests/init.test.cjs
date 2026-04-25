@@ -16,6 +16,7 @@ function assertReceiptRole(receipts, workflow, role, agent) {
   assert.ok(Object.hasOwn(receipts.agents[role], 'resolved_by_gsd'));
   assert.ok(Object.hasOwn(receipts.agents[role], 'passed_to_runtime'));
   assert.ok(Object.hasOwn(receipts.agents[role], 'runtime_enforced'));
+  assert.ok(Object.hasOwn(receipts.agents[role], 'runtime_binding_channel'));
 }
 
 describe('init commands', () => {

@@ -13,7 +13,7 @@
 ## Phases
 
 - [x] **Phase 10: Runtime Binding Receipt Surface** — Extend SDK init payloads and Hermes-visible workflow output so users can see per-agent model binding receipts before any GSD subagent is spawned.
-- [ ] **Phase 11: Hermes Per-Agent Binding Channel** — Implement or prove the runtime channel that carries GSD per-agent model overrides into Hermes child agents; if the channel cannot enforce a binding, stop before spawn.
+- [x] **Phase 11: Hermes Per-Agent Binding Channel** — Implement or prove the runtime channel that carries GSD per-agent model overrides into Hermes child agents; if the channel cannot enforce a binding, stop before spawn.
 - [ ] **Phase 12: Fail-Fast Validation and Proof Tests** — Add invalid-model, child-construction, receipt, and provider-request diagnostics tests proving explicit overrides cannot silently fall back.
 - [ ] **Phase 13: Tracker, Documentation, Release** — Open/maintain tracker issue, update docs and release notes, run CI/PR flow, and publish `gsd-hermes@1.4.0` after validation.
 
@@ -59,17 +59,17 @@ Plans:
   3. Batch/multi-agent workflows can assign different configured models to different agents where the runtime supports it.
   4. If no enforceable channel exists for a path, GSD emits a clear pre-spawn validation error that names the agent, configured model, runtime, and suggested fix.
 
-**Plans:** 3/3 plans created; 0/3 plans executed
+**Plans:** 3/3 plans executed
 
 Plans:
 **Wave 1**
-- [ ] 11-01-PLAN.md — Trace Hermes delegation entry points and choose the smallest upstream-syncable binding seam.
+- [x] 11-01-PLAN.md — Trace Hermes delegation entry points and choose the smallest upstream-syncable binding seam.
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 11-02-PLAN.md — Implement binding propagation for single and batch subagent spawns, preserving existing inheritance behavior when no explicit override is configured.
+- [x] 11-02-PLAN.md — Implement binding propagation for single and batch subagent spawns, preserving existing inheritance behavior when no explicit override is configured.
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 11-03-PLAN.md — Add pre-spawn unsupported-path errors and update runtime capability semantics so Hermes does not overclaim enforcement.
+- [x] 11-03-PLAN.md — Add pre-spawn unsupported-path errors and update runtime capability semantics so Hermes does not overclaim enforcement.
 
 ### Phase 12: Fail-Fast Validation and Proof Tests
 
@@ -120,7 +120,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 10. Runtime Binding Receipt Surface | 3/3 | Complete | 2026-04-26 |
-| 11. Hermes Per-Agent Binding Channel | 0/3 | Planned | - |
+| 11. Hermes Per-Agent Binding Channel | 3/3 | Complete | 2026-04-26 |
 | 12. Fail-Fast Validation and Proof Tests | 0/4 | Planned | - |
 | 13. Tracker, Documentation, Release | 0/3 | Planned | - |
 
@@ -141,7 +141,7 @@ Plans:
 
 ## Next Action
 
-Proceed to Phase 11 execution via `/gsd-execute-phase 11`.
+Proceed to Phase 12 planning via `/gsd-plan-phase 12`.
 
 ---
 *Roadmap created: 2026-04-25*
