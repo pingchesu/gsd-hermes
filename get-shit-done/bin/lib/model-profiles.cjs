@@ -35,6 +35,64 @@ const MODEL_ALIAS_MAP = {
   haiku: 'claude-haiku-4-5',
 };
 
+const SUPPORTED_RUNTIMES = [
+  'claude', 'opencode', 'kilo', 'gemini', 'codex', 'copilot', 'antigravity',
+  'cursor', 'windsurf', 'augment', 'trae', 'qwen', 'codebuddy', 'cline', 'hermes',
+];
+
+const OPENAI_COMPATIBLE_RUNTIMES = ['codex', 'copilot', 'cursor', 'windsurf', 'cline'];
+const GOOGLE_COMPATIBLE_RUNTIMES = ['gemini'];
+const HERMES_MULTI_PROVIDER_RUNTIMES = ['hermes'];
+
+function explicitModelFamiliesForRuntime(runtime) {
+  if (runtime === 'claude') return ['anthropic'];
+  if (OPENAI_COMPATIBLE_RUNTIMES.includes(runtime)) return ['openai'];
+  if (GOOGLE_COMPATIBLE_RUNTIMES.includes(runtime)) return ['google'];
+  if (HERMES_MULTI_PROVIDER_RUNTIMES.includes(runtime)) return ['anthropic', 'openai', 'google', 'unknown'];
+  return ['openai', 'google', 'unknown'];
+}
+
+function runtimeCapability(runtime) {
+  return {
+    runtime,
+    supportsExplicitModel: true,
+    supportsInheritBinding: true,
+    supportsRuntimeDefaultBinding: true,
+    supportsCrossAiExecution: true,
+    explicitModelFamilies: explicitModelFamiliesForRuntime(runtime),
+  };
+}
+
+function isAnthropicModel(model) {
+  return /^(?:claude(?:-|$)|anthropic\/claude-|opus$|sonnet$|haiku$)/i.test(model);
+}
+
+function isOpenAiModel(model) {
+  return /^(?:openai\/|gpt-|o[134](?:$|[-.])|o3(?:$|[-.])|o4(?:$|[-.]))/i.test(model);
+}
+
+function isGoogleModel(model) {
+  return /^(?:gemini(?:$|[-.])|google\/)/i.test(model);
+}
+
+function detectModelFamily(model) {
+  if (!model) return 'unknown';
+  const normalized = String(model).trim();
+  if (!normalized) return 'unknown';
+  if (isAnthropicModel(normalized)) return 'anthropic';
+  if (isOpenAiModel(normalized)) return 'openai';
+  if (isGoogleModel(normalized)) return 'google';
+  return 'unknown';
+}
+
+function detectRuntime(config = {}) {
+  const envValue = process.env.GSD_RUNTIME;
+  if (envValue && SUPPORTED_RUNTIMES.includes(envValue)) return envValue;
+  const configValue = config.runtime;
+  if (typeof configValue === 'string' && SUPPORTED_RUNTIMES.includes(configValue)) return configValue;
+  return 'claude';
+}
+
 function normalizeModelProfile(profile) {
   const normalized = typeof profile === 'string' ? profile.toLowerCase().trim() : '';
   return ACCEPTED_MODEL_PROFILES.includes(normalized) ? normalized : 'balanced';
@@ -63,7 +121,7 @@ function toResolvedModelValue(model, resolveModelIds) {
   return model;
 }
 
-function resolveAgentBinding(config = {}, agent) {
+function resolveAgentBindingBase(config = {}, agent) {
   const profile = normalizeModelProfile(config.model_profile);
   const resolveModelIds = resolveModelIdsSetting(config);
   const overrides = normalizeOverrides(config.model_overrides);
@@ -197,6 +255,112 @@ function resolveAgentBinding(config = {}, agent) {
   };
 }
 
+function suggestedFixFor(resolution) {
+  if (!resolution || resolution.kind === 'unsupported') {
+    if (resolution && resolution.bindingKind === 'runtime-default') {
+      return 'Use a supported agent with contract coverage before depending on runtime-default binding.';
+    }
+    return 'Use a supported agent with contract coverage or add explicit Phase 5 contract coverage before execution.';
+  }
+  if (resolution.bindingKind === 'explicit') {
+    return 'Adjust model_overrides for this agent or remove the override to use profile/runtime defaults.';
+  }
+  if (resolution.bindingKind === 'inherit') {
+    return resolution.source === 'override'
+      ? 'Remove the inherit override to fall back to profile-based resolution.'
+      : 'Set model_profile to a tiered profile or add model_overrides if a literal model token is required.';
+  }
+  if (resolution.bindingKind === 'runtime-default') {
+    return 'Set model_overrides for this agent if you need an explicit model token.';
+  }
+  return 'Choose a different model_profile or add model_overrides for this agent.';
+}
+
+function messageFor(resolution) {
+  if (!resolution || resolution.kind !== 'unsupported') return undefined;
+  if (resolution.bindingKind === 'runtime-default') {
+    return `Runtime-default binding was requested for unknown agent '${resolution.agent}'.`;
+  }
+  return `No runtime-model contract coverage exists for agent '${resolution.agent}'.`;
+}
+
+function resolveConfiguredCrossAiExecution(config = {}) {
+  const workflow = config.workflow;
+  return !!workflow && typeof workflow === 'object' && !Array.isArray(workflow)
+    && workflow.cross_ai_execution === true;
+}
+
+function resolveAgentBinding(config = {}, agent) {
+  const resolution = resolveAgentBindingBase(config, agent);
+  const runtime = detectRuntime(config);
+  return {
+    ...resolution,
+    runtime,
+    runtimeCapability: runtimeCapability(runtime),
+    crossAiExecutionConfigured: resolveConfiguredCrossAiExecution(config),
+    suggestedFix: suggestedFixFor(resolution),
+    ...(resolution.kind === 'unsupported' ? { message: messageFor(resolution) } : {}),
+  };
+}
+
+function serializeRuntimeModelResolution(resolution) {
+  const base = {
+    agent: resolution.agent,
+    status: resolution.kind,
+    known_agent: resolution.knownAgent,
+    runtime: resolution.runtime || 'claude',
+    profile: resolution.profile,
+    binding_kind: resolution.bindingKind,
+    source: resolution.source,
+    configured_model: resolution.configuredModel,
+    resolved_model: resolution.resolvedModel,
+    model_token: resolution.modelToken,
+    resolve_model_ids: resolution.resolveModelIds,
+    suggested_fix: resolution.suggestedFix || suggestedFixFor(resolution),
+    cross_ai: {
+      execution_supported: !!(resolution.runtimeCapability && resolution.runtimeCapability.supportsCrossAiExecution),
+      execution_configured: !!resolution.crossAiExecutionConfigured,
+    },
+    runtime_capability: {
+      supports_explicit_model: !!(resolution.runtimeCapability && resolution.runtimeCapability.supportsExplicitModel),
+      supports_inherit_binding: !!(resolution.runtimeCapability && resolution.runtimeCapability.supportsInheritBinding),
+      supports_runtime_default_binding: !!(resolution.runtimeCapability && resolution.runtimeCapability.supportsRuntimeDefaultBinding),
+    },
+  };
+
+  if (resolution.kind === 'unsupported') {
+    return {
+      ...base,
+      rejection_reason: resolution.rejectionReason,
+      message: resolution.message || messageFor(resolution),
+    };
+  }
+
+  return base;
+}
+
+function receiptEnforceability(resolution) {
+  if (resolution.kind === 'unsupported') return 'unsupported';
+  if (resolution.bindingKind === 'explicit' && !!resolution.modelToken) {
+    return 'explicit-token-needs-runtime-proof';
+  }
+  return 'inherits-or-runtime-default';
+}
+
+function toBindingReceipt(resolution, role) {
+  const serialized = serializeRuntimeModelResolution(resolution);
+  const providerModel = resolution.modelToken || resolution.resolvedModel || resolution.configuredModel;
+  return {
+    ...serialized,
+    role,
+    provider_family: detectModelFamily(providerModel),
+    resolved_by_gsd: resolution.kind === 'resolved',
+    passed_to_runtime: resolution.kind === 'resolved' && !!resolution.modelToken,
+    runtime_enforced: 'unknown',
+    enforceability: receiptEnforceability(resolution),
+  };
+}
+
 function toLegacyModelToken(resolution, fallback = '') {
   if (!resolution || resolution.kind !== 'resolved') return fallback;
   if (resolution.bindingKind === 'inherit' || resolution.resolvedModel === 'inherit') return 'inherit';
@@ -257,6 +421,8 @@ module.exports = {
   getAgentToModelMapForProfile,
   normalizeModelProfile,
   resolveAgentBinding,
+  serializeRuntimeModelResolution,
+  toBindingReceipt,
   toLegacyModelToken,
   toInitModelToken,
 };

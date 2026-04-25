@@ -7,7 +7,7 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 const { createTempProject, cleanup } = require('./helpers.cjs');
 const { resolveModelBindingInternal, resolveModelInternal } = require('../get-shit-done/bin/lib/core.cjs');
-const { toInitModelToken } = require('../get-shit-done/bin/lib/model-profiles.cjs');
+const { toInitModelToken, toBindingReceipt } = require('../get-shit-done/bin/lib/model-profiles.cjs');
 
 const PLAN_PHASE_WORKFLOW_PATH = path.join(__dirname, '..', 'get-shit-done', 'workflows', 'plan-phase.md');
 const QUICK_WORKFLOW_PATH = path.join(__dirname, '..', 'get-shit-done', 'workflows', 'quick.md');
@@ -167,6 +167,7 @@ describe('runtime-model parity', () => {
   let sdkResolveAgentBinding;
   let sdkToLegacyModelToken;
   let sdkToInitModelToken;
+  let sdkToRuntimeModelReceipt;
 
   beforeEach(async () => {
     tmpDir = createTempProject();
@@ -174,6 +175,7 @@ describe('runtime-model parity', () => {
     sdkResolveAgentBinding = sdkModule.resolveAgentBinding;
     sdkToLegacyModelToken = sdkModule.toLegacyModelToken;
     sdkToInitModelToken = sdkModule.toInitModelToken;
+    sdkToRuntimeModelReceipt = sdkModule.toRuntimeModelReceipt;
   });
 
   afterEach(() => {
@@ -230,6 +232,50 @@ describe('runtime-model parity', () => {
       }
       assert.strictEqual(cjsLegacyToken, entry.expectedLegacyToken);
       assert.strictEqual(cjsInitToken, entry.expectedInitToken);
+
+      const sdkReceipt = sdkToRuntimeModelReceipt(sdkResolution, 'executor');
+      const cjsReceipt = toBindingReceipt(cjsResolution, 'executor');
+      assert.deepStrictEqual(
+        {
+          role: cjsReceipt.role,
+          agent: cjsReceipt.agent,
+          status: cjsReceipt.status,
+          known_agent: cjsReceipt.known_agent,
+          runtime: cjsReceipt.runtime,
+          profile: cjsReceipt.profile,
+          binding_kind: cjsReceipt.binding_kind,
+          source: cjsReceipt.source,
+          configured_model: cjsReceipt.configured_model,
+          resolved_model: cjsReceipt.resolved_model,
+          model_token: cjsReceipt.model_token,
+          provider_family: cjsReceipt.provider_family,
+          resolved_by_gsd: cjsReceipt.resolved_by_gsd,
+          passed_to_runtime: cjsReceipt.passed_to_runtime,
+          runtime_enforced: cjsReceipt.runtime_enforced,
+          enforceability: cjsReceipt.enforceability,
+          rejection_reason: cjsReceipt.rejection_reason,
+        },
+        {
+          role: sdkReceipt.role,
+          agent: sdkReceipt.agent,
+          status: sdkReceipt.status,
+          known_agent: sdkReceipt.known_agent,
+          runtime: sdkReceipt.runtime,
+          profile: sdkReceipt.profile,
+          binding_kind: sdkReceipt.binding_kind,
+          source: sdkReceipt.source,
+          configured_model: sdkReceipt.configured_model,
+          resolved_model: sdkReceipt.resolved_model,
+          model_token: sdkReceipt.model_token,
+          provider_family: sdkReceipt.provider_family,
+          resolved_by_gsd: sdkReceipt.resolved_by_gsd,
+          passed_to_runtime: sdkReceipt.passed_to_runtime,
+          runtime_enforced: sdkReceipt.runtime_enforced,
+          enforceability: sdkReceipt.enforceability,
+          rejection_reason: sdkReceipt.rejection_reason,
+        },
+        'legacy CJS binding receipt projection must match SDK receipt projection for the shared matrix'
+      );
     });
   }
 
