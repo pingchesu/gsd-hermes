@@ -128,6 +128,80 @@ describe('runtime-model contract', () => {
     expect(result.rejectionReason).toBe('unknown-agent');
     expect(result.suggestedFix).toContain('supported agent');
   });
+
+  it('projects explicit override bindings into runtime/model receipts with separated truth fields', async () => {
+    const { resolveAgentBinding, toRuntimeModelReceipt } = await import('./runtime-model-contract.js');
+    const resolution = resolveAgentBinding({
+      runtime: 'hermes',
+      model_profile: 'inherit',
+      resolve_model_ids: 'omit',
+      model_overrides: { 'gsd-planner': 'openai/gpt-5.4' },
+      workflow: {},
+    }, 'gsd-planner');
+
+    const receipt = toRuntimeModelReceipt(resolution, 'planner');
+
+    expect(receipt).toMatchObject({
+      role: 'planner',
+      agent: 'gsd-planner',
+      runtime: 'hermes',
+      profile: 'inherit',
+      binding_kind: 'explicit',
+      source: 'override',
+      configured_model: 'openai/gpt-5.4',
+      resolved_model: 'openai/gpt-5.4',
+      model_token: 'openai/gpt-5.4',
+      provider_family: 'openai',
+      known_agent: true,
+      resolved_by_gsd: true,
+      passed_to_runtime: true,
+      runtime_enforced: 'unknown',
+      enforceability: 'explicit-token-needs-runtime-proof',
+    });
+  });
+
+  it('projects runtime-default bindings as resolved by GSD but not passed to runtime', async () => {
+    const { resolveAgentBinding, toRuntimeModelReceipt } = await import('./runtime-model-contract.js');
+    const resolution = resolveAgentBinding({
+      runtime: 'hermes',
+      model_profile: 'balanced',
+      resolve_model_ids: 'omit',
+      workflow: {},
+    }, 'gsd-verifier');
+
+    const receipt = toRuntimeModelReceipt(resolution, 'verifier');
+
+    expect(receipt.resolved_by_gsd).toBe(true);
+    expect(receipt.passed_to_runtime).toBe(false);
+    expect(receipt.runtime_enforced).toBe('unknown');
+    expect(receipt.enforceability).toBe('inherits-or-runtime-default');
+    expect(receipt.model_token).toBeNull();
+    expect(receipt.provider_family).toBe('unknown');
+  });
+
+  it('projects unsupported unknown-agent bindings with actionable diagnostics', async () => {
+    const { resolveAgentBinding, toRuntimeModelReceipt } = await import('./runtime-model-contract.js');
+    const resolution = resolveAgentBinding({
+      runtime: 'hermes',
+      model_profile: 'balanced',
+      workflow: {},
+    }, 'unknown-agent');
+
+    const receipt = toRuntimeModelReceipt(resolution, 'mystery');
+
+    expect(receipt).toMatchObject({
+      role: 'mystery',
+      agent: 'unknown-agent',
+      known_agent: false,
+      resolved_by_gsd: false,
+      passed_to_runtime: false,
+      runtime_enforced: 'unknown',
+      enforceability: 'unsupported',
+      rejection_reason: 'unknown-agent',
+    });
+    expect(receipt.message).toContain('unknown-agent');
+    expect(receipt.suggested_fix).toContain('supported agent');
+  });
 });
 
 describe('strict runtime-model validation', () => {
