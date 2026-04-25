@@ -10,12 +10,25 @@ syncs from.
 
 ## [Unreleased]
 
+No unreleased changes yet.
+
+## [1.4.0] — 2026-04-25
+
+GSD Hermes package version: `1.4.0`
+Upstream GSD base: `upstream/main@cd057255` (25 commits after the v1.3.0 base `upstream/main@0a049149`)
+
 ### Synced
-- **Upstream sync candidate to `upstream/main@cd057255`** — brings in 25 commits after the shipped v1.3.0 base `upstream/main@0a049149`. This is sync work only and is not part of the already-published `gsd-hermes@1.3.0` release.
+- **Upstream sync to `upstream/main@cd057255`** — brings in the post-v1.3 upstream fixes and enhancements while preserving the independent `gsd-hermes` package identity, Hermes runtime adapter, and downstream release policy.
+
+### Added
+- **Release tarball guardrails from upstream** — release and smoke workflows now build SDK dist artifacts and verify `sdk/dist/cli.js` ships in the published tarball so fresh installs do not depend on build-from-source behavior.
+- **SDK query/config regression coverage** — imports upstream coverage for config-schema parity, state mutation, roadmap handling, init progress precedence, sub-repo root resolution, and workflow-agent skill consistency.
 
 ### Fixed
-- **`gsd-sdk query` parent `.planning/` root resolution in multi-repo (`sub_repos`) workspaces** — upstream fix for invoking SDK queries from a child repo listed under parent workspace `sub_repos` (#2623).
-- **Shell hooks falsely flagged as stale on every session** — upstream hook version header/substitution and stale-hook detector fixes for bash `#` comments (#2136, #2206, #2209, #2210, #2212).
+- **Installer fail-fast when SDK dist is missing** — preserves the upstream no-nested-install guard while keeping Hermes-specific package guidance.
+- **Codex/OpenCode runtime model override propagation** — imports upstream fix for passing per-agent model overrides through non-Claude transports.
+- **Workstream and roadmap state synchronization** — imports upstream fixes for `--ws` query dispatch, ROADMAP checkbox precedence, state frontmatter writes, and insert-phase roadmap evolution.
+- **Hermes skill frontmatter compatibility during upstream colon-form sync** — keeps Hermes command-discovery frontmatter hyphenated while allowing upstream-owned Claude/Qwen colon-form behavior in the imported tests and paths.
 
 ## [1.3.0] — 2026-04-24
 

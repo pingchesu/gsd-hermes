@@ -2,8 +2,8 @@
 
 **GSD Hermes** is a downstream fork of [get-shit-done-cc](https://github.com/gsd-build/get-shit-done) that adds Hermes Agent runtime support while preserving upstream GSD workflows.
 
-- **Package:** `gsd-hermes@1.3.0`
-- **Upstream base:** `upstream/main@0a049149` (97 commits above `v1.38.2`)
+- **Package:** `gsd-hermes@1.4.0`
+- **Upstream base:** `upstream/main@cd057255` (25 commits after the v1.3.0 base `0a049149`)
 - **Install:** `npx gsd-hermes --hermes --global`
 
 ## Install & Quickstart
@@ -31,9 +31,10 @@ Compatibility gate: `npm run test:hermes` validates Hermes install modes + SDK q
 - [docs/fork-ownership.md](docs/fork-ownership.md) — Path ownership matrix + merge-conflict routing rules
 - [docs/upstream-sync.md](docs/upstream-sync.md) — Upstream sync workflow + sync-log precedent
 - [docs/sync-logs/2026-04-sync-0a049149.md](docs/sync-logs/2026-04-sync-0a049149.md) — Per-hunk classification for the v1.3 upstream sync
+- [docs/releases/v1.4.0-upstream-sync-cd057255.md](docs/releases/v1.4.0-upstream-sync-cd057255.md) — Release notes for the v1.4 upstream sync package
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Based on Upstream GSD
 
-Based on upstream `get-shit-done-cc@0a049149` — see [the upstream project](https://github.com/gsd-build/get-shit-done) for the source GSD system this fork extends.
+Based on upstream `get-shit-done@cd057255` — see [the upstream project](https://github.com/gsd-build/get-shit-done) for the source GSD system this fork extends.
