@@ -20,7 +20,7 @@ Other modes — project-linked external-dir, per-user prefix fallback, macOS can
 
 ## Workflow
 
-After install, GSD commands (`/gsd-new-project`, `/gsd-plan-phase`, `/gsd-execute-phase`, etc.) run against a Hermes Agent runtime the same way they run on any other supported runtime. Hermes-specific semantics — runtime selection, model profile composition, `/gsd:` slash syntax dual-track — are documented in [docs/hermes-compatibility.md](docs/hermes-compatibility.md).
+After install, GSD commands (`/gsd-new-project`, `/gsd-plan-phase`, `/gsd-execute-phase`, etc.) run against a Hermes Agent runtime the same way they run on any other supported runtime. Hermes-specific semantics — runtime selection, model profile composition, dash-form command discovery, and upstream colon-namespace compatibility boundaries — are documented in [docs/hermes-compatibility.md](docs/hermes-compatibility.md).
 
 Compatibility gate: `npm run test:hermes` validates Hermes install modes + SDK query behavior + runtime-model parity + slash command inventory. This gate is the single authoritative Hermes-specific regression signal.
 
