@@ -4,9 +4,9 @@
 
 ---
 
-## GSD Hermes v1.4 Release Note
+## GSD Hermes v1.5 Release Note
 
-`gsd-hermes@1.4.30` carries upstream config and SDK query fixes through `upstream/main@cd057255` and adds Hermes runtime model binding receipts, child-construction binding tests, and fail-fast validation for explicit per-agent model overrides. Hermes keeps the downstream default of avoiding silent model fallback: configured model bindings must resolve as configured or fail with actionable diagnostics.
+`gsd-hermes@1.5.0` carries upstream config and SDK query fixes through `upstream/main@f3685d91` / `get-shit-done-cc@1.38.5` while preserving Hermes runtime model binding receipts, child-construction binding tests, and fail-fast validation for explicit per-agent model overrides. Hermes keeps the downstream default of avoiding silent model fallback: configured model bindings must resolve as configured or fail with actionable diagnostics. The `inherit` profile selector is valid in both CJS and SDK config paths, and structured `parallelization` objects are preserved for SDK/CJS parity.
 
 ---
 

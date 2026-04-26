@@ -10,10 +10,33 @@ syncs from.
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-04-26
+
+GSD Hermes package version: `1.5.0`
+Upstream GSD base: `upstream/main@f3685d91` / `get-shit-done-cc@1.38.5`
+Tracker: https://github.com/pingchesu/gsd-hermes/issues/35
+
 ### Changed
-- Upstream sync target: get-shit-done v1.38.5 / upstream/main@f3685d91.
+- **Upstream sync to `get-shit-done-cc@1.38.5`** — merges 24 upstream commits from `cd057255..f3685d91` while preserving downstream `gsd-hermes` package identity, Hermes install semantics, and strict runtime/model binding receipt contracts.
 - Imported upstream fixes for SDK executor `phaseDir` summary placement, full installed prompt loading, executor plan-content loading, `/gsd-<cmd>` routing suggestions, parent `.planning/` root resolution for sub-repos, shell hook version substitution/detection, lint protection against source-grep tests, markdown anchor discovery, codebase map refresh output, and installer local SDK-check skip.
-- Preserved downstream `gsd-hermes@1.4.30` package identity, Hermes install semantics, and strict runtime/model binding receipt contracts; release version bump is deferred to Phase 17.
+- Updated release/package metadata for `gsd-hermes@1.5.0` with clean PR and release notes that keep `.planning/` artifacts out of the shipping branch.
+
+### Fixed
+- Preserved SDK/CJS config parity for structured `parallelization` objects so project config retains `{ enabled: false }` instead of flattening to boolean `false`.
+- Added `inherit` to CJS and SDK valid model-profile selectors so config mutation, SDK schema, and runtime model binding contracts agree.
+- Optimized the base64 security scanner to avoid per-line process spawning on large upstream docs/scripts while preserving decoded prompt-injection detection.
+
+### Verification
+- `npm ci --ignore-scripts` on Node `v22.19.0`
+- `npm run build:sdk`
+- `npm run lint:tests`
+- `node --test tests/init.test.cjs tests/runtime-model-parity.test.cjs tests/model-profiles.test.cjs tests/bug-2601-inherit-model-profile.test.cjs tests/core.test.cjs tests/security-scan.test.cjs tests/hermes-docs.test.cjs tests/install.test.cjs`
+- `cd sdk && npx vitest run src/query/init.test.ts src/query/config-query.test.ts src/golden/golden.integration.test.ts`
+- `npm test` (`5652/5652`)
+- `scripts/secret-scan.sh --diff origin/main`
+- `scripts/base64-scan.sh --diff origin/main`
+- `scripts/prompt-injection-scan.sh --diff origin/main`
+- `npm pack --dry-run --json` plus tarball install smoke for `gsd-hermes` and `gsd-sdk` bin entries.
 
 ## [1.4.30] — 2026-04-26
 

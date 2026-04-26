@@ -1,6 +1,6 @@
 {
   "name": "gsd-hermes",
-  "version": "1.4.30",
+  "version": "1.5.0",
   "description": "A get-shit-done fork that adds Hermes Agent runtime support while preserving upstream GSD workflows.",
   "bin": {
     "gsd-hermes": "bin/install.js",
@@ -14,6 +14,7 @@
     "agents",
     "hooks",
     "scripts",
+    "CHANGELOG.md",
     "sdk/src",
     "sdk/dist",
     "sdk/prompts",
@@ -22,7 +23,11 @@
     "sdk/tsconfig.json",
     "docs/hermes-install.md",
     "docs/hermes-compatibility.md",
-    "docs/upstream-sync.md"
+    "docs/upstream-sync.md",
+    "docs/COMMANDS.md",
+    "docs/CONFIGURATION.md",
+    "docs/npm-publishing.md",
+    "docs/releases"
   ],
   "keywords": [
     "claude",

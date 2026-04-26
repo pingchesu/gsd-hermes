@@ -149,6 +149,11 @@ v1.3 sync precedent — 226 files resolved across 97 upstream commits, with per-
 granularity for `bin/install.js` (the Hermes adapter seam) and per-file granularity
 for bulk `upstream base` and whole-file governance decisions.
 
+See [`docs/sync-logs/2026-04-sync-f3685d91.md`](./sync-logs/2026-04-sync-f3685d91.md) for the
+v1.5 sync precedent — upstream `get-shit-done-cc@1.38.5` merged from
+`cd057255..f3685d91`, preserving downstream package identity, Hermes dash-form
+command discovery, SDK/CJS parity, and strict runtime/model binding receipts.
+
 The sync log captures Verification Evidence (D-08 triad results, fork-identity output,
 ARCHIVE-03 housekeeping, `.gitattributes` scope containment), Deferred Decisions (items
 pushed to subsequent phases), and Operator Notes (granularity adaptations, scan-evidence,
