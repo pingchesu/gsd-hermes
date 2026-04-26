@@ -6,7 +6,7 @@
 
 ## GSD Hermes v1.4 Release Note
 
-`gsd-hermes@1.4.0` carries upstream config and SDK query fixes through `upstream/main@cd057255`, including runtime-aware model override propagation, config-schema parity checks, workstream-aware query dispatch, ROADMAP checkbox precedence, and state frontmatter mutation guards. Hermes keeps the downstream default of avoiding silent model fallback: configured model bindings must resolve as configured or fail with actionable diagnostics.
+`gsd-hermes@1.4.30` carries upstream config and SDK query fixes through `upstream/main@cd057255` and adds Hermes runtime model binding receipts, child-construction binding tests, and fail-fast validation for explicit per-agent model overrides. Hermes keeps the downstream default of avoiding silent model fallback: configured model bindings must resolve as configured or fail with actionable diagnostics.
 
 ---
 
@@ -626,16 +626,33 @@ Override specific agents without changing the entire profile:
 
 Valid override values: `opus`, `sonnet`, `haiku`, `inherit`, or any fully-qualified model ID (e.g., `"openai/o3"`, `"google/gemini-2.5-pro"`).
 
+#### Hermes binding receipts and fail-fast semantics
+
+For Hermes installs, `model_overrides` are strict runtime intent, not best-effort hints. Plan-phase and execute-phase init payloads include `model_binding_receipts` for each participating GSD agent. The structured receipt records:
+
+- `agent` — the GSD agent being spawned.
+- `configured_model` — the literal configured value when an override exists.
+- `resolved_model` / legacy `*_model` token — the token GSD intends to hand to the runtime.
+- `source` and `binding` — whether the value came from an explicit override, profile tier, inherit, omit, or runtime default path.
+- `runtime_binding_channel` — the Hermes binding seam, currently direct `delegate_task(model=...)` or batch `tasks[].model` for child construction.
+- `runtime_enforced` / proof metadata — conservative proof status. Child construction proof is distinct from provider wire-level proof.
+
+If an explicit Hermes override cannot be honored by the selected runtime channel, GSD fails before spawning the child and reports the agent, configured model, runtime/channel, and suggested fix. It must not drop the model token and let the child inherit the parent/default model.
+
+Proof boundary: current tests prove GSD resolver behavior, workflow receipt serialization, fail-fast validation, and Hermes child `AIAgent(model=...)` construction. They do not claim live provider wire-level `model=...` enforcement unless future provider instrumentation records sanitized request metadata.
+
 `model_overrides` can be set in either `.planning/config.json` (per-project)
 or `~/.gsd/defaults.json` (global). Per-project entries win on conflict and
 non-conflicting global entries are preserved, so you can tune a single
 agent's model in one repo without re-setting global defaults. This applies
-uniformly across Claude Code, Codex, OpenCode, Kilo, and the other
-supported runtimes. On Codex and OpenCode, the resolved model is embedded
-into each agent's static config at install time — `spawn_agent` and
-OpenCode's `task` interface do not accept an inline `model` parameter, so
-running `gsd install <runtime>` after editing `model_overrides` is required
-for the change to take effect. See issue #2256.
+uniformly across Claude Code, Hermes, Codex, OpenCode, Kilo, and the other
+supported runtimes. On Hermes, explicit per-agent values flow through the
+Hermes child construction channel (`delegate_task(model=...)` or batch
+`tasks[].model`) and are recorded in `model_binding_receipts`. On Codex and
+OpenCode, the resolved model is embedded into each agent's static config at
+install time — `spawn_agent` and OpenCode's `task` interface do not accept an
+inline `model` parameter, so running `gsd install <runtime>` after editing
+`model_overrides` is required for the change to take effect. See issue #2256.
 
 ### Non-Claude Runtimes (Codex, OpenCode, Gemini CLI, Kilo)
 

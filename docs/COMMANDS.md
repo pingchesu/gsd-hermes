@@ -6,7 +6,7 @@
 
 ## GSD Hermes v1.4 Release Note
 
-`gsd-hermes@1.4.0` syncs the command surface with upstream `get-shit-done@cd057255` while keeping Hermes command files installable through the downstream package. Upstream-owned Claude/Qwen assets may reference the newer `gsd:<command>` identity, but Hermes-installed commands remain available through the `gsd-<command>` frontmatter names expected by Hermes command discovery.
+`gsd-hermes@1.4.30` keeps the upstream `get-shit-done@cd057255` command surface while adding Hermes runtime model binding receipts and fail-fast validation. Upstream-owned Claude/Qwen assets may reference the newer `gsd:<command>` identity, but Hermes-installed commands remain available through the `gsd-<command>` frontmatter names expected by Hermes command discovery.
 
 ---
 
@@ -233,6 +233,8 @@ Execute all plans in a phase with wave-based parallelization, or run a specific 
 /gsd-execute-phase 1 --validate     # Validate state before execution
 /gsd-execute-phase 2 --cross-ai     # Delegate phase 2 to external AI CLI
 ```
+
+**Hermes runtime model receipts:** On Hermes, execute-phase init payloads include `model_binding_receipts` for executor and verifier agents. These receipts show the configured model, resolved model token, binding source, Hermes binding channel, and proof boundary before dispatch. Explicit per-agent `model_overrides` must either bind through the Hermes child construction path or fail before spawn; execute-phase must not silently fall back to the parent/default model.
 
 ---
 

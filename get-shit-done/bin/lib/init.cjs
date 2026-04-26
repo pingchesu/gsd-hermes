@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const { loadConfig, resolveModelInternal, findPhaseInternal, getRoadmapPhaseInternal, pathExistsInternal, generateSlugInternal, getMilestoneInfo, getMilestonePhaseFilter, stripShippedMilestones, extractCurrentMilestone, normalizePhaseName, planningPaths, planningDir, planningRoot, toPosixPath, output, error, checkAgentsInstalled, phaseTokenMatches } = require('./core.cjs');
+const { resolveAgentBinding, toBindingReceipt } = require('./model-profiles.cjs');
 
 function getLatestCompletedMilestone(cwd) {
   const milestonesPath = path.join(planningRoot(cwd), 'MILESTONES.md');
@@ -63,6 +64,15 @@ function withProjectRoot(cwd, result) {
   return result;
 }
 
+function buildModelBindingReceipts(workflow, config, specs) {
+  const agents = {};
+  for (const spec of specs) {
+    agents[spec.role] = toBindingReceipt(resolveAgentBinding(config, spec.agent), spec.role);
+  }
+  const runtime = specs.length > 0 ? agents[specs[0].role].runtime : (config.runtime || 'claude');
+  return { workflow, runtime, agents };
+}
+
 function cmdInitExecutePhase(cwd, phase, raw, options = {}) {
   if (!phase) {
     error('phase required for init execute-phase');
@@ -112,6 +122,10 @@ function cmdInitExecutePhase(cwd, phase, raw, options = {}) {
     // Models
     executor_model: resolveModelInternal(cwd, 'gsd-executor', { initContext: true }),
     verifier_model: resolveModelInternal(cwd, 'gsd-verifier', { initContext: true }),
+    model_binding_receipts: buildModelBindingReceipts('execute-phase', config, [
+      { role: 'executor', agent: 'gsd-executor' },
+      { role: 'verifier', agent: 'gsd-verifier' },
+    ]),
 
     // Config flags
     tdd_mode: options.tdd || config.tdd_mode || false,
@@ -246,6 +260,11 @@ function cmdInitPlanPhase(cwd, phase, raw, options = {}) {
     researcher_model: resolveModelInternal(cwd, 'gsd-phase-researcher'),
     planner_model: resolveModelInternal(cwd, 'gsd-planner'),
     checker_model: resolveModelInternal(cwd, 'gsd-plan-checker'),
+    model_binding_receipts: buildModelBindingReceipts('plan-phase', config, [
+      { role: 'researcher', agent: 'gsd-phase-researcher' },
+      { role: 'planner', agent: 'gsd-planner' },
+      { role: 'checker', agent: 'gsd-plan-checker' },
+    ]),
 
     // Workflow flags
     tdd_mode: options.tdd || config.tdd_mode || false,
