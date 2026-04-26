@@ -33,11 +33,11 @@ export const MODEL_PROFILES: Record<string, Record<'quality' | 'balanced' | 'bud
 
 export const PROFILE_MODEL_KEYS = ['quality', 'balanced', 'budget', 'adaptive'] as const;
 export type ProfileModelKey = (typeof PROFILE_MODEL_KEYS)[number];
-export const VALID_PROFILES: ProfileModelKey[] = [...PROFILE_MODEL_KEYS];
+export const VALID_PROFILES = [...PROFILE_MODEL_KEYS, 'inherit'] as const;
 
 // Phase 5 migration policy: keep adaptive as a valid tiered profile input and
 // also accept inherit as a first-class compatibility profile input.
-export const ACCEPTED_MODEL_PROFILES = [...VALID_PROFILES, 'inherit'] as const;
+export const ACCEPTED_MODEL_PROFILES = [...VALID_PROFILES] as const;
 export type AcceptedModelProfile = (typeof ACCEPTED_MODEL_PROFILES)[number];
 
 export type BindingKind = 'explicit' | 'profile' | 'inherit' | 'runtime-default';

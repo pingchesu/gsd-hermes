@@ -128,10 +128,10 @@ describe('loadConfig', () => {
     assert.strictEqual(config.parallelization, false);
   });
 
-  test('handles parallelization as object with enabled field', () => {
+  test('preserves parallelization as object with enabled field', () => {
     writeConfig({ parallelization: { enabled: false } });
     const config = loadConfig(tmpDir);
-    assert.strictEqual(config.parallelization, false);
+    assert.deepStrictEqual(config.parallelization, { enabled: false });
   });
 
   test('prefers top-level keys over nested keys', () => {

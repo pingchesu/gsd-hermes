@@ -76,7 +76,7 @@ describe('runtime-model contract', () => {
 
   it('supports inherit as a compatibility profile input while keeping adaptive valid', async () => {
     const { ACCEPTED_MODEL_PROFILES, VALID_PROFILES, getAgentToModelMapForProfile } = await import('./config-query.js');
-    expect(VALID_PROFILES).toEqual(['quality', 'balanced', 'budget', 'adaptive']);
+    expect(VALID_PROFILES).toEqual(['quality', 'balanced', 'budget', 'adaptive', 'inherit']);
     expect(ACCEPTED_MODEL_PROFILES).toEqual(['quality', 'balanced', 'budget', 'adaptive', 'inherit']);
     expect(getAgentToModelMapForProfile('inherit')['gsd-planner']).toBe('inherit');
   });

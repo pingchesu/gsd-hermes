@@ -148,71 +148,77 @@ collect_files() {
 extract_and_check_blobs() {
   local file="$1"
   local found=0
-  local line_num=0
+  local matches
 
-  while IFS= read -r line; do
-    line_num=$((line_num + 1))
+  # Extract candidate blobs with one grep per file. The previous line-by-line
+  # implementation forked grep once per line and made large generated files take
+  # tens of seconds even when they contained no candidates.
+  matches=$(grep -nEo '[A-Za-z0-9+/]{'"$MIN_BLOB_LENGTH"',}={0,3}' "$file" 2>/dev/null || true)
+  if [[ -z "$matches" ]]; then
+    return 0
+  fi
 
-    # Skip data URIs — legitimate base64 usage
+  while IFS= read -r match; do
+    [[ -z "$match" ]] && continue
+
+    local line_num="${match%%:*}"
+    local blob="${match#*:}"
+    [[ -z "$line_num" || -z "$blob" ]] && continue
+
+    # Cheap validity filter: base64 length cannot be 1 modulo 4.
+    if [[ $(( ${#blob} % 4 )) -eq 1 ]]; then
+      continue
+    fi
+
+    # Skip data URIs — legitimate base64 usage.
+    local line
+    line=$(awk -v n="$line_num" 'NR == n { print; exit }' "$file" 2>/dev/null || true)
     if is_data_uri "$line"; then
       continue
     fi
 
-    # Extract base64-like blobs (alphanumeric + / + = padding, >= MIN_BLOB_LENGTH)
-    local blobs
-    blobs=$(echo "$line" | grep -oE '[A-Za-z0-9+/]{'"$MIN_BLOB_LENGTH"',}={0,3}' 2>/dev/null || true)
-
-    if [[ -z "$blobs" ]]; then
+    # Check ignorelist
+    if [[ ${#IGNORED_PATTERNS[@]} -gt 0 ]] && is_ignored "$blob"; then
       continue
     fi
 
-    while IFS= read -r blob; do
-      [[ -z "$blob" ]] && continue
+    # Try to decode — if it fails, not valid base64
+    local decoded
+    decoded=$(printf '%s' "$blob" | base64 -d 2>/dev/null | tr -d '\000' || echo "")
 
-      # Check ignorelist
-      if [[ ${#IGNORED_PATTERNS[@]} -gt 0 ]] && is_ignored "$blob"; then
-        continue
-      fi
+    if [[ -z "$decoded" ]]; then
+      continue
+    fi
 
-      # Try to decode — if it fails, not valid base64
-      local decoded
-      decoded=$(echo "$blob" | base64 -d 2>/dev/null || echo "")
+    # Check if decoded content is mostly printable text (not random binary)
+    local total_chars=${#decoded}
+    if [[ $total_chars -eq 0 ]]; then
+      continue
+    fi
 
-      if [[ -z "$decoded" ]]; then
-        continue
-      fi
+    # Count printable ASCII characters
+    local printable_count
+    printable_count=$(printf '%s' "$decoded" | tr -cd '[:print:]' | wc -c | tr -d ' ')
+    # Skip if less than 70% printable (likely binary data, not obfuscated text)
+    if [[ $((printable_count * 100 / total_chars)) -lt 70 ]]; then
+      continue
+    fi
 
-      # Check if decoded content is mostly printable text (not random binary)
-      local printable_ratio
-      local total_chars=${#decoded}
-      if [[ $total_chars -eq 0 ]]; then
-        continue
-      fi
-
-      # Count printable ASCII characters
-      local printable_count
-      printable_count=$(echo -n "$decoded" | tr -cd '[:print:]' | wc -c | tr -d ' ')
-      # Skip if less than 70% printable (likely binary data, not obfuscated text)
-      if [[ $((printable_count * 100 / total_chars)) -lt 70 ]]; then
-        continue
-      fi
-
-      # Scan decoded content against injection patterns
-      for pattern in "${DECODED_PATTERNS[@]}"; do
-        if echo "$decoded" | grep -iqE "$pattern" 2>/dev/null; then
-          if [[ $found -eq 0 ]]; then
-            echo "FAIL: $file"
-            found=1
-          fi
-          echo "  line $line_num: base64 blob decodes to suspicious content"
-          echo "    blob: ${blob:0:60}..."
-          echo "    decoded: ${decoded:0:120}"
-          echo "    matched: $pattern"
-          break
+    # Scan decoded content against injection patterns
+    for pattern in "${DECODED_PATTERNS[@]}"; do
+      if printf '%s' "$decoded" | grep -iqE "$pattern" 2>/dev/null; then
+        if [[ $found -eq 0 ]]; then
+          echo "FAIL: $file"
+          found=1
         fi
-      done
-    done <<< "$blobs"
-  done < "$file"
+        echo "  line $line_num: base64 blob decodes to suspicious content"
+        echo "    blob: ${blob:0:60}..."
+        echo "    decoded: ${decoded:0:120}"
+        echo "    matched: $pattern"
+        break
+      fi
+    done
+  done <<< "$matches"
 
   return $found
 }
