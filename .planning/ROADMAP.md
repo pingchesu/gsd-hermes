@@ -106,7 +106,7 @@ Plans:
   1. A GitHub issue or PR tracker documents root cause, static evidence (`delegate_task` lacks per-call model), runtime evidence, acceptance criteria, and validation commands.
   2. README, COMMANDS.md, CONFIGURATION.md, and release notes explain how Hermes per-agent model overrides are resolved, passed, enforced, and diagnosed.
   3. A PR against `main` contains the implementation, tests, docs, and explicit validation evidence; CI passes before merge.
-  4. The next publishable v1.4 patch release is published to npm and a matching GitHub Release exists with release notes and verification evidence. Discovery on 2026-04-26 found `gsd-hermes@1.4.0` and GitHub Release `v1.4.0` already exist, so execution should default to `1.4.1` unless the maintainer chooses a different semver.
+  4. The next publishable v1.4 patch release is published to npm and a matching GitHub Release exists with release notes and verification evidence. Discovery on 2026-04-26 found `gsd-hermes@1.4.0` and GitHub Release `v1.4.0` already exist, so execution should default to `1.4.30` unless the maintainer chooses a different semver.
 
 **Plans:** 3/3 plans created; 0/3 plans executed
 
@@ -137,7 +137,7 @@ Plans:
 | Runtime-model parity | Yes | Existing parity tests remain green |
 | Hermes compatibility | Yes | `npm run test:hermes` passes |
 | Documentation | Yes | README, COMMANDS.md, CONFIGURATION.md, release notes updated |
-| Release | Yes | next publishable v1.4 patch release (default `gsd-hermes@1.4.1`) + matching GitHub Release |
+| Release | Yes | next publishable v1.4 patch release (default `gsd-hermes@1.4.30`) + matching GitHub Release |
 
 ## Next Action
 

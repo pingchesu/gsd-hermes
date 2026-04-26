@@ -39,7 +39,7 @@
 - [ ] **REL-01**: A GitHub tracker issue exists for the v1.4 root cause and acceptance criteria: Hermes `/gsd` commands must emit and enforce per-agent model binding receipts.
 - [ ] **REL-02**: Documentation explains how users can verify resolver output, workflow receipt output, Hermes child construction, and provider request model metadata.
 - [ ] **REL-03**: `README.md`, `COMMANDS.md`, `CONFIGURATION.md`, and release notes describe strict per-agent model binding semantics for Hermes.
-- [ ] **REL-04**: The next publishable v1.4 patch release is released after tests and CI pass, with GitHub Release and npm publish evidence recorded. Discovery on 2026-04-26 found `gsd-hermes@1.4.0` already published, so execution should default to `gsd-hermes@1.4.1` unless the maintainer chooses a different semver.
+- [ ] **REL-04**: The next publishable v1.4 patch release is released after tests and CI pass, with GitHub Release and npm publish evidence recorded. Discovery on 2026-04-26 found `gsd-hermes@1.4.0` already published, so execution should default to `gsd-hermes@1.4.30` unless the maintainer chooses a different semver.
 
 ## Future Requirements
 

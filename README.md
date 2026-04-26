@@ -2,7 +2,7 @@
 
 **GSD Hermes** is a downstream fork of [get-shit-done-cc](https://github.com/gsd-build/get-shit-done) that adds Hermes Agent runtime support while preserving upstream GSD workflows.
 
-- **Package:** `gsd-hermes@1.4.0`
+- **Package:** `gsd-hermes@1.4.30`
 - **Upstream base:** `upstream/main@cd057255` (25 commits after the v1.3.0 base `0a049149`)
 - **Install:** `npx gsd-hermes --hermes --global`
 
@@ -24,6 +24,19 @@ After install, GSD commands (`/gsd-new-project`, `/gsd-plan-phase`, `/gsd-execut
 
 Compatibility gate: `npm run test:hermes` validates Hermes install modes + SDK query behavior + runtime-model parity + slash command inventory. This gate is the single authoritative Hermes-specific regression signal.
 
+### Hermes runtime model binding receipts
+
+`gsd-hermes@1.4.30` makes per-agent model binding explicit in plan-phase and execute-phase init payloads through `model_binding_receipts`. These receipts show the resolver decision, configured model, resolved runtime token, binding source, Hermes runtime binding channel, and proof boundary for each spawned GSD agent.
+
+Hermes model override semantics are strict: if `.planning/config.json` configures a per-agent model, GSD must either pass that model to the Hermes child construction path or fail before spawn with an actionable diagnostic. Silent fallback to the parent/default model is not acceptable.
+
+Current proof boundary is conservative:
+
+- GSD resolver and workflow receipts prove the configured intent and handoff metadata.
+- Hermes Agent child-construction tests prove `delegate_task(model=...)` and batch `tasks[].model` reach `AIAgent(model=...)`.
+- Safe provider diagnostics expose sanitized model/provider metadata only.
+- Live provider wire-level `model=...` enforcement is not claimed unless captured through future sanitized provider instrumentation.
+
 ## Docs
 
 - [docs/hermes-install.md](docs/hermes-install.md) — Hermes install modes (global, external-dir, macOS canonicalization)
@@ -32,6 +45,7 @@ Compatibility gate: `npm run test:hermes` validates Hermes install modes + SDK q
 - [docs/upstream-sync.md](docs/upstream-sync.md) — Upstream sync workflow + sync-log precedent
 - [docs/sync-logs/2026-04-sync-0a049149.md](docs/sync-logs/2026-04-sync-0a049149.md) — Per-hunk classification for the v1.3 upstream sync
 - [docs/releases/v1.4.0-upstream-sync-cd057255.md](docs/releases/v1.4.0-upstream-sync-cd057255.md) — Release notes for the v1.4 upstream sync package
+- [docs/releases/v1.4.30-runtime-model-binding-receipts.md](docs/releases/v1.4.30-runtime-model-binding-receipts.md) — Release notes for Hermes runtime model binding receipts and fail-fast validation
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
 

@@ -76,4 +76,4 @@ cd /home/whiskey/.hermes/hermes-agent
 
 ## Release note
 
-`gsd-hermes@1.4.0` already exists as the upstream-sync package. This tracker should ship as the next v1.4 patch release, recommended `gsd-hermes@1.4.1` / GitHub Release `v1.4.1`, unless the maintainer explicitly selects a different semver.
+`gsd-hermes@1.4.0` already exists as the upstream-sync package. Preflight also found local `v1.4.1`–`v1.4.29` tags, so this tracker should ship as the next local-safe v1.4 patch release, selected `gsd-hermes@1.4.30` / GitHub Release `v1.4.30`, unless the maintainer explicitly selects a different semver.

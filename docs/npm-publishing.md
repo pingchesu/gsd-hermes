@@ -8,6 +8,16 @@ Use the `Publish npm` workflow in `.github/workflows/publish-npm.yml`.
 
 The workflow validates the package name and version, runs the test suite, checks the npm tarball with `npm pack --dry-run`, publishes to npm, and verifies that the expected package version is visible in the npm registry.
 
+For the `gsd-hermes@1.4.30` runtime-model-binding release, the local repo selected `1.4.30` because `1.4.0` is already published and local `v1.4.1`–`v1.4.29` tags are present. Before running the release/publish workflow, verify all three collision guards are clear:
+
+```bash
+npm view gsd-hermes@1.4.30 version --json 2>/dev/null || true
+git tag --list v1.4.30
+gh release view v1.4.30 --json tagName,url 2>/dev/null || true
+```
+
+Do not reuse an existing npm version, git tag, or GitHub Release. If any guard reports an existing artifact, pick the next patch version and update `package.json`, `package-lock.json`, CHANGELOG, and `docs/releases/` before publishing.
+
 For the `gsd-hermes@1.4.0` upstream-sync release, use the formal `Release` workflow rather than republishing the already-published `1.3.0` package:
 
 1. Merge release docs and workflow readiness updates to `main`.

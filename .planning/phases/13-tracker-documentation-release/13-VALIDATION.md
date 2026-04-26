@@ -20,7 +20,7 @@ Phase 13 is a release/documentation phase with external side effects. The plan t
 
 ## Release-version validation
 
-Discovery found `gsd-hermes@1.4.0` already published and GitHub Release `v1.4.0` already present. The plans therefore require a publishable patch version, recommended `1.4.1`, before npm publish.
+Discovery found `gsd-hermes@1.4.0` already published and GitHub Release `v1.4.0` already present. The plans therefore require a publishable patch version, selected `1.4.30`, before npm publish.
 
 This is a hard validation gate: execution must abort if `package.json` remains `1.4.0` at publish time.
 
@@ -46,7 +46,7 @@ Plan-checker review: PASS after revisions.
 
 Revisions applied after checker feedback:
 
-- Updated stale `1.4.0` release wording in ROADMAP validation matrix and REL-04 to the next publishable v1.4 patch release, default `1.4.1`.
+- Updated stale `1.4.0` release wording in ROADMAP validation matrix and REL-04 to the next publishable v1.4 patch release, default `1.4.30`.
 - Added explicit static evidence and runtime evidence sections to the tracker issue draft.
 - Strengthened Plan 13-01 acceptance criteria to require static/runtime evidence.
 - Strengthened Plan 13-03 publish preflight to require package-version, tag, and GitHub Release non-existence checks.

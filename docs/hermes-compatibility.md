@@ -1,6 +1,6 @@
 # Hermes Compatibility and Guardrails
 
-This document makes the current Hermes support boundary explicit after Phase 6.
+This document makes the current Hermes support boundary explicit after Phase 13.
 It should be read alongside [Fork Ownership](./fork-ownership.md),
 [Upstream Sync Workflow](./upstream-sync.md), and
 [Hermes Install](./hermes-install.md) so future runtime work stays inside the
@@ -18,6 +18,7 @@ approved seams.
 | Update / uninstall / doctor | supported | `npm run test:hermes` | Phase 5 complete: global and project-linked lifecycle coverage includes reinstall updates, safe uninstall, read-only doctor diagnostics, and deterministic fixture coverage. |
 | Upstream sync routine | supported maintenance workflow | `npm run test:hermes` plus `npm test` when feasible | Sync review stays anchored to governance docs and merge history from upstream/main so Hermes drift remains visible. |
 | Native local Hermes install mode | out of scope | Documentation and docs tests | Project-linked mode uses skills.external_dirs instead. |
+| Runtime model binding receipts | supported with conservative proof boundary | `npm run test:hermes`, `tests/runtime-model-parity.test.cjs`, SDK init tests | Resolver/workflow receipts and Hermes child-construction proof are supported; live provider wire-level enforcement is not claimed without sanitized provider request evidence. |
 
 ## Runtime-Model Composition
 
@@ -39,19 +40,23 @@ Validation evidence: `node --test tests/runtime-model-parity.test.cjs` (enrolled
 
 ### Runtime Binding Receipt Layers
 
-Phase 10 adds `model_binding_receipts` to the plan-phase and execute-phase init payloads. These receipts are intentionally observational: they make the model-binding handoff visible without claiming that Hermes has already enforced the requested child model at provider request time.
+`model_binding_receipts` appear in plan-phase and execute-phase init payloads. They make model-binding intent and proof boundaries visible before runtime dispatch. They are deliberately more precise than a single yes/no flag: GSD resolver proof, workflow handoff proof, Hermes child-construction proof, and provider wire-level proof are separate layers.
 
-| Layer | Receipt field | Meaning | Proof boundary |
+| Layer | Receipt/proof field | Meaning | Proof boundary |
 | --- | --- | --- | --- |
 | Resolver | `resolved_by_gsd` | GSD recognized the agent and resolved the configured model/profile/omit path into a binding token or an explicit rejection. | Proves GSD resolver behavior only. |
-| Workflow handoff | `passed_to_runtime` | GSD has a non-empty explicit token ready for a workflow `Task(..., model=...)` style handoff. | Does not prove Hermes accepted or used that token. |
-| Runtime/provider proof | `runtime_enforced` | Whether runtime or provider request evidence proves the spawned child actually used the intended model. | Phase 10 reports `unknown` for Hermes unless later enforcement/proof code records concrete evidence. |
+| Workflow handoff | `passed_to_runtime` | GSD has a non-empty explicit token ready for a runtime handoff. | Proves workflow payload construction, not provider use. |
+| Hermes child construction | `runtime_binding_channel`, child construction tests | Hermes receives the intended child model through direct `delegate_task(model=...)` or batch `tasks[].model`. | Proves child `AIAgent(model=...)` construction, not live provider wire-level dispatch. |
+| Provider diagnostics | sanitized provider metadata | Safe metadata can expose provider/model/proof source without raw headers, request bodies, messages, or secrets. | Diagnostic proof only; credentials and raw payloads must never be stored. |
+| Provider wire-level proof | `runtime_enforced` when supported by sanitized request evidence | A provider request or wire-level capture proves the live child request used `model=...`. | Highest-confidence proof; not claimed unless captured safely. |
 
-`runtime_enforced=unknown is not runtime proof`. It means the GSD resolver and workflow can show intent, but Hermes child-agent construction and provider request metadata have not yet been observed. Preferred proof in later phases is provider request or wire-level `model=...` metadata, followed by runtime child-agent construction evidence. A subagent self-report is not proof and must not be treated as evidence of enforcement.
+`runtime_enforced=unknown` is not failure and is not provider proof. It means GSD can show resolver intent, workflow handoff, and possibly Hermes child construction, but it has not captured sanitized provider request evidence proving live provider-side `model=...` dispatch. A subagent self-report is not proof and must not be treated as evidence of enforcement.
 
-Phase 11 selects the canonical direct Hermes binding seam as `delegate_task(model=...)` for single child spawns and `tasks[].model` for batch spawns. `delegation.model` remains a global default/fallback, not a per-agent GSD override channel. ACP `--model` remains transport-specific and is only relevant when ACP subprocess routing is selected. Phase 11 proof stops at child `AIAgent(model=...)` construction; provider request or wire-level `model=...` proof remains a later provider-instrumentation boundary.
+Phase 11 selects the canonical direct Hermes binding seam as `delegate_task(model=...)` for single child spawns and `tasks[].model` for batch spawns. `delegation.model` remains a global default/fallback, not a per-agent GSD override channel. ACP `--model` remains transport-specific and is only relevant when ACP subprocess routing is selected. Phase 11 proof stops at child `AIAgent(model=...)` construction; provider request or wire-level `model=...` proof remains a separate provider-instrumentation boundary.
 
-Do not log secrets while collecting receipt evidence. Provider requests or diagnostic captures must redact API keys, tokens, cookies, passwords, and connection strings.
+Phase 12 adds fail-fast validation and proof tests: unsupported explicit Hermes bindings fail before spawn with actionable diagnostics, invalid explicit model tokens cannot silently fall back to the parent/default model, and Hermes Agent tests verify that GSD planner/executor overrides reach child `AIAgent(model=...)` construction.
+
+Do not log secrets while collecting receipt evidence. Provider requests or diagnostic captures must redact API keys, tokens, cookies, passwords, authorization headers, client secrets, and credential-bearing URLs. Raw provider headers, request bodies, messages, and connection strings must not be persisted.
 
 ## Known Gaps
 

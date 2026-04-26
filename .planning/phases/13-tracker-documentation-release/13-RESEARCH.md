@@ -39,8 +39,8 @@ How should the v1.4 Hermes Runtime Model Binding Receipts milestone be made revi
 npm package versions are immutable. Because `gsd-hermes@1.4.0` already exists, Phase 13 execution must not attempt to publish `1.4.0` again. The default release plan is therefore:
 
 - Treat this milestone as the `v1.4` feature line.
-- Ship the new runtime binding receipt work as `gsd-hermes@1.4.1` / GitHub Release `v1.4.1`, unless the maintainer explicitly chooses a different semver.
-- Update docs/release notes to explain that `1.4.0` was the upstream-sync package and `1.4.1` is the Hermes runtime model binding receipt patch release.
+- Ship the new runtime binding receipt work as `gsd-hermes@1.4.30` / GitHub Release `v1.4.30`, unless the maintainer explicitly chooses a different semver.
+- Update docs/release notes to explain that `1.4.0` was the upstream-sync package and `1.4.30` is the Hermes runtime model binding receipt patch release.
 
 This reconciles REL-04 with the actual registry state without violating npm immutability.
 
@@ -68,7 +68,7 @@ A search for `Hermes Runtime Model Binding Receipts OR model binding OR runtime 
 
 5. `CHANGELOG.md` and `docs/releases/`
    - Existing `1.4.0` section is an upstream-sync release.
-   - Needs a new `1.4.1` section/release note for runtime model binding receipts.
+   - Needs a new `1.4.30` section/release note for runtime model binding receipts.
 
 ## PR / CI / publish constraints
 
@@ -78,7 +78,7 @@ A search for `Hermes Runtime Model Binding Receipts OR model binding OR runtime 
   - `npm run test:hermes`
   - `npm test`
   - Hermes Agent targeted tests relevant to local patched runtime if release notes claim Hermes child construction proof.
-- PR body should include tracker issue link, root cause, proof boundary, validation output, and release-version decision (`1.4.1` because `1.4.0` already exists).
+- PR body should include tracker issue link, root cause, proof boundary, validation output, and release-version decision (`1.4.30` because `1.4.0` already exists).
 - Publish should only occur after PR CI passes and the maintainer confirms release credentials/scope.
 
 ## Recommended Phase 13 plan shape
@@ -92,7 +92,7 @@ A search for `Hermes Runtime Model Binding Receipts OR model binding OR runtime 
 | Risk | Mitigation |
 | --- | --- |
 | Duplicate issue | Search first, create only if no matching open issue exists. |
-| Attempting to republish `1.4.0` | Default to `1.4.1`; verify `npm view gsd-hermes version` before publish. |
+| Attempting to republish `1.4.0` | Default to `1.4.30`; verify `npm view gsd-hermes version` before publish. |
 | Overclaiming provider proof | Docs must say child-construction proof exists; provider wire-level enforcement remains not overclaimed. |
 | Leaking secrets in diagnostics | Only mention sanitized metadata; never include headers/body/tokens/API keys. |
 | PR contaminated with planning artifacts | Use clean PR branch workflow if required by CI/security; planning artifacts can stay local/shared history. |

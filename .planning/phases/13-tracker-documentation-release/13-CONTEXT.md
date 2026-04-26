@@ -44,7 +44,7 @@ The original roadmap success criterion says `gsd-hermes@1.4.0`, but registry/rel
 - GitHub Release `v1.4.0` already exists.
 - Local HEAD contains runtime binding receipt commits after tag `v1.4.0`.
 
-Because npm versions are immutable, the executable default is to ship this as `1.4.1` in the v1.4 line. Execution should not publish until this is reflected in docs/release notes and confirmed in the PR body.
+Because npm versions are immutable, the executable default is to ship this as `1.4.30` in the v1.4 line. Execution should not publish until this is reflected in docs/release notes and confirmed in the PR body.
 
 ## Proof wording to preserve
 
@@ -60,7 +60,7 @@ Use this exact distinction in docs and release notes:
 
 Phase 13 execution may create GitHub issues/PRs and publish packages. Before publish:
 
-1. Confirm release target version (`1.4.1` recommended).
+1. Confirm release target version (`1.4.30` recommended).
 2. Confirm npm auth and release scope are available.
 3. Confirm PR CI is green.
 4. Confirm no unintended `.planning/` artifacts are included in the PR branch unless explicitly desired.
