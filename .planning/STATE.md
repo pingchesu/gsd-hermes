@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Hermes Runtime Model Binding Receipts
-status: ready_to_plan
-last_updated: "2026-04-26T03:30:10+08:00"
-last_activity: 2026-04-26 -- Phase 12 execution completed
+status: ready_to_execute
+last_updated: "2026-04-26T09:06:22+08:00"
+last_activity: 2026-04-26 -- Phase 13 planning completed
 progress:
   total_phases: 4
   completed_phases: 3
@@ -17,10 +17,10 @@ progress:
 
 ## Current Position
 
-Phase: 13 (Tracker, Documentation, Release) — READY TO PLAN
+Phase: 13 (Tracker, Documentation, Release) — READY TO EXECUTE
 Plan: 0 of 3
-Status: Phase 12 complete; ready to plan Phase 13
-Last activity: 2026-04-26 -- Phase 12 execution completed
+Status: Phase 13 planning complete; ready to execute tracker/docs/release flow
+Last activity: 2026-04-26 -- Phase 13 planning completed
 
 ## Project Reference
 
@@ -39,7 +39,7 @@ Goal: Make GSD/Hermes per-agent model overrides observable, enforceable, and imp
 
 Run:
 
-- `/gsd-plan-phase 13` — plan tracker issue, docs/release notes, PR/CI, and `gsd-hermes@1.4.0` publish flow.
+- `/gsd-execute-phase 13` — open/update tracker issue, update docs/release metadata, run PR/CI/release flow, and publish the next publishable v1.4 patch release after validation.
 
 ## Accumulated Context
 
@@ -53,7 +53,12 @@ Run:
 - Phase 11 execution completed 2026-04-26. Local Hermes Agent now supports `delegate_task(model=...)` and batch `tasks[].model` with precedence `tasks[i].model > top-level model > delegation.model > parent inheritance`; tests prove child `AIAgent(model=...)` construction. GSD receipts now include `runtime_binding_channel` with Hermes child-construction metadata and fail-fast validation for unavailable explicit binding channels. Full GSD suite passed `5593/5593`.
 - Phase 12 plan-phase completed 2026-04-26. Plans cover SDK/CJS validation matrix, Hermes GSD-role child-construction tests, invalid-model no-silent-fallback diagnostics, redaction proof, and full regression closeout.
 - Phase 12 execution completed 2026-04-26. SDK/CJS tests now cover fail-fast unavailable-channel validation, inherit/runtime-default non-errors, invalid explicit token preservation, and explicit cross-AI metadata. Hermes Agent tests prove GSD planner/executor model tokens reach child construction, including invalid explicit tokens. Offline provider diagnostics preserve model/provider/subagent metadata while redacting credentials. Full GSD suite passed `5597/5597`; Hermes targeted tests passed `128/128`.
+- Phase 13 plan-phase completed 2026-04-26. Discovery found `gsd-hermes@1.4.0` and GitHub Release `v1.4.0` already exist from the upstream-sync release, so execution should default to the next publishable v1.4 patch release, recommended `1.4.1`, unless the maintainer chooses a different semver.
 
 ## Blockers
 
-None currently. Phase 13 is ready to plan.
+None currently. Phase 13 is ready to execute.
+
+## Release Caution
+
+Do not attempt to publish `gsd-hermes@1.4.0` again. npm versions are immutable and `1.4.0` is already published. Phase 13 execution must bump to a publishable version before npm publish.

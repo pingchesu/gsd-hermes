@@ -106,14 +106,14 @@ Plans:
   1. A GitHub issue or PR tracker documents root cause, static evidence (`delegate_task` lacks per-call model), runtime evidence, acceptance criteria, and validation commands.
   2. README, COMMANDS.md, CONFIGURATION.md, and release notes explain how Hermes per-agent model overrides are resolved, passed, enforced, and diagnosed.
   3. A PR against `main` contains the implementation, tests, docs, and explicit validation evidence; CI passes before merge.
-  4. `gsd-hermes@1.4.0` is published to npm and a GitHub Release `v1.4.0` exists with release notes and verification evidence.
+  4. The next publishable v1.4 patch release is published to npm and a matching GitHub Release exists with release notes and verification evidence. Discovery on 2026-04-26 found `gsd-hermes@1.4.0` and GitHub Release `v1.4.0` already exist, so execution should default to `1.4.1` unless the maintainer chooses a different semver.
 
-**Plans:** 0/3 plans executed
+**Plans:** 3/3 plans created; 0/3 plans executed
 
 Plans:
 - [ ] 13-01-PLAN.md — Open/update GitHub tracker issue and prepare PR body acceptance checklist.
-- [ ] 13-02-PLAN.md — Update README, COMMANDS.md, CONFIGURATION.md, CHANGELOG/release notes for strict Hermes model binding semantics.
-- [ ] 13-03-PLAN.md — Execute PR/CI/release flow and publish `gsd-hermes@1.4.0` after validation.
+- [ ] 13-02-PLAN.md — Update README, COMMANDS.md, CONFIGURATION.md, CHANGELOG/release notes, and publishable version metadata for strict Hermes model binding semantics.
+- [ ] 13-03-PLAN.md — Execute PR/CI/release flow and publish the next v1.4 patch release after validation.
 
 ## Progress Table
 
@@ -137,11 +137,11 @@ Plans:
 | Runtime-model parity | Yes | Existing parity tests remain green |
 | Hermes compatibility | Yes | `npm run test:hermes` passes |
 | Documentation | Yes | README, COMMANDS.md, CONFIGURATION.md, release notes updated |
-| Release | Yes | npm `gsd-hermes@1.4.0` + GitHub Release `v1.4.0` |
+| Release | Yes | next publishable v1.4 patch release (default `gsd-hermes@1.4.1`) + matching GitHub Release |
 
 ## Next Action
 
-Proceed to Phase 13 planning via `/gsd-plan-phase 13`.
+Proceed to Phase 13 execution via `/gsd-execute-phase 13`.
 
 ---
 *Roadmap created: 2026-04-25*
