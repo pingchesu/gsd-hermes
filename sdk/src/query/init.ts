@@ -25,6 +25,7 @@ import { homedir } from 'node:os';
 
 import { loadConfig, type GSDConfig } from '../config.js';
 import { resolveModel, MODEL_PROFILES } from './config-query.js';
+import { resolveAgentBinding, toRuntimeModelReceipt, type RuntimeModelReceipt } from './runtime-model-contract.js';
 import { findPhase } from './phase.js';
 import { roadmapGetPhase, getMilestoneInfo, extractCurrentMilestone, extractPhasesFromSection } from './roadmap.js';
 import { planningPaths, normalizePhaseName, toPosixPath, resolveAgentsDir, detectRuntime } from './helpers.js';
@@ -40,6 +41,24 @@ async function getModelAlias(agentType: string, projectDir: string): Promise<str
   const result = await resolveModel([agentType], projectDir);
   const data = result.data as Record<string, unknown>;
   return (data.model as string) || 'sonnet';
+}
+
+interface ReceiptSpec {
+  role: string;
+  agent: string;
+}
+
+function buildModelBindingReceipts(
+  workflow: string,
+  config: GSDConfig,
+  specs: ReceiptSpec[],
+): { workflow: string; runtime: string; agents: Record<string, RuntimeModelReceipt> } {
+  const agents: Record<string, RuntimeModelReceipt> = {};
+  for (const spec of specs) {
+    agents[spec.role] = toRuntimeModelReceipt(resolveAgentBinding(config, spec.agent), spec.role);
+  }
+  const runtime = specs.length > 0 ? agents[specs[0].role].runtime : detectRuntime(config);
+  return { workflow, runtime, agents };
 }
 
 /**
@@ -295,6 +314,10 @@ export const initExecutePhase: QueryHandler = async (args, projectDir, workstrea
   const result: Record<string, unknown> = {
     executor_model: executorModel,
     verifier_model: verifierModel,
+    model_binding_receipts: buildModelBindingReceipts('execute-phase', config, [
+      { role: 'executor', agent: 'gsd-executor' },
+      { role: 'verifier', agent: 'gsd-verifier' },
+    ]),
     tdd_mode: config.workflow.tdd_mode ?? false,
     commit_docs: config.commit_docs,
     sub_repos: (config as Record<string, unknown>).sub_repos ?? [],
@@ -371,6 +394,11 @@ export const initPlanPhase: QueryHandler = async (args, projectDir, workstream) 
     researcher_model: researcherModel,
     planner_model: plannerModel,
     checker_model: checkerModel,
+    model_binding_receipts: buildModelBindingReceipts('plan-phase', config, [
+      { role: 'researcher', agent: 'gsd-phase-researcher' },
+      { role: 'planner', agent: 'gsd-planner' },
+      { role: 'checker', agent: 'gsd-plan-checker' },
+    ]),
     tdd_mode: config.workflow.tdd_mode ?? false,
     research_enabled: config.workflow.research,
     plan_checker_enabled: config.workflow.plan_check,

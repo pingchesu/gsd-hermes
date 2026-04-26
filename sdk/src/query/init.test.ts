@@ -26,6 +26,7 @@ import {
   initRemoveWorkspace,
   initIngestDocs,
 } from './init.js';
+import { validateAgentBinding } from './runtime-model-validation.js';
 
 let tmpDir: string;
 
@@ -318,6 +319,23 @@ describe('initExecutePhase', () => {
     expect(data.phase_found).toBe(true);
     expect(data.phase_number).toBe('09');
     expect(data.executor_model).toBeDefined();
+    expect(data.verifier_model).toBeDefined();
+    const receipts = data.model_binding_receipts as {
+      workflow: string;
+      runtime: string;
+      agents: Record<string, Record<string, unknown>>;
+    };
+    expect(receipts.workflow).toBe('execute-phase');
+    expect(receipts.runtime).toBeDefined();
+    expect(receipts.agents.executor.agent).toBe('gsd-executor');
+    expect(receipts.agents.verifier.agent).toBe('gsd-verifier');
+    for (const role of ['executor', 'verifier']) {
+      expect(receipts.agents[role].role).toBe(role);
+      expect(receipts.agents[role]).toHaveProperty('resolved_by_gsd');
+      expect(receipts.agents[role]).toHaveProperty('passed_to_runtime');
+      expect(receipts.agents[role]).toHaveProperty('runtime_enforced');
+      expect(receipts.agents[role]).toHaveProperty('runtime_binding_channel');
+    }
     expect(data.commit_docs).toBeDefined();
     expect(data.project_root).toBe(tmpDir);
     expect(data.plans).toBeDefined();
@@ -340,6 +358,23 @@ describe('initPlanPhase', () => {
     expect(data.researcher_model).toBeDefined();
     expect(data.planner_model).toBeDefined();
     expect(data.checker_model).toBeDefined();
+    const receipts = data.model_binding_receipts as {
+      workflow: string;
+      runtime: string;
+      agents: Record<string, Record<string, unknown>>;
+    };
+    expect(receipts.workflow).toBe('plan-phase');
+    expect(receipts.runtime).toBeDefined();
+    expect(receipts.agents.researcher.agent).toBe('gsd-phase-researcher');
+    expect(receipts.agents.planner.agent).toBe('gsd-planner');
+    expect(receipts.agents.checker.agent).toBe('gsd-plan-checker');
+    for (const role of ['researcher', 'planner', 'checker']) {
+      expect(receipts.agents[role].role).toBe(role);
+      expect(receipts.agents[role]).toHaveProperty('resolved_by_gsd');
+      expect(receipts.agents[role]).toHaveProperty('passed_to_runtime');
+      expect(receipts.agents[role]).toHaveProperty('runtime_enforced');
+      expect(receipts.agents[role]).toHaveProperty('runtime_binding_channel');
+    }
     expect(data.research_enabled).toBeDefined();
     expect(data.has_research).toBe(true);
     expect(data.has_context).toBe(true);
@@ -350,6 +385,116 @@ describe('initPlanPhase', () => {
     const result = await initPlanPhase([], tmpDir);
     const data = result.data as Record<string, unknown>;
     expect(data.error).toBeDefined();
+  });
+});
+
+describe('Hermes runtime model binding channel', () => {
+  it('marks Hermes receipts with delegate_task child-construction channel metadata', async () => {
+    await writeFile(join(tmpDir, '.planning', 'config.json'), JSON.stringify({
+      runtime: 'hermes',
+      model_profile: 'balanced',
+      model_overrides: { 'gsd-planner': 'openai/o4-mini' },
+    }));
+
+    const result = await initPlanPhase(['9'], tmpDir);
+    const data = result.data as Record<string, unknown>;
+    const receipts = data.model_binding_receipts as {
+      agents: Record<string, Record<string, unknown>>;
+    };
+    const plannerReceipt = receipts.agents.planner;
+
+    expect(plannerReceipt.model_token).toBe('openai/o4-mini');
+    expect(plannerReceipt.runtime_enforced).toBe('unknown');
+    expect(plannerReceipt.runtime_binding_channel).toEqual({
+      kind: 'hermes-delegate-task-model',
+      available: true,
+      proof_level: 'child-construction',
+      reason: null,
+      suggested_fix: null,
+    });
+  });
+
+  it('fails fast for explicit Hermes overrides when delegate model channel is unavailable', () => {
+    const result = validateAgentBinding(
+      {
+        runtime: 'hermes',
+        model_profile: 'balanced',
+        model_overrides: { 'gsd-planner': 'openai/o4-mini' },
+      },
+      'gsd-planner',
+      { hermesDelegateModelChannelAvailable: false },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.issue).toMatchObject({
+      agent: 'gsd-planner',
+      runtime: 'hermes',
+      configuredModel: 'openai/o4-mini',
+      resolvedModel: 'openai/o4-mini',
+      bindingKind: 'explicit',
+      source: 'override',
+      rejectionReason: 'missing-runtime-binding-channel',
+      crossAiExecutionSupported: true,
+      crossAiExecutionConfigured: false,
+    });
+    expect(result.issue?.reason).toContain('delegate_task.model / tasks[].model');
+    expect(result.issue?.suggestedFix).toContain('Upgrade or restart Hermes Agent');
+  });
+
+  it('does not fail inherit or runtime-default bindings when Hermes delegate channel is unavailable', () => {
+    const inherit = validateAgentBinding(
+      { runtime: 'hermes', model_overrides: { 'gsd-planner': 'inherit' } },
+      'gsd-planner',
+      { hermesDelegateModelChannelAvailable: false },
+    );
+    const runtimeDefault = validateAgentBinding(
+      { runtime: 'hermes', resolve_model_ids: 'omit' },
+      'gsd-planner',
+      { hermesDelegateModelChannelAvailable: false },
+    );
+
+    expect(inherit.ok).toBe(true);
+    expect(inherit.issue).toBeNull();
+    expect(inherit.bindingKind).toBe('inherit');
+    expect(runtimeDefault.ok).toBe(true);
+    expect(runtimeDefault.issue).toBeNull();
+    expect(runtimeDefault.bindingKind).toBe('runtime-default');
+  });
+
+  it('preserves invalid explicit model tokens instead of silently inheriting defaults', () => {
+    const invalidModel = 'definitely-not-a-real-model-gsd-binding-test';
+    const result = validateAgentBinding(
+      {
+        runtime: 'hermes',
+        model_profile: 'balanced',
+        model_overrides: { 'gsd-planner': invalidModel },
+      },
+      'gsd-planner',
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.configuredModel).toBe(invalidModel);
+    expect(result.resolvedModel).toBe(invalidModel);
+    expect(result.binding.modelToken).toBe(invalidModel);
+    expect(result.bindingKind).toBe('explicit');
+  });
+
+  it('represents explicit cross-AI execution as configured metadata, not silent fallback', () => {
+    const result = validateAgentBinding(
+      {
+        runtime: 'hermes',
+        model_profile: 'balanced',
+        workflow: { cross_ai_execution: true },
+        model_overrides: { 'gsd-planner': 'openai/o4-mini' },
+      },
+      'gsd-planner',
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.binding.crossAiExecutionConfigured).toBe(true);
+    expect(result.binding.runtimeCapability.supportsCrossAiExecution).toBe(true);
+    expect(result.bindingKind).toBe('explicit');
+    expect(result.source).toBe('override');
   });
 });
 

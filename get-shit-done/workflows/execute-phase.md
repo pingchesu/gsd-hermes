@@ -74,7 +74,17 @@ if [[ "$INIT" == @file:* ]]; then INIT=$(cat "${INIT#@file:}"); fi
 AGENT_SKILLS=$(gsd-sdk query agent-skills gsd-executor)
 ```
 
-Parse JSON for: `executor_model`, `verifier_model`, `commit_docs`, `parallelization`, `branching_strategy`, `branch_name`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `plans`, `incomplete_plans`, `plan_count`, `incomplete_count`, `state_exists`, `roadmap_exists`, `phase_req_ids`, `response_language`.
+Parse JSON for: `executor_model`, `verifier_model`, `model_binding_receipts`, `commit_docs`, `parallelization`, `branching_strategy`, `branch_name`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `plans`, `incomplete_plans`, `plan_count`, `incomplete_count`, `state_exists`, `roadmap_exists`, `phase_req_ids`, `response_language`.
+
+**Display runtime/model binding receipt before executor/verifier Task dispatch and before cross-AI fallback decisions.** Render `model_binding_receipts` concisely so the transcript shows GSD resolver intent and the proof boundary:
+
+```text
+## Runtime/model binding receipt — workflow={model_binding_receipts.workflow} runtime={model_binding_receipts.runtime}
+- executor / gsd-executor: configured={configured_model} resolved={resolved_model} token={model_token} source={source} binding={binding_kind} provider={provider_family} resolved_by_gsd={resolved_by_gsd} passed_to_runtime={passed_to_runtime} runtime_enforced={runtime_enforced}
+- verifier / gsd-verifier: configured={configured_model} resolved={resolved_model} token={model_token} source={source} binding={binding_kind} provider={provider_family} resolved_by_gsd={resolved_by_gsd} passed_to_runtime={passed_to_runtime} runtime_enforced={runtime_enforced}
+Note: runtime_enforced=unknown is not provider proof. For Hermes, runtime_binding_channel.kind=hermes-delegate-task-model with proof_level=child-construction means pass explicit tokens via delegate_task(model=...) or tasks[].model; if unavailable, stop on the pre-spawn validation error instead of spawning.
+```
+Keep existing `executor_model === "inherit"` semantics: omit `model=` when inherit/empty. Under Hermes, explicit executor/verifier tokens map to delegate_task model fields, not provider wire-level proof.
 
 **Model resolution:** If `executor_model` is `"inherit"`, omit the `model=` parameter from all `Task()` calls — do NOT pass `model="inherit"` to Task. Omitting the `model=` parameter causes Claude Code to inherit the current orchestrator model automatically. Only set `model=` when `executor_model` is an explicit model name (e.g., `"claude-sonnet-4-6"`, `"claude-opus-4-7"`).
 

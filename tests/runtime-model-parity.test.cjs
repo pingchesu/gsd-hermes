@@ -7,12 +7,13 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 const { createTempProject, cleanup } = require('./helpers.cjs');
 const { resolveModelBindingInternal, resolveModelInternal } = require('../get-shit-done/bin/lib/core.cjs');
-const { toInitModelToken } = require('../get-shit-done/bin/lib/model-profiles.cjs');
+const { toInitModelToken, toBindingReceipt } = require('../get-shit-done/bin/lib/model-profiles.cjs');
 
 const PLAN_PHASE_WORKFLOW_PATH = path.join(__dirname, '..', 'get-shit-done', 'workflows', 'plan-phase.md');
 const QUICK_WORKFLOW_PATH = path.join(__dirname, '..', 'get-shit-done', 'workflows', 'quick.md');
 const VERIFY_WORKFLOW_PATH = path.join(__dirname, '..', 'get-shit-done', 'workflows', 'verify-work.md');
 const EXECUTE_PHASE_WORKFLOW_PATH = path.join(__dirname, '..', 'get-shit-done', 'workflows', 'execute-phase.md');
+const HERMES_COMPATIBILITY_DOC_PATH = path.join(__dirname, '..', 'docs', 'hermes-compatibility.md');
 
 const SDK_RUNTIME_MODEL_CONTRACT_PATH = pathToFileURL(
   path.join(__dirname, '..', 'sdk', 'dist', 'query', 'runtime-model-contract.js')
@@ -149,6 +150,30 @@ const MATRIX = [
     expectedInitToken: 'claude-sonnet-4-6',
   },
   {
+    name: 'runtime: hermes + invalid explicit override preserves token for no-silent-fallback proof',
+    agent: 'gsd-planner',
+    config: {
+      runtime: 'hermes',
+      model_profile: 'balanced',
+      model_overrides: { 'gsd-planner': 'definitely-not-a-real-model-gsd-binding-test' },
+      workflow: {},
+    },
+    expectedLegacyToken: 'definitely-not-a-real-model-gsd-binding-test',
+    expectedInitToken: 'definitely-not-a-real-model-gsd-binding-test',
+  },
+  {
+    name: 'runtime: hermes + cross_ai_execution flag remains metadata, not silent fallback',
+    agent: 'gsd-planner',
+    config: {
+      runtime: 'hermes',
+      model_profile: 'balanced',
+      workflow: { cross_ai_execution: true },
+      model_overrides: { 'gsd-planner': 'openai/o4-mini' },
+    },
+    expectedLegacyToken: 'openai/o4-mini',
+    expectedInitToken: 'openai/o4-mini',
+  },
+  {
     name: 'runtime: codex + inherit + model_profile_overrides — inherit dominates, overrides ignored by both resolvers',
     agent: 'gsd-planner',
     config: {
@@ -167,6 +192,7 @@ describe('runtime-model parity', () => {
   let sdkResolveAgentBinding;
   let sdkToLegacyModelToken;
   let sdkToInitModelToken;
+  let sdkToRuntimeModelReceipt;
 
   beforeEach(async () => {
     tmpDir = createTempProject();
@@ -174,6 +200,7 @@ describe('runtime-model parity', () => {
     sdkResolveAgentBinding = sdkModule.resolveAgentBinding;
     sdkToLegacyModelToken = sdkModule.toLegacyModelToken;
     sdkToInitModelToken = sdkModule.toInitModelToken;
+    sdkToRuntimeModelReceipt = sdkModule.toRuntimeModelReceipt;
   });
 
   afterEach(() => {
@@ -230,6 +257,52 @@ describe('runtime-model parity', () => {
       }
       assert.strictEqual(cjsLegacyToken, entry.expectedLegacyToken);
       assert.strictEqual(cjsInitToken, entry.expectedInitToken);
+
+      const sdkReceipt = sdkToRuntimeModelReceipt(sdkResolution, 'executor');
+      const cjsReceipt = toBindingReceipt(cjsResolution, 'executor');
+      assert.deepStrictEqual(
+        {
+          role: cjsReceipt.role,
+          agent: cjsReceipt.agent,
+          status: cjsReceipt.status,
+          known_agent: cjsReceipt.known_agent,
+          runtime: cjsReceipt.runtime,
+          profile: cjsReceipt.profile,
+          binding_kind: cjsReceipt.binding_kind,
+          source: cjsReceipt.source,
+          configured_model: cjsReceipt.configured_model,
+          resolved_model: cjsReceipt.resolved_model,
+          model_token: cjsReceipt.model_token,
+          provider_family: cjsReceipt.provider_family,
+          resolved_by_gsd: cjsReceipt.resolved_by_gsd,
+          passed_to_runtime: cjsReceipt.passed_to_runtime,
+          runtime_enforced: cjsReceipt.runtime_enforced,
+          enforceability: cjsReceipt.enforceability,
+          runtime_binding_channel: cjsReceipt.runtime_binding_channel,
+          rejection_reason: cjsReceipt.rejection_reason,
+        },
+        {
+          role: sdkReceipt.role,
+          agent: sdkReceipt.agent,
+          status: sdkReceipt.status,
+          known_agent: sdkReceipt.known_agent,
+          runtime: sdkReceipt.runtime,
+          profile: sdkReceipt.profile,
+          binding_kind: sdkReceipt.binding_kind,
+          source: sdkReceipt.source,
+          configured_model: sdkReceipt.configured_model,
+          resolved_model: sdkReceipt.resolved_model,
+          model_token: sdkReceipt.model_token,
+          provider_family: sdkReceipt.provider_family,
+          resolved_by_gsd: sdkReceipt.resolved_by_gsd,
+          passed_to_runtime: sdkReceipt.passed_to_runtime,
+          runtime_enforced: sdkReceipt.runtime_enforced,
+          enforceability: sdkReceipt.enforceability,
+          runtime_binding_channel: sdkReceipt.runtime_binding_channel,
+          rejection_reason: sdkReceipt.rejection_reason,
+        },
+        'legacy CJS binding receipt projection must match SDK receipt projection for the shared matrix'
+      );
     });
   }
 
@@ -238,10 +311,33 @@ describe('runtime-model parity', () => {
     const quickWorkflow = fsNative.readFileSync(QUICK_WORKFLOW_PATH, 'utf8');
     const verifyWorkflow = fsNative.readFileSync(VERIFY_WORKFLOW_PATH, 'utf8');
     const executeWorkflow = fsNative.readFileSync(EXECUTE_PHASE_WORKFLOW_PATH, 'utf8');
+    const hermesDoc = fsNative.readFileSync(HERMES_COMPATIBILITY_DOC_PATH, 'utf8');
 
     assert.match(planWorkflow, /four runtime-model paths/i);
     assert.match(quickWorkflow, /four runtime-model paths/i);
     assert.match(verifyWorkflow, /four runtime-model paths/i);
     assert.match(executeWorkflow, /direct runtime support/i);
+
+    for (const [name, text] of [
+      ['plan-phase workflow', planWorkflow],
+      ['execute-phase workflow', executeWorkflow],
+    ]) {
+      assert.match(text, /model_binding_receipts/, `${name} must parse model_binding_receipts`);
+      assert.match(text, /runtime_enforced/, `${name} must display runtime_enforced`);
+      assert.match(text, /resolved_by_gsd/, `${name} must display resolved_by_gsd`);
+      assert.match(text, /passed_to_runtime/, `${name} must display passed_to_runtime`);
+      assert.match(
+        text,
+        /runtime_enforced=unknown is not provider proof/i,
+        `${name} must warn that unknown enforcement is not provider proof`
+      );
+      assert.match(text, /runtime_binding_channel/, `${name} must display the binding channel boundary`);
+      assert.match(text, /child-construction/i, `${name} must distinguish child construction from provider proof`);
+    }
+
+    assert.match(hermesDoc, /resolved_by_gsd/);
+    assert.match(hermesDoc, /passed_to_runtime/);
+    assert.match(hermesDoc, /runtime_enforced/);
+    assert.match(hermesDoc, /subagent self-report is not proof/i);
   });
 });

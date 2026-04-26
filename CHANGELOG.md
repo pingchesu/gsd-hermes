@@ -12,6 +12,29 @@ syncs from.
 
 No unreleased changes yet.
 
+## [1.4.30] — 2026-04-26
+
+GSD Hermes package version: `1.4.30`
+Upstream GSD base: `upstream/main@cd057255`
+Tracker: https://github.com/pingchesu/gsd-hermes/issues/32
+
+### Added
+- **Hermes runtime model binding receipts** — plan-phase and execute-phase init payloads now include structured `model_binding_receipts` that show resolver decision, configured model, resolved token, binding source, runtime binding channel, and proof boundary for each participating GSD agent while preserving legacy flat `*_model` fields.
+- **Hermes child binding channel evidence** — direct `delegate_task(model=...)` and batch `tasks[].model` are the canonical Hermes per-agent binding seams; tests verify GSD planner/executor overrides reach child `AIAgent(model=...)` construction.
+- **Safe provider diagnostics** — sanitized provider metadata helpers can record model/provider/proof-source fields without retaining raw headers, request bodies, messages, credentials, API keys, tokens, passwords, client secrets, or credential-bearing URLs.
+
+### Fixed
+- **No silent fallback for explicit Hermes model overrides** — unsupported explicit bindings now fail before spawn with actionable diagnostics instead of allowing a child agent to inherit the parent/default model.
+- **Runtime/model proof boundaries documented** — README, command reference, configuration reference, Hermes compatibility docs, PR checklist, and release notes now distinguish resolver proof, workflow handoff, Hermes child-construction proof, provider diagnostics, and live provider wire-level proof.
+
+### Verification
+- `npm run build:sdk`
+- `cd sdk && npx vitest run src/query/init.test.ts src/query/config-query.test.ts`
+- `node --test tests/init.test.cjs tests/runtime-model-parity.test.cjs tests/workflow-size-budget.test.cjs tests/hermes-docs.test.cjs`
+- `npm run test:hermes`
+- `npm test`
+- Hermes Agent targeted pytest/py_compile gates recorded in the Phase 12/13 planning artifacts.
+
 ## [1.4.0] — 2026-04-25
 
 GSD Hermes package version: `1.4.0`
@@ -2218,6 +2241,7 @@ Upstream GSD base: `get-shit-done-cc@1.37.1`
 [1.5.2]: https://github.com/glittercowboy/get-shit-done/releases/tag/v1.5.2
 [1.5.1]: https://github.com/glittercowboy/get-shit-done/releases/tag/v1.5.1
 [1.5.0]: https://github.com/glittercowboy/get-shit-done/releases/tag/v1.5.0
+[1.4.30]: https://github.com/pingchesu/gsd-hermes/releases/tag/v1.4.30
 [1.4.29]: https://github.com/glittercowboy/get-shit-done/releases/tag/v1.4.29
 [1.4.28]: https://github.com/glittercowboy/get-shit-done/releases/tag/v1.4.28
 [1.4.27]: https://github.com/glittercowboy/get-shit-done/releases/tag/v1.4.27
