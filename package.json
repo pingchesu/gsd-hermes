@@ -65,7 +65,8 @@
     "pretest": "npm run build:sdk",
     "test": "node scripts/run-tests.cjs",
     "pretest:coverage": "npm run build:sdk",
-    "test:coverage": "c8 --check-coverage --lines 70 --reporter text --include 'get-shit-done/bin/lib/*.cjs' --exclude 'tests/**' --all node scripts/run-tests.cjs"
+    "test:coverage": "c8 --check-coverage --lines 70 --reporter text --include 'get-shit-done/bin/lib/*.cjs' --exclude 'tests/**' --all node scripts/run-tests.cjs",
+    "lint:tests": "node scripts/lint-no-source-grep.cjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.84",
