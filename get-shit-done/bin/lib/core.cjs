@@ -375,7 +375,10 @@ function loadConfig(cwd) {
     const parallelization = (() => {
       const val = get('parallelization');
       if (typeof val === 'boolean') return val;
-      if (typeof val === 'object' && val !== null && 'enabled' in val) return val.enabled;
+      // Preserve structured parallelization settings for SDK/CJS init parity.
+      // Workflows can still inspect `.enabled`; init outputs should not collapse
+      // the object to a boolean and lose plan/task-level tuning.
+      if (typeof val === 'object' && val !== null) return val;
       return defaults.parallelization;
     })();
 
