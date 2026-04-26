@@ -2,8 +2,8 @@
 
 **GSD Hermes** is a downstream fork of [get-shit-done-cc](https://github.com/gsd-build/get-shit-done) that adds Hermes Agent runtime support while preserving upstream GSD workflows.
 
-- **Package:** `gsd-hermes@1.4.30`
-- **Upstream base:** `upstream/main@cd057255` (25 commits after the v1.3.0 base `0a049149`)
+- **Package:** `gsd-hermes@1.5.0`
+- **Upstream base:** `upstream/main@f3685d91` (`get-shit-done-cc@1.38.5`, 24 commits after the v1.4.30 base `cd057255`)
 - **Install:** `npx gsd-hermes --hermes --global`
 
 ## Install & Quickstart
@@ -20,13 +20,13 @@ Other modes — project-linked external-dir, per-user prefix fallback, macOS can
 
 ## Workflow
 
-After install, GSD commands (`/gsd-new-project`, `/gsd-plan-phase`, `/gsd-execute-phase`, etc.) run against a Hermes Agent runtime the same way they run on any other supported runtime. Hermes-specific semantics — runtime selection, model profile composition, `/gsd:` slash syntax dual-track — are documented in [docs/hermes-compatibility.md](docs/hermes-compatibility.md).
+After install, GSD commands (`/gsd-new-project`, `/gsd-plan-phase`, `/gsd-execute-phase`, etc.) run against a Hermes Agent runtime the same way they run on any other supported runtime. Hermes-specific semantics — runtime selection, model profile composition, dash-form command discovery, and upstream colon-namespace compatibility boundaries — are documented in [docs/hermes-compatibility.md](docs/hermes-compatibility.md).
 
 Compatibility gate: `npm run test:hermes` validates Hermes install modes + SDK query behavior + runtime-model parity + slash command inventory. This gate is the single authoritative Hermes-specific regression signal.
 
 ### Hermes runtime model binding receipts
 
-`gsd-hermes@1.4.30` makes per-agent model binding explicit in plan-phase and execute-phase init payloads through `model_binding_receipts`. These receipts show the resolver decision, configured model, resolved runtime token, binding source, Hermes runtime binding channel, and proof boundary for each spawned GSD agent.
+`gsd-hermes@1.5.0` preserves per-agent model binding receipts and imports upstream `get-shit-done-cc@1.38.5` fixes. The v1.4.30 model-binding release made per-agent model binding explicit in plan-phase and execute-phase init payloads through `model_binding_receipts`. These receipts show the resolver decision, configured model, resolved runtime token, binding source, Hermes runtime binding channel, and proof boundary for each spawned GSD agent.
 
 Hermes model override semantics are strict: if `.planning/config.json` configures a per-agent model, GSD must either pass that model to the Hermes child construction path or fail before spawn with an actionable diagnostic. Silent fallback to the parent/default model is not acceptable.
 
@@ -46,9 +46,10 @@ Current proof boundary is conservative:
 - [docs/sync-logs/2026-04-sync-0a049149.md](docs/sync-logs/2026-04-sync-0a049149.md) — Per-hunk classification for the v1.3 upstream sync
 - [docs/releases/v1.4.0-upstream-sync-cd057255.md](docs/releases/v1.4.0-upstream-sync-cd057255.md) — Release notes for the v1.4 upstream sync package
 - [docs/releases/v1.4.30-runtime-model-binding-receipts.md](docs/releases/v1.4.30-runtime-model-binding-receipts.md) — Release notes for Hermes runtime model binding receipts and fail-fast validation
+- [docs/releases/v1.5.0-upstream-sync-f3685d91.md](docs/releases/v1.5.0-upstream-sync-f3685d91.md) — Release notes for the upstream `get-shit-done-cc@1.38.5` sync
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Based on Upstream GSD
 
-Based on upstream `get-shit-done@cd057255` — see [the upstream project](https://github.com/gsd-build/get-shit-done) for the source GSD system this fork extends.
+Based on upstream `get-shit-done@f3685d91` — see [the upstream project](https://github.com/gsd-build/get-shit-done) for the source GSD system this fork extends.

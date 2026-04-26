@@ -8,23 +8,26 @@ Use the `Publish npm` workflow in `.github/workflows/publish-npm.yml`.
 
 The workflow validates the package name and version, runs the test suite, checks the npm tarball with `npm pack --dry-run`, publishes to npm, and verifies that the expected package version is visible in the npm registry.
 
-For the `gsd-hermes@1.4.30` runtime-model-binding release, the local repo selected `1.4.30` because `1.4.0` is already published and local `v1.4.1`–`v1.4.29` tags are present. Before running the release/publish workflow, verify all three collision guards are clear:
+For the `gsd-hermes@1.5.0` upstream-sync release, the downstream version is independent from upstream `get-shit-done-cc@1.38.5`. Before running the release/publish workflow, verify npm, local/remote tag, and GitHub Release collision guards are clear:
 
 ```bash
-npm view gsd-hermes@1.4.30 version --json 2>/dev/null || true
-git tag --list v1.4.30
-gh release view v1.4.30 --json tagName,url 2>/dev/null || true
+npm view gsd-hermes@1.5.0 version --json 2>/dev/null || true
+git tag --list v1.5.0
+git ls-remote --tags origin refs/tags/v1.5.0
+gh release view v1.5.0 --json tagName,url 2>/dev/null || true
 ```
+
+Local upstream tags can collide with downstream release tags. If `git tag --list v1.5.0` reports a tag that exists only on `upstream` and not on `origin`, delete the local stale tag before creating the downstream `gsd-hermes` release tag.
 
 Do not reuse an existing npm version, git tag, or GitHub Release. If any guard reports an existing artifact, pick the next patch version and update `package.json`, `package-lock.json`, CHANGELOG, and `docs/releases/` before publishing.
 
-For the `gsd-hermes@1.4.0` upstream-sync release, use the formal `Release` workflow rather than republishing the already-published `1.3.0` package:
+For minor upstream-sync releases such as `gsd-hermes@1.5.0`, use the formal `Release` workflow rather than the patch-oriented hotfix workflow:
 
 1. Merge release docs and workflow readiness updates to `main`.
-2. Run `Release` with `action=create`, `version=1.4.0`.
-3. Run `Release` with `action=rc`, `version=1.4.0` to publish `1.4.0-rc.1` to `next`.
+2. Run `Release` with `action=create`, `version=1.5.0`.
+3. Run `Release` with `action=rc`, `version=1.5.0` to publish `1.4.0-rc.1` to `next`.
 4. Validate the RC install path with `npx gsd-hermes@next`.
-5. Run `Release` with `action=finalize`, `version=1.4.0` to publish `latest`.
+5. Run `Release` with `action=finalize`, `version=1.5.0` to publish `latest`.
 6. Merge the release branch back to `main` so the repository version matches the published package.
 
 ## Publish Workflow Inputs

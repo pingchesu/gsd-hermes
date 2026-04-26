@@ -26,8 +26,9 @@ const MODEL_PROFILES = {
   'gsd-doc-verifier': { quality: 'sonnet', balanced: 'sonnet', budget: 'haiku', adaptive: 'haiku' },
 };
 
-const VALID_PROFILES = Object.keys(MODEL_PROFILES['gsd-planner']);
-const ACCEPTED_MODEL_PROFILES = [...VALID_PROFILES, 'inherit'];
+const PROFILE_MODEL_KEYS = Object.keys(MODEL_PROFILES['gsd-planner']);
+const VALID_PROFILES = [...PROFILE_MODEL_KEYS, 'inherit'];
+const ACCEPTED_MODEL_PROFILES = [...VALID_PROFILES];
 
 const MODEL_ALIAS_MAP = {
   opus: 'claude-opus-4-6',

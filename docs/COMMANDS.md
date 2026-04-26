@@ -4,9 +4,9 @@
 
 ---
 
-## GSD Hermes v1.4 Release Note
+## GSD Hermes v1.5 Release Note
 
-`gsd-hermes@1.4.30` keeps the upstream `get-shit-done@cd057255` command surface while adding Hermes runtime model binding receipts and fail-fast validation. Upstream-owned Claude/Qwen assets may reference the newer `gsd:<command>` identity, but Hermes-installed commands remain available through the `gsd-<command>` frontmatter names expected by Hermes command discovery.
+`gsd-hermes@1.5.0` keeps the upstream `get-shit-done@f3685d91` / `get-shit-done-cc@1.38.5` command surface while preserving Hermes runtime model binding receipts and fail-fast validation. Upstream-owned Claude/Qwen assets may reference the newer `gsd:<command>` identity, but Hermes-installed commands remain available through the `gsd-<command>` frontmatter names expected by Hermes command discovery.
 
 ---
 

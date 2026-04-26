@@ -163,10 +163,10 @@ describe('SLASH-02: docs ↔ produced-skill inventory consistency (Phase 7 Plan 
       assert.ok(compatibility.includes(slash),
         `Slash Command Inventory missing ${slash} — every Hermes user-facing slash command must be listed`);
     }
-    // Dual-track rationale must be documented per D-11
+    // Compatibility boundary rationale must be documented per D-11
     assert.ok(
-      compatibility.includes('D-11') || /dual-track/i.test(compatibility),
-      'Slash Command Inventory must explain dual-track rationale (D-11 coexistence)'
+      compatibility.includes('D-11') || /compatibility boundary/i.test(compatibility),
+      'Slash Command Inventory must explain compatibility boundary rationale (D-11)'
     );
   });
 
