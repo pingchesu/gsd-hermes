@@ -117,7 +117,7 @@ User-facing entry points. Each file contains YAML frontmatter (name, description
 - **Copilot:** Slash commands (`/gsd-command-name`)
 - **Antigravity:** Skills
 
-**Total commands:** 85 (see [`docs/INVENTORY.md`](INVENTORY.md#commands) for the full roster).
+**Total commands:** 86 (see [`docs/INVENTORY.md`](INVENTORY.md#commands) for the full roster).
 
 ### Workflows (`get-shit-done/workflows/*.md`)
 
@@ -129,7 +129,7 @@ Orchestration logic that commands reference. Contains the step-by-step process i
 - State update patterns
 - Error handling and recovery
 
-**Total workflows:** 83 (see [`docs/INVENTORY.md`](INVENTORY.md#workflows) for the full roster).
+**Total workflows:** 84 (see [`docs/INVENTORY.md`](INVENTORY.md#workflows) for the full roster).
 
 #### Progressive disclosure for workflows
 
@@ -457,7 +457,7 @@ UI-SPEC.md (per phase) ───────────────────
 
 ```
 ~/.claude/                          # Claude Code (global install)
-├── commands/gsd/*.md               # 85 slash commands (authoritative roster: docs/INVENTORY.md)
+├── commands/gsd/*.md               # 86 slash commands (authoritative roster: docs/INVENTORY.md)
 ├── get-shit-done/
 │   ├── bin/gsd-tools.cjs           # CLI utility
 │   ├── bin/lib/*.cjs               # Domain modules (authoritative roster: docs/INVENTORY.md)

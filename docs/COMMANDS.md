@@ -4,9 +4,9 @@
 
 ---
 
-## GSD Hermes v1.5 Release Note
+## GSD Hermes v1.6 Release Note
 
-`gsd-hermes@1.5.0` keeps the upstream `get-shit-done@f3685d91` / `get-shit-done-cc@1.38.5` command surface while preserving Hermes runtime model binding receipts and fail-fast validation. Upstream-owned Claude/Qwen assets may reference the newer `gsd:<command>` identity, but Hermes-installed commands remain available through the `gsd-<command>` frontmatter names expected by Hermes command discovery.
+`gsd-hermes@1.6.0` keeps the upstream `get-shit-done@9472f343` command surface while preserving Hermes runtime model binding receipts and fail-fast validation. This sync imports upstream `/gsd-edit-phase`, `--minimal` install profile support, workstream-aware config/query fixes, and phase lifecycle hardening. Upstream-owned Claude/Qwen assets may reference the newer `gsd:<command>` identity, but Hermes-installed commands remain available through the `gsd-<command>` frontmatter names expected by Hermes command discovery.
 
 ---
 
@@ -432,6 +432,28 @@ Append new phase to roadmap.
 ```bash
 /gsd-add-phase                      # Interactive — describe the phase
 ```
+
+### `/gsd-edit-phase`
+
+Edit any field of an existing roadmap phase in place.
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `N` | Yes | Phase number to edit |
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Allow editing in-progress or completed phases |
+
+**Prerequisites:** `.planning/ROADMAP.md` exists, phase N must exist
+**Produces:** Updated phase section in ROADMAP.md (in place, number and position preserved)
+
+```bash
+/gsd-edit-phase 5                   # Edit any field of phase 5 (future phases only)
+/gsd-edit-phase 5 --force           # Edit phase 5 even if in-progress or completed
+```
+
+---
 
 ### `/gsd-insert-phase`
 

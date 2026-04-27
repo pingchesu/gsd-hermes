@@ -56,6 +56,7 @@ const claudeToCopilotTools = {
 
 // Get version from package.json
 const pkg = require('../package.json');
+const _gsdLibDir = path.join(__dirname, '..', 'get-shit-done', 'bin', 'lib');
 
 // #2517 runtime-aware tier resolution (upstream/main): require lazily inside
 // readGsdRuntimeProfileResolver so bin/install.js remains loadable in merge
@@ -63,6 +64,12 @@ const pkg = require('../package.json');
 // own conflicts (Plan 03 scope). When the lib files are clean, the lazy
 // require resolves normally; when they're not, the resolver returns null and
 // falls back to Hermes's existing modelOverrides-only path.
+
+const {
+  MINIMAL_SKILL_ALLOWLIST,
+  isMinimalMode,
+  stageSkillsForMode,
+} = require(path.join(_gsdLibDir, 'install-profiles.cjs'));
 
 // Parse args
 const args = process.argv.slice(2);
@@ -89,6 +96,8 @@ const hasUninstall = args.includes('--uninstall') || args.includes('-u');
 const hasDoctor = args.includes('--doctor');
 const hasSkillsRoot = args.includes('--skills-root');
 const hasPortableHooks = args.includes('--portable-hooks') || process.env.GSD_PORTABLE_HOOKS === '1';
+const hasMinimal = args.includes('--minimal') || args.includes('--core-only');
+const installMode = hasMinimal ? 'minimal' : 'full';
 const hasSdk = args.includes('--sdk');
 const hasNoSdk = args.includes('--no-sdk');
 
@@ -510,6 +519,11 @@ if (hasHelp) {
     ${cyan}--force-statusline${reset}        Replace existing statusline config
     ${cyan}--portable-hooks${reset}          Emit $HOME-relative hook paths in settings.json
                               (for WSL/Docker bind-mount setups; also GSD_PORTABLE_HOOKS=1)
+    ${cyan}--minimal${reset}                 Install only the main-loop skills (new-project,
+                              discuss-phase, plan-phase, execute-phase, help, update)
+                              and zero gsd-* subagents. Cuts cold-start system-prompt
+                              overhead; useful for local LLMs with smaller context.
+                              Alias: --core-only.
 
   ${yellow}Examples:${reset}
     ${dim}# Interactive install (prompts for runtime and location)${reset}
@@ -578,6 +592,9 @@ if (hasHelp) {
     ${dim}# Install for Hermes in this project via skills.external_dirs${reset}
     npx gsd-hermes --hermes --local
 
+    ${dim}# Install minimal Hermes project-linked profile${reset}
+    npx gsd-hermes --hermes --local --minimal
+
     ${dim}# Install for all runtimes globally${reset}
     npx gsd-hermes --all --global
 
@@ -593,6 +610,7 @@ if (hasHelp) {
   ${yellow}Notes:${reset}
     Hermes global install writes skills under ~/.hermes/skills.
     Hermes local selection is project-linked mode: skills go to ./.gsd-hermes/skills and ~/.hermes/config.yaml gains skills.external_dirs.
+    Minimal installs stage only the core main-loop skills and remove GSD subagents; re-run without --minimal to restore the full surface.
     The --config-dir option is useful when you have multiple configurations.
     It takes priority over CLAUDE_CONFIG_DIR / OPENCODE_CONFIG_DIR / GEMINI_CONFIG_DIR / KILO_CONFIG_DIR / CODEX_HOME / COPILOT_CONFIG_DIR / ANTIGRAVITY_CONFIG_DIR / CURSOR_CONFIG_DIR / WINDSURF_CONFIG_DIR / AUGMENT_CONFIG_DIR / TRAE_CONFIG_DIR / QWEN_CONFIG_DIR / CLINE_CONFIG_DIR / CODEBUDDY_CONFIG_DIR environment variables.
 `);
@@ -2218,10 +2236,10 @@ function generateCodexConfigBlock(agents, targetDir) {
   ];
 
   for (const { name, description } of agents) {
-    // #2645 — Codex schema requires [[agents]] array-of-tables, not [agents.<name>] maps.
-    // Emitting [agents.<name>] produces `invalid type: map, expected a sequence` on load.
-    lines.push(`[[agents]]`);
-    lines.push(`name = ${JSON.stringify(name)}`);
+    // #2727 — Codex 0.124.0 requires [agents.<name>] struct format, not [[agents]] sequence.
+    // [[agents]] (introduced in #2645) is rejected by codex-cli 0.124.0 with
+    // "invalid type: sequence, expected struct AgentsToml in `agents`".
+    lines.push(`[agents.${name}]`);
     lines.push(`description = ${JSON.stringify(description)}`);
     lines.push(`config_file = "${agentsPrefix}/${name}.toml"`);
     lines.push('');
@@ -2233,9 +2251,9 @@ function generateCodexConfigBlock(agents, targetDir) {
 /**
  * Strip any managed GSD agent sections from a TOML string.
  *
- * Handles BOTH shapes so reinstall self-heals broken legacy configs:
- *   - Legacy: `[agents.gsd-*]` single-keyed map tables (pre-#2645).
- *   - Current: `[[agents]]` array-of-tables whose `name = "gsd-*"`.
+ * Handles BOTH shapes so reinstall self-heals configs from all GSD versions:
+ *   - Current (#2727): `[agents.gsd-*]` struct tables (Codex 0.120.0+).
+ *   - Legacy (#2645): `[[agents]]` array-of-tables whose `name = "gsd-*"`.
  *
  * A section runs from its header to the next `[` header or EOF.
  */
@@ -2243,12 +2261,12 @@ function stripCodexGsdAgentSections(content) {
   // Use the TOML-aware section parser so we never absorb adjacent user-authored
   // tables — even if their headers are indented or otherwise oddly placed.
   const sections = getTomlTableSections(content).filter((section) => {
-    // Legacy `[agents.gsd-<name>]` map tables (pre-#2645).
+    // Current `[agents.gsd-<name>]` struct tables (#2727, Codex 0.120.0+).
     if (!section.array && /^agents\.gsd-/.test(section.path)) {
       return true;
     }
 
-    // Current `[[agents]]` array-of-tables — only strip blocks whose
+    // Legacy `[[agents]]` array-of-tables (#2645) — only strip blocks whose
     // `name = "gsd-..."`, preserving user-authored [[agents]] entries.
     if (section.array && section.path === 'agents') {
       const body = content.slice(section.headerEnd, section.end);
@@ -2996,6 +3014,107 @@ function stripLeakedGsdCodexSections(content) {
 
   cleaned += content.slice(cursor);
   return collapseTomlBlankLines(cleaned);
+}
+
+/**
+ * Migrate legacy Codex [hooks] map format to [[hooks]] array-of-tables format.
+ *
+ * Codex 0.124.0 changed from the old map-style hooks config:
+ *   [hooks]
+ *     [hooks.shell]
+ *     command = "..."
+ *
+ * to the new array-of-tables format:
+ *   [[hooks]]
+ *   type = "shell"
+ *   command = "..."
+ *
+ * This function detects any non-array hooks sections in the config and
+ * converts them to the [[hooks]] format, preserving all key-value pairs and
+ * user comments. Bare [hooks] container sections (no key-value content) are
+ * dropped. User-authored [[hooks]] array entries are left untouched.
+ *
+ * Returns the migrated content, or the original content unchanged if no
+ * legacy hooks sections were found.
+ */
+function migrateCodexHooksMapFormat(content) {
+  const sections = getTomlTableSections(content);
+
+  // Find all non-array hooks sections: [hooks] or [hooks.TYPE]
+  const legacyHooksSections = sections.filter(
+    (section) => !section.array && (section.path === 'hooks' || section.path.startsWith('hooks.'))
+  );
+
+  if (legacyHooksSections.length === 0) {
+    return content;
+  }
+
+  const eol = detectLineEnding(content);
+
+  // Build [[hooks]] blocks for each [hooks.TYPE] section (skipping bare [hooks])
+  const newHooksBlocks = [];
+  for (const section of legacyHooksSections) {
+    if (section.path === 'hooks') {
+      // Bare [hooks] container — drop it (no key-value content to convert)
+      continue;
+    }
+
+    // Extract the type from the path: "hooks.shell" → "shell"
+    const type = section.path.slice('hooks.'.length);
+    const body = content.slice(section.headerEnd, section.end);
+
+    // Build [[hooks]] block: type line + original body lines
+    const block = `[[hooks]]${eol}type = "${type}"${eol}${body}`;
+    newHooksBlocks.push(block);
+  }
+
+  // Remove all legacy hooks sections from the content
+  let result = removeContentRanges(
+    content,
+    legacyHooksSections.map(({ start, end }) => ({ start, end })),
+  );
+  result = collapseTomlBlankLines(result);
+
+  // Insert new [[hooks]] blocks at the position of the first legacy section
+  // (adjusted for removed content), or append if nothing remains before EOF.
+  if (newHooksBlocks.length > 0) {
+    const insertionText = newHooksBlocks.join('');
+    // Find a good insertion point: before the first remaining table section
+    // that came after our removed hooks, or just append.
+    const remainingSections = getTomlTableSections(result);
+    const firstHooksSection = legacyHooksSections[0];
+
+    // Find the first remaining section whose original start was after the legacy hooks block
+    const anchorSection = remainingSections.find((s) => {
+      // Use content position in the result string as a heuristic
+      // We insert before the first non-hooks section if any exists
+      return s.start > 0;
+    });
+
+    // Prefer to insert the new blocks right before the first remaining table
+    // that was originally positioned after the legacy hooks area, but since
+    // positions shift after removal, we simply append before the first table
+    // header or at end-of-file.
+    if (remainingSections.length > 0) {
+      // Find where to insert: after any leading top-level keys, before first table
+      const firstTable = remainingSections[0];
+      const before = result.slice(0, firstTable.start);
+      const after = result.slice(firstTable.start);
+      const needsLeadingGap = before.length > 0 && !before.endsWith(eol + eol);
+      const needsTrailingGap = after.length > 0 && !insertionText.endsWith(eol + eol);
+      result = before +
+        (needsLeadingGap ? eol : '') +
+        insertionText +
+        (needsTrailingGap ? eol : '') +
+        after;
+    } else {
+      // No remaining sections — append
+      const needsGap = result.length > 0 && !result.endsWith(eol + eol);
+      result = result + (needsGap ? eol : '') + insertionText;
+    }
+  }
+
+  return result;
 }
 
 function normalizeCodexHooksLine(line, key) {
@@ -6099,7 +6218,7 @@ function generateManifest(dir, baseDir) {
 /**
  * Write file manifest after installation for future modification detection
  */
-function writeManifest(configDir, runtime = 'claude') {
+function writeManifest(configDir, runtime = 'claude', options = {}) {
   const isOpencode = runtime === 'opencode';
   const isKilo = runtime === 'kilo';
   const isGemini = runtime === 'gemini';
@@ -6116,7 +6235,12 @@ function writeManifest(configDir, runtime = 'claude') {
   const opencodeCommandDir = path.join(configDir, 'command');
   const codexSkillsDir = path.join(configDir, 'skills');
   const agentsDir = path.join(configDir, 'agents');
-  const manifest = { version: pkg.version, timestamp: new Date().toISOString(), files: {} };
+  const manifest = {
+    version: pkg.version,
+    timestamp: new Date().toISOString(),
+    mode: options.mode === 'minimal' ? 'minimal' : 'full',
+    files: {},
+  };
 
   const gsdHashes = generateManifest(gsdDir);
   for (const [rel, hash] of Object.entries(gsdHashes)) {
@@ -6362,7 +6486,7 @@ function install(isGlobal, runtime = 'claude') {
     fs.mkdirSync(commandDir, { recursive: true });
 
     // Copy commands/gsd/*.md as command/gsd-*.md (flatten structure)
-    const gsdSrc = path.join(src, 'commands', 'gsd');
+    const gsdSrc = stageSkillsForMode(path.join(src, 'commands', 'gsd'), installMode);
     copyFlattenedCommands(gsdSrc, commandDir, 'gsd', pathPrefix, runtime);
     if (verifyInstalled(commandDir, 'command/gsd-*')) {
       const count = fs.readdirSync(commandDir).filter(f => f.startsWith('gsd-')).length;
@@ -6372,7 +6496,7 @@ function install(isGlobal, runtime = 'claude') {
     }
   } else if (isCodex) {
     const skillsDir = path.join(targetDir, 'skills');
-    const gsdSrc = path.join(src, 'commands', 'gsd');
+    const gsdSrc = stageSkillsForMode(path.join(src, 'commands', 'gsd'), installMode);
     copyCommandsAsCodexSkills(gsdSrc, skillsDir, 'gsd', pathPrefix, runtime);
     const installedSkillNames = listCodexSkillNames(skillsDir);
     if (installedSkillNames.length > 0) {
@@ -6384,7 +6508,7 @@ function install(isGlobal, runtime = 'claude') {
     const skillsDir = isGlobal
       ? path.join(getGlobalDir('hermes', explicitConfigDir), 'skills')
       : path.join(targetDir, 'skills');
-    const gsdSrc = path.join(src, 'commands', 'gsd');
+    const gsdSrc = stageSkillsForMode(path.join(src, 'commands', 'gsd'), installMode);
     copyCommandsAsHermesSkills(gsdSrc, skillsDir, 'gsd', pathPrefix, isGlobal);
     if (fs.existsSync(skillsDir)) {
       const count = fs.readdirSync(skillsDir, { withFileTypes: true })
@@ -6405,7 +6529,7 @@ function install(isGlobal, runtime = 'claude') {
     }
   } else if (isCopilot) {
     const skillsDir = path.join(targetDir, 'skills');
-    const gsdSrc = path.join(src, 'commands', 'gsd');
+    const gsdSrc = stageSkillsForMode(path.join(src, 'commands', 'gsd'), installMode);
     copyCommandsAsCopilotSkills(gsdSrc, skillsDir, 'gsd', isGlobal);
     if (fs.existsSync(skillsDir)) {
       const count = fs.readdirSync(skillsDir, { withFileTypes: true })
@@ -6420,7 +6544,7 @@ function install(isGlobal, runtime = 'claude') {
     }
   } else if (isAntigravity) {
     const skillsDir = path.join(targetDir, 'skills');
-    const gsdSrc = path.join(src, 'commands', 'gsd');
+    const gsdSrc = stageSkillsForMode(path.join(src, 'commands', 'gsd'), installMode);
     copyCommandsAsAntigravitySkills(gsdSrc, skillsDir, 'gsd', isGlobal);
     if (fs.existsSync(skillsDir)) {
       const count = fs.readdirSync(skillsDir, { withFileTypes: true })
@@ -6435,7 +6559,7 @@ function install(isGlobal, runtime = 'claude') {
     }
   } else if (isCursor) {
     const skillsDir = path.join(targetDir, 'skills');
-    const gsdSrc = path.join(src, 'commands', 'gsd');
+    const gsdSrc = stageSkillsForMode(path.join(src, 'commands', 'gsd'), installMode);
     copyCommandsAsCursorSkills(gsdSrc, skillsDir, 'gsd', pathPrefix, runtime);
     const installedSkillNames = listCodexSkillNames(skillsDir); // reuse — same dir structure
     if (installedSkillNames.length > 0) {
@@ -6445,7 +6569,7 @@ function install(isGlobal, runtime = 'claude') {
     }
   } else if (isWindsurf) {
     const skillsDir = path.join(targetDir, 'skills');
-    const gsdSrc = path.join(src, 'commands', 'gsd');
+    const gsdSrc = stageSkillsForMode(path.join(src, 'commands', 'gsd'), installMode);
     copyCommandsAsWindsurfSkills(gsdSrc, skillsDir, 'gsd', pathPrefix, runtime);
     const installedSkillNames = listCodexSkillNames(skillsDir); // reuse — same dir structure
     if (installedSkillNames.length > 0) {
@@ -6455,7 +6579,7 @@ function install(isGlobal, runtime = 'claude') {
     }
   } else if (isAugment) {
     const skillsDir = path.join(targetDir, 'skills');
-    const gsdSrc = path.join(src, 'commands', 'gsd');
+    const gsdSrc = stageSkillsForMode(path.join(src, 'commands', 'gsd'), installMode);
     copyCommandsAsAugmentSkills(gsdSrc, skillsDir, 'gsd', pathPrefix, runtime);
     const installedSkillNames = listCodexSkillNames(skillsDir);
     if (installedSkillNames.length > 0) {
@@ -6465,7 +6589,7 @@ function install(isGlobal, runtime = 'claude') {
     }
   } else if (isTrae) {
     const skillsDir = path.join(targetDir, 'skills');
-    const gsdSrc = path.join(src, 'commands', 'gsd');
+    const gsdSrc = stageSkillsForMode(path.join(src, 'commands', 'gsd'), installMode);
     copyCommandsAsTraeSkills(gsdSrc, skillsDir, 'gsd', pathPrefix, runtime);
     const installedSkillNames = listCodexSkillNames(skillsDir);
     if (installedSkillNames.length > 0) {
@@ -6475,7 +6599,7 @@ function install(isGlobal, runtime = 'claude') {
     }
   } else if (isQwen) {
     const skillsDir = path.join(targetDir, 'skills');
-    const gsdSrc = path.join(src, 'commands', 'gsd');
+    const gsdSrc = stageSkillsForMode(path.join(src, 'commands', 'gsd'), installMode);
     copyCommandsAsClaudeSkills(gsdSrc, skillsDir, 'gsd', pathPrefix, runtime, isGlobal);
     if (fs.existsSync(skillsDir)) {
       const count = fs.readdirSync(skillsDir, { withFileTypes: true })
@@ -6498,7 +6622,7 @@ function install(isGlobal, runtime = 'claude') {
     }
   } else if (isCodebuddy) {
     const skillsDir = path.join(targetDir, 'skills');
-    const gsdSrc = path.join(src, 'commands', 'gsd');
+    const gsdSrc = stageSkillsForMode(path.join(src, 'commands', 'gsd'), installMode);
     copyCommandsAsCodebuddySkills(gsdSrc, skillsDir, 'gsd', pathPrefix, runtime);
     const installedSkillNames = listCodexSkillNames(skillsDir);
     if (installedSkillNames.length > 0) {
@@ -6513,7 +6637,7 @@ function install(isGlobal, runtime = 'claude') {
   } else if (isGemini) {
     const commandsDir = path.join(targetDir, 'commands');
     fs.mkdirSync(commandsDir, { recursive: true });
-    const gsdSrc = path.join(src, 'commands', 'gsd');
+    const gsdSrc = stageSkillsForMode(path.join(src, 'commands', 'gsd'), installMode);
     const gsdDest = path.join(commandsDir, 'gsd');
     copyWithPathReplacement(gsdSrc, gsdDest, pathPrefix, runtime, true, isGlobal);
     if (verifyInstalled(gsdDest, 'commands/gsd')) {
@@ -6524,7 +6648,7 @@ function install(isGlobal, runtime = 'claude') {
   } else if (isGlobal) {
     // Claude Code global: skills/ format (2.1.88+ compatibility)
     const skillsDir = path.join(targetDir, 'skills');
-    const gsdSrc = path.join(src, 'commands', 'gsd');
+    const gsdSrc = stageSkillsForMode(path.join(src, 'commands', 'gsd'), installMode);
     copyCommandsAsClaudeSkills(gsdSrc, skillsDir, 'gsd', pathPrefix, runtime, isGlobal);
     if (fs.existsSync(skillsDir)) {
       const count = fs.readdirSync(skillsDir, { withFileTypes: true })
@@ -6552,7 +6676,7 @@ function install(isGlobal, runtime = 'claude') {
     // commands from .claude/commands/gsd/, not .claude/skills/
     const commandsDir = path.join(targetDir, 'commands');
     fs.mkdirSync(commandsDir, { recursive: true });
-    const gsdSrc = path.join(src, 'commands', 'gsd');
+    const gsdSrc = stageSkillsForMode(path.join(src, 'commands', 'gsd'), installMode);
     const gsdDest = path.join(commandsDir, 'gsd');
     copyWithPathReplacement(gsdSrc, gsdDest, pathPrefix, runtime, true, isGlobal);
     if (verifyInstalled(gsdDest, 'commands/gsd')) {
@@ -6589,20 +6713,48 @@ function install(isGlobal, runtime = 'claude') {
     failures.push('get-shit-done');
   }
 
-  // Copy agents to agents directory
+  // Copy agents to agents directory.
+  // Skipped under --minimal: gsd-* subagent descriptions are eagerly loaded
+  // into the runtime's Agent tool schema, costing ~6k tokens per turn even
+  // when no GSD workflow is active. See gsd-build/get-shit-done#2762.
   const agentsSrc = path.join(src, 'agents');
-  if (fs.existsSync(agentsSrc)) {
-    const agentsDest = path.join(targetDir, 'agents');
-    fs.mkdirSync(agentsDest, { recursive: true });
+  const agentsDest = path.join(targetDir, 'agents');
 
-    // Remove old GSD agents (gsd-*.md) before copying new ones
-    if (fs.existsSync(agentsDest)) {
-      for (const file of fs.readdirSync(agentsDest)) {
-        if (file.startsWith('gsd-') && file.endsWith('.md')) {
-          fs.unlinkSync(path.join(agentsDest, file));
+  // Always remove stale gsd-* agents first so re-installing with
+  // `--minimal` actually shrinks a previously-full install.
+  // For Codex this also covers per-agent `.toml` files alongside the `.md`
+  // sources so a full → minimal switch doesn't leave stale registrations.
+  if (fs.existsSync(agentsDest)) {
+    for (const file of fs.readdirSync(agentsDest)) {
+      if (
+        file.startsWith('gsd-') &&
+        (file.endsWith('.md') || (isCodex && file.endsWith('.toml')))
+      ) {
+        fs.unlinkSync(path.join(agentsDest, file));
+      }
+    }
+  }
+
+  if (isMinimalMode(installMode)) {
+    // Codex registers agents in `config.toml` via `[agents.gsd-*]` sections.
+    // Without stripping them here, a full → minimal reinstall would leave the
+    // runtime advertising the old full agent surface even though the agent
+    // files are gone. Reuse the same helper that powers `--uninstall`.
+    if (isCodex) {
+      const codexConfigPath = path.join(targetDir, 'config.toml');
+      if (fs.existsSync(codexConfigPath)) {
+        const existing = fs.readFileSync(codexConfigPath, 'utf8');
+        const cleaned = stripGsdFromCodexConfig(existing);
+        if (cleaned === null) {
+          fs.unlinkSync(codexConfigPath);
+        } else if (cleaned !== existing) {
+          fs.writeFileSync(codexConfigPath, cleaned);
         }
       }
     }
+    console.log(`  ${dim}↳${reset} Skipping agents (minimal install — run \`gsd update\` without \`--minimal\` to add full surface)`);
+  } else if (fs.existsSync(agentsSrc)) {
+    fs.mkdirSync(agentsDest, { recursive: true });
 
     // Copy new agents
     const agentEntries = fs.readdirSync(agentsSrc, { withFileTypes: true });
@@ -6767,7 +6919,7 @@ function install(isGlobal, runtime = 'claude') {
   }
 
   // Write file manifest for future modification detection
-  writeManifest(targetDir, runtime);
+  writeManifest(targetDir, runtime, { mode: installMode });
   console.log(`  ${green}✓${reset} Wrote file manifest (${MANIFEST_NAME})`);
 
   // Report any backed-up local patches
@@ -6822,8 +6974,9 @@ function install(isGlobal, runtime = 'claude') {
     }
   }
 
-  if (isCodex) {
-    // Generate Codex config.toml and per-agent .toml files
+  if (isCodex && !isMinimalMode(installMode)) {
+    // Generate Codex config.toml and per-agent .toml files.
+    // Skipped under --minimal — same rationale as filesystem agents above.
     const agentCount = installCodexConfig(targetDir, agentsSrc);
     console.log(`  ${green}✓${reset} Generated config.toml with ${agentCount} agent roles`);
     console.log(`  ${green}✓${reset} Generated ${agentCount} agent .toml config files`);
@@ -6867,6 +7020,16 @@ function install(isGlobal, runtime = 'claude') {
     try {
       let configContent = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf-8') : '';
       const eol = detectLineEnding(configContent);
+
+      // Migrate legacy [hooks] map format to [[hooks]] array-of-tables (#2637).
+      // Codex 0.124.0 requires [[hooks]] array-of-tables; old GSD installs wrote
+      // [hooks.shell] map tables which now cause a startup parse error.
+      const migratedContent = migrateCodexHooksMapFormat(configContent);
+      if (migratedContent !== configContent) {
+        configContent = migratedContent;
+        console.log(`  ${green}✓${reset} Migrated legacy Codex [hooks] map format to [[hooks]] array-of-tables`);
+      }
+
       const codexHooksFeature = ensureCodexHooksFeature(configContent);
       configContent = setManagedCodexHooksOwnership(codexHooksFeature.content, codexHooksFeature.ownership);
 
@@ -7945,6 +8108,7 @@ if (process.env.GSD_TEST_MODE) {
     generateCodexAgentToml,
     generateCodexConfigBlock,
     stripGsdFromCodexConfig,
+    migrateCodexHooksMapFormat,
     mergeCodexConfig,
     installCodexConfig,
     readGsdRuntimeProfileResolver,

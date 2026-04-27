@@ -61,8 +61,8 @@ const MATRIX = [
       resolve_model_ids: true,
       workflow: {},
     },
-    expectedLegacyToken: 'claude-opus-4-6',
-    expectedInitToken: 'claude-opus-4-6',
+    expectedLegacyToken: 'claude-opus-4-7',
+    expectedInitToken: 'claude-opus-4-7',
   },
   {
     name: 'unknown agent is rejected instead of silently falling back to sonnet',
@@ -97,8 +97,9 @@ const MATRIX = [
   //   - explicit model_override (step 1, override wins over runtime-aware)
   //   - runtime: codex + profile: inherit (step 5-inherit, returns 'inherit')
   //   - runtime: codex + omit for gsd-unknown-agent (unsupported rejects both sides)
-  //   - runtime: hermes (unknown to KNOWN_RUNTIMES — resolveTierEntry returns
-  //     null, falls through to profile lookup; CJS and SDK agree on Claude alias)
+  //   - runtime: hermes (recognized runtime without built-in profile IDs —
+  //     resolveTierEntry returns null and falls through to profile lookup;
+  //     CJS and SDK agree on Claude alias unless explicit overrides are set)
   //   - cross_ai_execution: true (no effect on token resolution; HERM-04 is
   //     about the flag being preserved through the binding shape)
   //   - resolve_model_ids: true + adaptive profile (alias mapping path)
@@ -129,7 +130,7 @@ const MATRIX = [
     expectedInitToken: '',
   },
   {
-    name: 'runtime: hermes (absent from KNOWN_RUNTIMES) falls through to Claude-safe profile alias (PROFILE-01 fork-identity)',
+    name: 'runtime: hermes is recognized and falls through to Claude-safe profile alias without explicit overrides (PROFILE-01 fork-identity)',
     agent: 'gsd-planner',
     config: { runtime: 'hermes', model_profile: 'balanced', workflow: {} },
     expectedLegacyToken: 'opus',

@@ -184,7 +184,7 @@ export async function loadConfig(projectDir: string, workstream?: string): Promi
     raw = await readFile(configPath, 'utf-8');
     projectConfigFound = true;
   } catch {
-    // If workstream config missing, fall back to root config
+    // If workstream config missing, fall back to root config.
     if (workstream) {
       try {
         raw = await readFile(rootConfigPath, 'utf-8');
@@ -207,15 +207,36 @@ export async function loadConfig(projectDir: string, workstream?: string): Promi
     return mergeDefaults(userDefaults);
   }
 
-  const trimmed = raw.trim();
-  if (trimmed === '') {
-    // Empty project config — treat as no project config (CJS core.cjs
-    // catches JSON.parse on empty and falls through to the pre-project path).
-    const userDefaults = await loadUserDefaults();
-    return mergeDefaults(userDefaults);
+  const parsed = parseProjectConfig(raw, configPath);
+
+  // Workstream configs inherit root config and override only their local keys.
+  // This mirrors CJS core.cjs loadConfig behavior so SDK query surfaces do not
+  // lose root-level runtime/model_overrides when --ws is used.
+  if (workstream && configPath !== rootConfigPath) {
+    try {
+      const rootRaw = await readFile(rootConfigPath, 'utf-8');
+      const rootParsed = parseProjectConfig(rootRaw, rootConfigPath);
+      return mergeDefaults(deepMergeConfig(rootParsed, parsed));
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith('Failed to parse config at ')) {
+        throw err;
+      }
+      return mergeDefaults(parsed);
+    }
   }
 
-  let parsed: Record<string, unknown>;
+  // Project config exists — user-level defaults are ignored (CJS parity).
+  // `buildNewProjectConfig` already baked them into config.json at /gsd:new-project.
+  return mergeDefaults(parsed);
+}
+
+function parseProjectConfig(raw: string, configPath: string): Record<string, unknown> {
+  const trimmed = raw.trim();
+  if (trimmed === '') {
+    return {};
+  }
+
+  let parsed: unknown;
   try {
     parsed = JSON.parse(trimmed);
   } catch (err) {
@@ -227,9 +248,23 @@ export async function loadConfig(projectDir: string, workstream?: string): Promi
     throw new Error(`Config at ${configPath} must be a JSON object`);
   }
 
-  // Project config exists — user-level defaults are ignored (CJS parity).
-  // `buildNewProjectConfig` already baked them into config.json at /gsd:new-project.
-  return mergeDefaults(parsed);
+  return parsed as Record<string, unknown>;
+}
+
+function isPlainConfigObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function deepMergeConfig(base: Record<string, unknown>, override: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(override)) {
+    if (isPlainConfigObject(value) && isPlainConfigObject(result[key])) {
+      result[key] = deepMergeConfig(result[key] as Record<string, unknown>, value);
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
 }
 
 function mergeDefaults(parsed: Record<string, unknown>): GSDConfig {

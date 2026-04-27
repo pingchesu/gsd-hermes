@@ -31,7 +31,7 @@ const VALID_PROFILES = [...PROFILE_MODEL_KEYS, 'inherit'];
 const ACCEPTED_MODEL_PROFILES = [...VALID_PROFILES];
 
 const MODEL_ALIAS_MAP = {
-  opus: 'claude-opus-4-6',
+  opus: 'claude-opus-4-7',
   sonnet: 'claude-sonnet-4-6',
   haiku: 'claude-haiku-4-5',
 };

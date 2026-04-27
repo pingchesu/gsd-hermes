@@ -164,7 +164,7 @@ export interface RuntimeModelReceipt extends SerializedRuntimeModelResolution {
 }
 
 export const MODEL_ALIAS_MAP: Record<string, string> = {
-  opus: 'claude-opus-4-6',
+  opus: 'claude-opus-4-7',
   sonnet: 'claude-sonnet-4-6',
   haiku: 'claude-haiku-4-5',
 };

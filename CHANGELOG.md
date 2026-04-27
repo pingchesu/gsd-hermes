@@ -10,6 +10,34 @@ syncs from.
 
 ## [Unreleased]
 
+## 1.6.0 — 2026-04-27
+
+GSD Hermes package version: `1.6.0`
+Upstream GSD base: `upstream/main@9472f343` / `get-shit-done-cc@1.38.5`
+Previous upstream base: `upstream/main@f3685d91`
+
+### Synced
+- **Upstream sync to `upstream/main@9472f343`** — merges the upstream changes from `f3685d91..9472f343` while preserving downstream `gsd-hermes` package identity, Hermes install semantics, dash-form command discovery, and strict runtime/model binding receipt contracts.
+
+### Added
+- Imported upstream `--minimal` / `--core-only` install profile support, which installs only the main-loop core skills and records install manifest mode as `"minimal"` or `"full"`.
+- Imported upstream `/gsd-edit-phase` command support.
+- Imported upstream post-merge build/test gate workflow coverage.
+
+### Changed
+- Imported upstream runtime profile map expansion for Gemini, Qwen, OpenCode, and Copilot plus settings-advanced UI updates.
+- Imported upstream discuss-phase lazy import/performance work and explicit wait-for-subagent orchestration instructions.
+- Imported upstream USER-GUIDE walkthrough documentation updates without replacing the concise downstream README.
+
+### Fixed
+- Imported upstream workstream query/config threading fixes, including root config inheritance and model resolver workstream handling.
+- Imported upstream Codex install format fixes for hooks/agents.
+- Imported upstream roadmap/phase lifecycle parsing hardening, graphify CLI invocation fix, review model config coverage, LM Studio model identity validation, nested config preservation, model alias update, and parser fixes for quoted/colon-containing values.
+
+### Verification
+- Local validation passed: `npm run test:hermes`, `npm test`, `npm run lint:tests`, and `npm pack --dry-run --json`.
+- PR CI pending after branch push.
+
 ## [1.5.0] — 2026-04-26
 
 GSD Hermes package version: `1.5.0`
@@ -890,7 +918,6 @@ Upstream GSD base: `get-shit-done-cc@1.37.1`
 [1.6.3]: https://github.com/glittercowboy/get-shit-done/releases/tag/v1.6.3
 [1.6.2]: https://github.com/glittercowboy/get-shit-done/releases/tag/v1.6.2
 [1.6.1]: https://github.com/glittercowboy/get-shit-done/releases/tag/v1.6.1
-[1.6.0]: https://github.com/glittercowboy/get-shit-done/releases/tag/v1.6.0
 [1.5.30]: https://github.com/glittercowboy/get-shit-done/releases/tag/v1.5.30
 [1.5.29]: https://github.com/glittercowboy/get-shit-done/releases/tag/v1.5.29
 [1.5.28]: https://github.com/glittercowboy/get-shit-done/releases/tag/v1.5.28
