@@ -4,9 +4,9 @@
 
 ---
 
-## GSD Hermes v1.5 Release Note
+## GSD Hermes v1.6 Release Note
 
-`gsd-hermes@1.5.0` carries upstream config and SDK query fixes through `upstream/main@f3685d91` / `get-shit-done-cc@1.38.5` while preserving Hermes runtime model binding receipts, child-construction binding tests, and fail-fast validation for explicit per-agent model overrides. Hermes keeps the downstream default of avoiding silent model fallback: configured model bindings must resolve as configured or fail with actionable diagnostics. The `inherit` profile selector is valid in both CJS and SDK config paths, and structured `parallelization` objects are preserved for SDK/CJS parity.
+`gsd-hermes@1.6.0` carries upstream config and SDK query fixes through `upstream/main@9472f343` while preserving Hermes runtime model binding receipts, child-construction binding tests, and fail-fast validation for explicit per-agent model overrides. Hermes keeps the downstream default of avoiding silent model fallback: configured model bindings must resolve as configured or fail with actionable diagnostics. This sync preserves workstream-aware config/model resolution, expanded upstream runtime profile aliases, the `inherit` profile selector, and structured `parallelization` object parity across SDK/CJS config paths.
 
 ---
 
@@ -59,7 +59,9 @@ GSD stores project settings in `.planning/config.json`. Created during `/gsd-new
     "security_enforcement": true,
     "security_asvs_level": 1,
     "security_block_on": "high",
-    "post_planning_gaps": true
+    "post_planning_gaps": true,
+    "build_command": null,
+    "test_command": null
   },
   "hooks": {
     "context_warnings": true,
@@ -215,6 +217,8 @@ All workflow toggles follow the **absent = enabled** pattern. If a key is missin
 | `workflow.inline_plan_threshold` | number | `3` | Maximum number of tasks in a phase before the planner generates a separate PLAN.md file instead of inlining tasks in the prompt |
 | `workflow.drift_threshold` | number | `3` | Minimum number of new structural elements (new directories, barrel exports, migrations, route modules) introduced during a phase before the post-execute codebase-drift gate takes action. See [#2003](https://github.com/gsd-build/get-shit-done/issues/2003). Added in v1.39 |
 | `workflow.drift_action` | string | `warn` | What to do when `workflow.drift_threshold` is exceeded after `/gsd-execute-phase`. `warn` prints a message suggesting `/gsd-map-codebase --paths …`; `auto-remap` spawns `gsd-codebase-mapper` scoped to the affected paths. Added in v1.39 |
+| `workflow.build_command` | string | (none) | Shell command to build the project in the post-merge build gate (Step A of step 5.6 in execute-phase). When unset, the gate auto-detects: Xcode (`.xcodeproj` present) → `xcodebuild build`, `Makefile` with `build:` target → `make build`, Justfile → `just build`, `Cargo.toml` → `cargo build`, `go.mod` → `go build ./...`, Python → `python -m py_compile`, `package.json` with `build` script → `npm run build`. Runs with a 5-minute timeout; failure increments `WAVE_FAILURE_COUNT`. Added in v1.39 |
+| `workflow.test_command` | string | (none) | Shell command to run the project's test suite in the post-merge test gate (Step B of step 5.6 in execute-phase) and the regression gate. When unset, the gate auto-detects: Xcode (`.xcodeproj` present) → `xcodebuild test`, `Makefile` with `test:` target → `make test`, Justfile → `just test`, `package.json` → `npm test`, `Cargo.toml` → `cargo test`, `go.mod` → `go test ./...`, Python → `python -m pytest`. Runs with a 5-minute timeout; failure increments `WAVE_FAILURE_COUNT`. Added in v1.39 |
 
 ### Recommended Presets
 
@@ -695,7 +699,7 @@ The intent is the same as the Claude profile tiers -- use a stronger model for p
 | Value | Behavior | Use When |
 |-------|----------|----------|
 | `false` (default) | Returns Claude aliases (`opus`, `sonnet`, `haiku`) | Claude Code with native Anthropic API |
-| `true` | Maps aliases to full Claude model IDs (`claude-opus-4-6`) | Claude Code with API that requires full IDs |
+| `true` | Maps aliases to full Claude model IDs (`claude-opus-4-7`) | Claude Code with API that requires full IDs |
 | `"omit"` | Returns empty string (runtime picks its default) | Non-Claude runtimes (Codex, OpenCode, Gemini CLI, Kilo) |
 
 ### Runtime-Aware Profiles (#2517)
@@ -706,7 +710,7 @@ When `runtime` is set, profile tiers (`opus`/`sonnet`/`haiku`) resolve to runtim
 
 | Runtime | `opus` | `sonnet` | `haiku` | reasoning_effort |
 |---------|--------|----------|---------|------------------|
-| `claude` | `claude-opus-4-6` | `claude-sonnet-4-6` | `claude-haiku-4-5` | (not used) |
+| `claude` | `claude-opus-4-7` | `claude-sonnet-4-6` | `claude-haiku-4-5` | (not used) |
 | `codex` | `gpt-5.4` | `gpt-5.3-codex` | `gpt-5.4-mini` | `xhigh` / `medium` / `medium` |
 
 **Codex example** — one config, tiered models, no large `model_overrides` block:

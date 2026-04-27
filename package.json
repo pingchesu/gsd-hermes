@@ -1,6 +1,6 @@
 {
   "name": "gsd-hermes",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "A get-shit-done fork that adds Hermes Agent runtime support while preserving upstream GSD workflows.",
   "bin": {
     "gsd-hermes": "bin/install.js",
@@ -64,7 +64,7 @@
   },
   "scripts": {
     "build:hooks": "node scripts/build-hooks.js",
-    "build:sdk": "cd sdk && npm ci && npm run build",
+    "build:sdk": "cd sdk && npm ci --include=dev && npm run build",
     "prepublishOnly": "npm run build:hooks && npm run build:sdk",
     "test:hermes": "node scripts/validate-hermes-compat.cjs",
     "pretest": "npm run build:sdk",

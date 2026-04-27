@@ -2,8 +2,8 @@
 
 **GSD Hermes** is a downstream fork of [get-shit-done-cc](https://github.com/gsd-build/get-shit-done) that adds Hermes Agent runtime support while preserving upstream GSD workflows.
 
-- **Package:** `gsd-hermes@1.5.0`
-- **Upstream base:** `upstream/main@f3685d91` (`get-shit-done-cc@1.38.5`, 24 commits after the v1.4.30 base `cd057255`)
+- **Package:** `gsd-hermes@1.6.0`
+- **Upstream base:** `upstream/main@9472f343` (`get-shit-done-cc@1.38.5`, synced from `f3685d91..9472f343`)
 - **Install:** `npx gsd-hermes --hermes --global`
 
 ## Install & Quickstart
@@ -26,7 +26,7 @@ Compatibility gate: `npm run test:hermes` validates Hermes install modes + SDK q
 
 ### Hermes runtime model binding receipts
 
-`gsd-hermes@1.5.0` preserves per-agent model binding receipts and imports upstream `get-shit-done-cc@1.38.5` fixes. The v1.4.30 model-binding release made per-agent model binding explicit in plan-phase and execute-phase init payloads through `model_binding_receipts`. These receipts show the resolver decision, configured model, resolved runtime token, binding source, Hermes runtime binding channel, and proof boundary for each spawned GSD agent.
+`gsd-hermes@1.6.0` preserves per-agent model binding receipts and imports upstream `upstream/main@9472f343` fixes/features. The v1.4.30 model-binding release made per-agent model binding explicit in plan-phase and execute-phase init payloads through `model_binding_receipts`. These receipts show the resolver decision, configured model, resolved runtime token, binding source, Hermes runtime binding channel, and proof boundary for each spawned GSD agent.
 
 Hermes model override semantics are strict: if `.planning/config.json` configures a per-agent model, GSD must either pass that model to the Hermes child construction path or fail before spawn with an actionable diagnostic. Silent fallback to the parent/default model is not acceptable.
 
@@ -47,9 +47,10 @@ Current proof boundary is conservative:
 - [docs/releases/v1.4.0-upstream-sync-cd057255.md](docs/releases/v1.4.0-upstream-sync-cd057255.md) — Release notes for the v1.4 upstream sync package
 - [docs/releases/v1.4.30-runtime-model-binding-receipts.md](docs/releases/v1.4.30-runtime-model-binding-receipts.md) — Release notes for Hermes runtime model binding receipts and fail-fast validation
 - [docs/releases/v1.5.0-upstream-sync-f3685d91.md](docs/releases/v1.5.0-upstream-sync-f3685d91.md) — Release notes for the upstream `get-shit-done-cc@1.38.5` sync
+- [docs/releases/v1.6.0-upstream-sync-9472f343.md](docs/releases/v1.6.0-upstream-sync-9472f343.md) — Release notes for the upstream `9472f343` sync
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Based on Upstream GSD
 
-Based on upstream `get-shit-done@f3685d91` — see [the upstream project](https://github.com/gsd-build/get-shit-done) for the source GSD system this fork extends.
+Based on upstream `get-shit-done@9472f343` — see [the upstream project](https://github.com/gsd-build/get-shit-done) for the source GSD system this fork extends.

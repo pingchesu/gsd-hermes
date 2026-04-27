@@ -113,8 +113,8 @@ describe('runtime-model contract', () => {
     const result = resolveAgentBinding({ model_profile: 'balanced', resolve_model_ids: true, workflow: {} }, 'gsd-planner');
     expect(result.kind).toBe('resolved');
     if (result.kind !== 'resolved') throw new Error('expected resolved binding');
-    expect(result.resolvedModel).toBe('claude-opus-4-6');
-    expect(result.modelToken).toBe('claude-opus-4-6');
+    expect(result.resolvedModel).toBe('claude-opus-4-7');
+    expect(result.modelToken).toBe('claude-opus-4-7');
   });
 
   it('reports unknown agents as structured unsupported results instead of sonnet fallback', async () => {
@@ -464,6 +464,58 @@ describe('resolveModel', () => {
   it('throws GSDError when no agent type provided', async () => {
     const { resolveModel } = await import('./config-query.js');
     await expect(resolveModel([], tmpDir)).rejects.toThrow(GSDError);
+  });
+
+  it('resolveModel uses workstream config when --ws is specified', async () => {
+    const { resolveModel } = await import('./config-query.js');
+    // Root config: balanced profile → gsd-executor resolves to 'sonnet'.
+    await writeFile(
+      join(tmpDir, '.planning', 'config.json'),
+      JSON.stringify({ model_profile: 'balanced' }),
+    );
+    // Workstream config: quality profile → gsd-executor resolves to 'opus'.
+    await mkdir(join(tmpDir, '.planning', 'workstreams', 'frontend'), { recursive: true });
+    await writeFile(
+      join(tmpDir, '.planning', 'workstreams', 'frontend', 'config.json'),
+      JSON.stringify({ model_profile: 'quality' }),
+    );
+
+    const rootResult = await resolveModel(['gsd-executor'], tmpDir);
+    const rootData = rootResult.data as Record<string, unknown>;
+    expect(rootData.profile).toBe('balanced');
+    expect(rootData.model).toBe('sonnet');
+
+    const wsResult = await resolveModel(['gsd-executor'], tmpDir, 'frontend');
+    const wsData = wsResult.data as Record<string, unknown>;
+    expect(wsData.profile).toBe('quality');
+    expect(wsData.model).toBe('opus');
+  });
+
+  it('resolveModel inherits root runtime/model overrides for workstream configs', async () => {
+    const { resolveModel } = await import('./config-query.js');
+    await writeFile(
+      join(tmpDir, '.planning', 'config.json'),
+      JSON.stringify({
+        runtime: 'hermes',
+        model_profile: 'balanced',
+        resolve_model_ids: 'omit',
+        model_overrides: { 'gsd-executor': 'openai/o4-mini' },
+        workflow: { cross_ai_execution: true },
+      }),
+    );
+    await mkdir(join(tmpDir, '.planning', 'workstreams', 'frontend'), { recursive: true });
+    await writeFile(
+      join(tmpDir, '.planning', 'workstreams', 'frontend', 'config.json'),
+      JSON.stringify({ model_profile: 'quality' }),
+    );
+
+    const wsResult = await resolveModel(['gsd-executor'], tmpDir, 'frontend');
+    const wsData = wsResult.data as Record<string, unknown>;
+    expect(wsData.profile).toBe('quality');
+    expect(wsData.runtime).toBe('hermes');
+    expect(wsData.model).toBe('openai/o4-mini');
+    expect(wsData.binding_kind).toBe('explicit');
+    expect(wsData.cross_ai_execution_configured).toBe(true);
   });
 });
 
