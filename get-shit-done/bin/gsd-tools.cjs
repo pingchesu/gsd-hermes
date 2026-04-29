@@ -484,7 +484,7 @@ async function runCommand(command, args, cwd, raw, defaultValue) {
         const { 'keep-recent': keepRecent, 'dry-run': dryRun } = parseNamedArgs(args, ['keep-recent'], ['dry-run']);
         state.cmdStatePrune(cwd, { keepRecent: keepRecent || '3', dryRun: !!dryRun }, raw);
       } else if (subcommand === 'complete-phase') {
-        state.cmdStateCompletePhase(cwd, args, raw);
+        state.cmdStateCompletePhase(cwd, raw);
       } else if (subcommand === 'milestone-switch') {
         // Bug #2630: reset STATE.md frontmatter + Current Position for new milestone.
         // NB: the flag is `--milestone`, not `--version` — gsd-tools reserves
@@ -884,6 +884,9 @@ async function runCommand(command, args, cwd, raw, defaultValue) {
         case 'quick':
           init.cmdInitQuick(cwd, args.slice(2).join(' '), raw);
           break;
+        case 'ingest-docs':
+          init.cmdInitIngestDocs(cwd, raw);
+          break;
         case 'resume':
           init.cmdInitResume(cwd, raw);
           break;
@@ -918,7 +921,7 @@ async function runCommand(command, args, cwd, raw, defaultValue) {
           init.cmdInitRemoveWorkspace(cwd, args[2], raw);
           break;
         default:
-          error(`Unknown init workflow: ${workflow}\nAvailable: execute-phase, plan-phase, new-project, new-milestone, quick, resume, verify-work, phase-op, todos, milestone-op, map-codebase, progress, manager, new-workspace, list-workspaces, remove-workspace`);
+          error(`Unknown init workflow: ${workflow}\nAvailable: execute-phase, plan-phase, new-project, new-milestone, quick, ingest-docs, resume, verify-work, phase-op, todos, milestone-op, map-codebase, progress, manager, new-workspace, list-workspaces, remove-workspace`);
       }
       break;
     }
