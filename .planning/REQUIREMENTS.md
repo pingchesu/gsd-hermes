@@ -28,13 +28,13 @@
 - [x] **TEST-03**: SDK/init tests prove `model_overrides.gsd-executor = "openai/gpt-5.5"` yields `execution_driver = "codex-cli"` and `cli_model = "gpt-5.5"`.
 - [x] **TEST-04**: Regression tests assert OpenAI bindings cannot produce `claude -p` commands and Claude bindings cannot produce `codex exec` commands.
 - [x] **TEST-05**: Regression tests assert unknown providers and unavailable required drivers fail fast with actionable diagnostics.
-- [ ] **TEST-06**: Existing release gates still pass: `npm run test:hermes`, `npm test`, `npm run lint:tests`, and `npm pack --dry-run --json`.
+- [x] **TEST-06**: Existing release gates still pass: `npm run test:hermes`, `npm test`, `npm run lint:tests`, and `npm pack --dry-run --json`.
 
 ### Documentation
 
-- [ ] **DOC-01**: Configuration docs document `workflow.agent_execution_router = "provider-cli"` and show `model_overrides` examples for Claude and OpenAI agents.
-- [ ] **DOC-02**: Compatibility docs clearly distinguish provider-routed CLI execution from Hermes `delegate_task(model=...)` child-construction evidence.
-- [ ] **DOC-03**: README/release notes describe the new strict routing guarantee and fail-fast behavior in operator language.
+- [x] **DOC-01**: Configuration docs document `workflow.agent_execution_router = "provider-cli"` and show `model_overrides` examples for Claude and OpenAI agents.
+- [x] **DOC-02**: Compatibility docs clearly distinguish provider-routed CLI execution from Hermes `delegate_task(model=...)` child-construction evidence.
+- [x] **DOC-03**: README/release notes describe the new strict routing guarantee and fail-fast behavior in operator language.
 
 ## v1.9+ Requirements
 
@@ -72,10 +72,10 @@
 | TEST-03 | Phase 8.3 | Complete |
 | TEST-04 | Phase 8.3 | Complete |
 | TEST-05 | Phase 8.3 | Complete |
-| TEST-06 | Phase 8.4 | Pending |
-| DOC-01 | Phase 8.4 | Pending |
-| DOC-02 | Phase 8.4 | Pending |
-| DOC-03 | Phase 8.4 | Pending |
+| TEST-06 | Phase 8.4 | Complete |
+| DOC-01 | Phase 8.4 | Complete |
+| DOC-02 | Phase 8.4 | Complete |
+| DOC-03 | Phase 8.4 | Complete |
 
 **Coverage:**
 - v1.8 requirements: 19 total
@@ -84,4 +84,4 @@
 
 ---
 *Requirements defined: 2026-04-29*
-*Last updated: 2026-04-29 after Phase 8.3 strict regression coverage*
+*Last updated: 2026-04-29 after Phase 8.4 docs and release-readiness gates*

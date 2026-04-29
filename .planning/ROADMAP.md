@@ -12,7 +12,7 @@
 | 8.1 | Execution Binding Resolver | ✅ Complete — SDK emits strict provider-cli execution bindings from explicit model overrides. | ROUTE-01, ROUTE-02, ROUTE-03, ROUTE-04, ROUTE-05 | 5/5 |
 | 8.2 | Execute-Phase Provider Dispatcher | ✅ Complete — `/gsd-execute-phase` consumes provider-cli execution bindings with CLI preflight, receipts, and lower-priority cross-AI fallback. | DISP-01, DISP-02, DISP-03, DISP-04, DISP-05 | 5/5 |
 | 8.3 | Strict Regression Coverage | ✅ Complete — Credential-free regression gates prove Anthropic→Claude, OpenAI→Codex, and fail-fast mismatch behavior. | TEST-01, TEST-02, TEST-03, TEST-04, TEST-05 | 5/5 |
-| 8.4 | Docs, Gates, and Release Readiness | Update operator docs and run full local release gates without publishing. | TEST-06, DOC-01, DOC-02, DOC-03 | 5 |
+| 8.4 | Docs, Gates, and Release Readiness | ✅ Complete — Operator docs, compatibility docs, release note, and full local release-readiness gates passed without publishing. | TEST-06, DOC-01, DOC-02, DOC-03 | 5/5 |
 
 ## Phase Details
 
@@ -110,16 +110,10 @@
 
 ## Next Step
 
-Start with:
+Milestone implementation is complete. Run milestone closeout / shipping when ready:
 
 ```text
-/gsd-plan-phase 8.4
-```
-
-or, if the design is already accepted:
-
-```text
-/gsd-plan-phase 8.4
+/gsd-ship
 ```
 
 ## Coverage Validation

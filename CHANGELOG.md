@@ -10,6 +10,17 @@ syncs from.
 
 ## [Unreleased]
 
+### Added
+- **Provider-routed agent execution (v1.8 draft)** — `workflow.agent_execution_router: "provider-cli"` turns explicit `model_overrides` into strict per-agent CLI bindings: OpenAI/GPT-family models route to `codex exec --model ...`, and Anthropic/Claude-family models route to `claude -p --model ...`.
+- **Execution binding receipts** — execute-phase init payloads now include `agent_execution_bindings` alongside existing `model_binding_receipts`, making provider family, execution driver, normalized CLI model, and fail-fast diagnostics visible before dispatch.
+- **Strict regression coverage** — Hermes validation now covers provider-routing fixtures, negative fallback guards, command-rendering proof, and workflow static checks so `openai/gpt-5.5` cannot silently regress to `claude -p`.
+
+### Changed
+- `workflow.cross_ai_execution` is documented as a lower-priority legacy whole-plan fallback; valid provider-cli bindings take priority unless the operator explicitly bypasses provider routing.
+
+### Documentation
+- Added draft release notes: [`docs/releases/v1.8.0-provider-routed-agent-execution.md`](docs/releases/v1.8.0-provider-routed-agent-execution.md).
+
 ## 1.7.0 — 2026-04-29
 
 GSD Hermes package version: `1.7.0`
