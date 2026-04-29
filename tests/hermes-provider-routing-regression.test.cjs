@@ -3,34 +3,72 @@
 const { describe, test } = require('node:test');
 const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 const GSD_SDK_BIN = path.join(ROOT, 'bin', 'gsd-sdk.js');
 const EXECUTE_PHASE = path.join(ROOT, 'get-shit-done', 'workflows', 'execute-phase.md');
 
-function runCurrentRepoInit(phase = '8.3') {
-  const output = execFileSync(process.execPath, [GSD_SDK_BIN, 'query', 'init.execute-phase', phase], {
-    cwd: ROOT,
-    encoding: 'utf8',
-    stdio: ['pipe', 'pipe', 'pipe'],
-    env: {
-      ...process.env,
-      GSD_SESSION_KEY: '',
-      CODEX_THREAD_ID: '',
-      CLAUDE_SESSION_ID: '',
-      OPENCODE_SESSION_ID: '',
-      GEMINI_SESSION_ID: '',
-      CURSOR_SESSION_ID: '',
-      WINDSURF_SESSION_ID: '',
-    },
-  });
-  return JSON.parse(output);
+function runProviderRoutingFixtureInit(phase = '8.3') {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gsd-provider-routing-'));
+  const planningDir = path.join(tmpDir, '.planning');
+  fs.mkdirSync(planningDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(planningDir, 'ROADMAP.md'),
+    [
+      '# Roadmap',
+      '',
+      `## Phase ${phase} — Strict Regression Coverage`,
+      '**Status:** Planned',
+      '**Requirements:** [TEST-01]',
+    ].join('\n')
+  );
+  fs.writeFileSync(
+    path.join(planningDir, 'config.json'),
+    JSON.stringify(
+      {
+        runtime: 'hermes',
+        resolve_model_ids: 'omit',
+        model_overrides: {
+          'gsd-executor': 'openai/gpt-5.5',
+          'gsd-verifier': 'anthropic/claude-opus-4-7',
+        },
+        workflow: {
+          agent_execution_router: 'provider-cli',
+        },
+      },
+      null,
+      2
+    )
+  );
+
+  try {
+    const output = execFileSync(process.execPath, [GSD_SDK_BIN, 'query', 'init.execute-phase', phase], {
+      cwd: tmpDir,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        GSD_SESSION_KEY: '',
+        CODEX_THREAD_ID: '',
+        CLAUDE_SESSION_ID: '',
+        OPENCODE_SESSION_ID: '',
+        GEMINI_SESSION_ID: '',
+        CURSOR_SESSION_ID: '',
+        WINDSURF_SESSION_ID: '',
+      },
+    });
+    return JSON.parse(output);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 }
 
 describe('Hermes provider-routed execution regression fixture', () => {
-  test('current planning config routes executor to Codex and verifier to Claude', () => {
-    const init = runCurrentRepoInit('8.3');
+  test('fixture planning config routes executor to Codex and verifier to Claude', () => {
+    const init = runProviderRoutingFixtureInit('8.3');
     const bindings = init.agent_execution_bindings;
 
     assert.equal(bindings.router, 'provider-cli');
@@ -54,7 +92,7 @@ describe('Hermes provider-routed execution regression fixture', () => {
   });
 
   test('init payload does not inject degraded runtime note that reroutes OpenAI through Claude', () => {
-    const init = runCurrentRepoInit('8.3');
+    const init = runProviderRoutingFixtureInit('8.3');
     const serialized = JSON.stringify(init);
 
     assert.doesNotMatch(serialized, /Hermes native delegate_task is unavailable/i);
