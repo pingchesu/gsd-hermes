@@ -1,11 +1,12 @@
 {
   "name": "gsd-hermes",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "A get-shit-done fork that adds Hermes Agent runtime support while preserving upstream GSD workflows.",
   "bin": {
     "gsd-hermes": "bin/install.js",
     "get-shit-done-cc": "bin/install.js",
-    "gsd-sdk": "bin/gsd-sdk.js"
+    "gsd-sdk": "bin/gsd-sdk.js",
+    "gsd-tools": "bin/gsd-sdk.js"
   },
   "files": [
     "bin",

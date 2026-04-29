@@ -10,6 +10,28 @@ syncs from.
 
 ## [Unreleased]
 
+## 1.7.0 — 2026-04-29
+
+GSD Hermes package version: `1.7.0`
+Upstream GSD base: `upstream/main@eeaf9c55` / `get-shit-done-cc@1.39.0-rc.5`
+Previous upstream base: `upstream/main@9472f343` / `get-shit-done-cc@1.38.5`
+
+### Synced
+- **Upstream sync to `upstream/main@eeaf9c55`** — merges the upstream changes from `9472f343..eeaf9c55` while preserving downstream `gsd-hermes` package identity, Hermes install semantics, dash-form command discovery, and strict runtime/model binding receipt contracts.
+
+### Added
+- Imported upstream `gsd-tools` bin alias and SDK workstream environment support.
+- Imported upstream execute-phase per-plan worktree gate documentation and latest workflow/agent prompt hardening.
+- Imported upstream `v1.39.0-rc.4` and `v1.39.0-rc.5` release notes as upstream-base reference docs.
+
+### Fixed
+- Imported upstream fixes for fenced-code milestone parsing, archived phase fallback, audit-UAT frontmatter parsing, config-get `--default`, context window config validation, ingest-docs init dispatch, skill hyphen naming, OpenCode model profile overrides, update cache clearing, and roadmap phase argument parsing.
+- Preserved downstream `gsd-hermes` npm identity and repository metadata instead of adopting upstream `get-shit-done-cc` package identity.
+- Preserved Hermes runtime/model binding SDK contract while accepting upstream config-get missing-key exit semantics.
+
+### Verification
+- Local validation passed: `npm run test:hermes`, `npm test` (`5921/5921`), `npm run lint:tests`, and `npm pack --dry-run --json`.
+
 ## 1.6.0 — 2026-04-27
 
 GSD Hermes package version: `1.6.0`
