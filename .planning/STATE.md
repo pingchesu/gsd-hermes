@@ -3,9 +3,9 @@
 ## Current Position
 
 Phase: 8.3 — Strict Regression Coverage
-Plan: Not yet planned
-Status: Phase 8.2 complete; ready to plan Phase 8.3
-Last activity: 2026-04-29 — Executed Phase 8.2 provider CLI dispatcher implementation
+Plan: 08.3-01-strict-provider-routing-regression
+Status: Phase 8.3 planned; ready to execute strict regression coverage
+Last activity: 2026-04-29 — Planned Phase 8.3 strict provider routing regression coverage
 
 ## Project Reference
 
