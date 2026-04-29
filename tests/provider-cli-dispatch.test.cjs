@@ -48,8 +48,11 @@ describe('provider CLI dispatch helper', () => {
     assert.equal(command.driver, 'codex-cli');
     assert.deepEqual(command.argv.slice(0, 4), ['codex', 'exec', '--model', 'gpt-5.5']);
     assert.equal(command.argv.includes('claude'), false);
+    assert.equal(command.argv.includes('--agent'), false);
     assert.match(command.display, /^codex exec --model gpt-5\.5 /);
+    assert.doesNotMatch(command.display, /claude/);
     assert.doesNotMatch(command.display, /claude -p/);
+    assert.doesNotMatch(command.argv.join(' '), /claude|--agent/);
   });
 
   test('renders Anthropic bindings as Claude CLI commands without using Codex', () => {
@@ -63,7 +66,9 @@ describe('provider CLI dispatch helper', () => {
     assert.deepEqual(command.argv.slice(0, 4), ['claude', '-p', '--model', 'claude-opus-4-7']);
     assert.equal(command.argv.includes('codex'), false);
     assert.match(command.display, /^claude -p --model claude-opus-4-7 /);
+    assert.doesNotMatch(command.display, /codex/);
     assert.doesNotMatch(command.display, /codex exec/);
+    assert.doesNotMatch(command.argv.join(' '), /codex|--full-auto/);
   });
 
   test('unsupported bindings fail fast with actionable binding details', () => {
@@ -78,6 +83,31 @@ describe('provider CLI dispatch helper', () => {
         suggested_fix: 'Use supported provider.',
       }, { workdir: ROOT, prompt_path: '/tmp/plan.md' }),
       /execution_driver.*unsupported.*configured_model.*mistral\/large-latest.*provider_family.*unknown/s
+    );
+  });
+
+  test('shell-quotes display paths while keeping prompt content out of argv', () => {
+    const command = HELPER.renderProviderCliCommand(OPENAI_BINDING, {
+      workdir: '/tmp/gsd workdir/with spaces',
+      prompt_path: "/tmp/provider cli/plan's prompt.md",
+      agent_name: 'gsd-executor',
+    });
+
+    assert.equal(command.stdin_path, "/tmp/provider cli/plan's prompt.md");
+    assert.deepEqual(command.argv.slice(0, 6), ['codex', 'exec', '--model', 'gpt-5.5', '--full-auto', '-C']);
+    assert.equal(command.argv[6], '/tmp/gsd workdir/with spaces');
+    assert.match(command.display, /'\/tmp\/gsd workdir\/with spaces'/);
+    assert.match(command.display, /< '\/tmp\/provider cli\/plan'"'"'s prompt\.md'/);
+    assert.doesNotMatch(command.display, /prompt content|<objective>|model_overrides/);
+  });
+
+  test('bindings missing cli_model fail before command rendering', () => {
+    assert.throws(
+      () => HELPER.renderProviderCliCommand({
+        ...OPENAI_BINDING,
+        cli_model: null,
+      }, { workdir: ROOT, prompt_path: '/tmp/plan.md' }),
+      /missing cli_model.*configured_model.*openai\/gpt-5\.5/s
     );
   });
 

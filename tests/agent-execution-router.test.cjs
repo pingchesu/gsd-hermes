@@ -108,6 +108,30 @@ describe('provider-routed agent execution bindings', () => {
     assert.equal(binding.strict, true);
   });
 
+  test('routes bare provider-family model tokens to the same CLI drivers', () => {
+    const cases = [
+      ['gpt-5.5', 'openai', 'codex-cli', 'gpt-5.5'],
+      ['claude-opus-4-7', 'anthropic', 'claude-cli', 'claude-opus-4-7'],
+    ];
+
+    for (const [model, providerFamily, executionDriver, cliModel] of cases) {
+      const receipt = contract.toRuntimeModelReceipt(
+        contract.resolveAgentBinding({
+          runtime: 'hermes',
+          resolve_model_ids: 'omit',
+          model_overrides: { 'gsd-executor': model },
+          workflow: { agent_execution_router: 'provider-cli' },
+        }, 'gsd-executor'),
+        'executor'
+      );
+      const binding = router.resolveAgentExecutionBinding(receipt);
+      assert.equal(binding.status, 'resolved');
+      assert.equal(binding.provider_family, providerFamily);
+      assert.equal(binding.execution_driver, executionDriver);
+      assert.equal(binding.cli_model, cliModel);
+    }
+  });
+
   test('does not build execution bindings unless workflow.agent_execution_router is provider-cli', () => {
     const receipt = contract.toRuntimeModelReceipt(
       contract.resolveAgentBinding({

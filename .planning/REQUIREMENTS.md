@@ -23,11 +23,11 @@
 
 ### Tests and Safety
 
-- [ ] **TEST-01**: Unit tests cover provider family detection and CLI model normalization for Anthropic and OpenAI tokens.
-- [ ] **TEST-02**: SDK/init tests prove `model_overrides.gsd-executor = "anthropic/claude-opus-4-7"` yields `execution_driver = "claude-cli"` and `cli_model = "claude-opus-4-7"`.
-- [ ] **TEST-03**: SDK/init tests prove `model_overrides.gsd-executor = "openai/gpt-5.5"` yields `execution_driver = "codex-cli"` and `cli_model = "gpt-5.5"`.
-- [ ] **TEST-04**: Regression tests assert OpenAI bindings cannot produce `claude -p` commands and Claude bindings cannot produce `codex exec` commands.
-- [ ] **TEST-05**: Regression tests assert unknown providers and unavailable required drivers fail fast with actionable diagnostics.
+- [x] **TEST-01**: Unit tests cover provider family detection and CLI model normalization for Anthropic and OpenAI tokens.
+- [x] **TEST-02**: SDK/init tests prove `model_overrides.gsd-executor = "anthropic/claude-opus-4-7"` yields `execution_driver = "claude-cli"` and `cli_model = "claude-opus-4-7"`.
+- [x] **TEST-03**: SDK/init tests prove `model_overrides.gsd-executor = "openai/gpt-5.5"` yields `execution_driver = "codex-cli"` and `cli_model = "gpt-5.5"`.
+- [x] **TEST-04**: Regression tests assert OpenAI bindings cannot produce `claude -p` commands and Claude bindings cannot produce `codex exec` commands.
+- [x] **TEST-05**: Regression tests assert unknown providers and unavailable required drivers fail fast with actionable diagnostics.
 - [ ] **TEST-06**: Existing release gates still pass: `npm run test:hermes`, `npm test`, `npm run lint:tests`, and `npm pack --dry-run --json`.
 
 ### Documentation
@@ -62,16 +62,16 @@
 | ROUTE-03 | Phase 8.1 | Complete |
 | ROUTE-04 | Phase 8.1 | Complete |
 | ROUTE-05 | Phase 8.1 | Complete |
-| DISP-01 | Phase 8.2 | Pending |
-| DISP-02 | Phase 8.2 | Pending |
-| DISP-03 | Phase 8.2 | Pending |
-| DISP-04 | Phase 8.2 | Pending |
-| DISP-05 | Phase 8.2 | Pending |
-| TEST-01 | Phase 8.3 | Pending |
-| TEST-02 | Phase 8.3 | Pending |
-| TEST-03 | Phase 8.3 | Pending |
-| TEST-04 | Phase 8.3 | Pending |
-| TEST-05 | Phase 8.3 | Pending |
+| DISP-01 | Phase 8.2 | Complete |
+| DISP-02 | Phase 8.2 | Complete |
+| DISP-03 | Phase 8.2 | Complete |
+| DISP-04 | Phase 8.2 | Complete |
+| DISP-05 | Phase 8.2 | Complete |
+| TEST-01 | Phase 8.3 | Complete |
+| TEST-02 | Phase 8.3 | Complete |
+| TEST-03 | Phase 8.3 | Complete |
+| TEST-04 | Phase 8.3 | Complete |
+| TEST-05 | Phase 8.3 | Complete |
 | TEST-06 | Phase 8.4 | Pending |
 | DOC-01 | Phase 8.4 | Pending |
 | DOC-02 | Phase 8.4 | Pending |
@@ -84,4 +84,4 @@
 
 ---
 *Requirements defined: 2026-04-29*
-*Last updated: 2026-04-29 after /gsd-new-milestone Provider-Routed Agent Execution*
+*Last updated: 2026-04-29 after Phase 8.3 strict regression coverage*

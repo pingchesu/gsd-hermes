@@ -2,10 +2,10 @@
 
 ## Current Position
 
-Phase: 8.3 — Strict Regression Coverage
-Plan: 08.3-01-strict-provider-routing-regression
-Status: Phase 8.3 planned; ready to execute strict regression coverage
-Last activity: 2026-04-29 — Planned Phase 8.3 strict provider routing regression coverage
+Phase: 8.4 — Docs, Gates, and Release Readiness
+Plan: None
+Status: Phase 8.3 complete; ready to plan documentation and release-readiness gates
+Last activity: 2026-04-29 — Completed Phase 8.3 strict provider routing regression coverage
 
 ## Project Reference
 
@@ -22,12 +22,12 @@ Goal: Make `model_overrides` drive deterministic per-agent execution routing: An
 
 ## Next Up
 
-**Phase 8.3: Strict Regression Coverage** — Prove Anthropic→Claude and OpenAI→Codex routing, and prevent silent fallback to the wrong runtime.
+**Phase 8.4: Docs, Gates, and Release Readiness** — Update operator docs and run full local release gates without publishing.
 
 Recommended command:
 
 ```text
-/gsd-plan-phase 8.3
+/gsd-plan-phase 8.4
 ```
 
 ## Accumulated Context
@@ -35,7 +35,8 @@ Recommended command:
 - v1.7.0 successfully synced with upstream `gsd-build/get-shit-done`, shipped through GitHub Release and npm Trusted Publishing.
 - `.planning/quick/260429-kpj-sync-upstream-get-shit-done-and-prepare-/PLAN.md` is preserved as the execution record for the v1.7.0 release sync.
 - The user’s target behavior is strict: `anthropic/claude-opus-4-7` should execute through `claude -p`; `openai/gpt-5.5` should execute through `codex`; mismatches must fail fast.
-- `cross_ai_execution` should remain legacy whole-plan fallback and must not override direct provider-routed execution.
+- `cross_ai_execution` remains legacy whole-plan fallback and must not override direct provider-routed execution.
+- Phase 8.1 added SDK `agent_execution_bindings`; Phase 8.2 added provider-cli command rendering and execute-phase dispatch guidance; Phase 8.3 added credential-free regression tests and Hermes compatibility guardrails.
 
 ## Blockers
 
