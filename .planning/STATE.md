@@ -3,9 +3,9 @@
 ## Current Position
 
 Phase: 8.2 — Execute-Phase Provider Dispatcher
-Plan: pending
-Status: Phase 8.1 complete; ready for Phase 8.2 planning
-Last activity: 2026-04-29 — Completed Phase 8.1 SDK execution binding resolver
+Plan: 2 executable plans created
+Status: Phase 8.2 planned; ready for execution
+Last activity: 2026-04-29 — Planned Phase 8.2 provider CLI dispatcher implementation
 
 ## Project Reference
 
@@ -27,13 +27,7 @@ Goal: Make `model_overrides` drive deterministic per-agent execution routing: An
 Recommended command:
 
 ```text
-/gsd-discuss-phase 8.2
-```
-
-or, if proceeding directly:
-
-```text
-/gsd-plan-phase 8.2
+/gsd-execute-phase 8.2
 ```
 
 ## Accumulated Context
