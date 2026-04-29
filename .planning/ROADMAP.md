@@ -9,14 +9,14 @@
 
 | # | Phase | Goal | Requirements | Success Criteria |
 |---|-------|------|--------------|------------------|
-| 1 | Execution Binding Resolver | Add a deterministic SDK/router layer that maps resolved model bindings to provider family, CLI driver, and normalized CLI model. | ROUTE-01, ROUTE-02, ROUTE-03, ROUTE-04, ROUTE-05 | 5 |
-| 2 | Execute-Phase Provider Dispatcher | Make `/gsd-execute-phase` consume execution bindings and spawn the correct CLI path with preflight and receipts. | DISP-01, DISP-02, DISP-03, DISP-04, DISP-05 | 5 |
-| 3 | Strict Regression Coverage | Prove Anthropic→Claude and OpenAI→Codex routing, and prevent silent fallback to the wrong runtime. | TEST-01, TEST-02, TEST-03, TEST-04, TEST-05 | 5 |
-| 4 | Docs, Gates, and Release Readiness | Update operator docs and run full local release gates without publishing. | TEST-06, DOC-01, DOC-02, DOC-03 | 5 |
+| 8.1 | Execution Binding Resolver | Add a deterministic SDK/router layer that maps resolved model bindings to provider family, CLI driver, and normalized CLI model. | ROUTE-01, ROUTE-02, ROUTE-03, ROUTE-04, ROUTE-05 | 5 |
+| 8.2 | Execute-Phase Provider Dispatcher | Make `/gsd-execute-phase` consume execution bindings and spawn the correct CLI path with preflight and receipts. | DISP-01, DISP-02, DISP-03, DISP-04, DISP-05 | 5 |
+| 8.3 | Strict Regression Coverage | Prove Anthropic→Claude and OpenAI→Codex routing, and prevent silent fallback to the wrong runtime. | TEST-01, TEST-02, TEST-03, TEST-04, TEST-05 | 5 |
+| 8.4 | Docs, Gates, and Release Readiness | Update operator docs and run full local release gates without publishing. | TEST-06, DOC-01, DOC-02, DOC-03 | 5 |
 
 ## Phase Details
 
-### Phase 1: Execution Binding Resolver
+### Phase 8.1: Execution Binding Resolver
 
 **Goal:** Introduce a single SDK-owned resolver that turns already-resolved model bindings into explicit execution bindings.
 
@@ -40,7 +40,7 @@
 - Keep the resolver independent from workflow markdown so tests can validate behavior without invoking CLIs.
 - Reuse existing provider-family detection where possible; do not duplicate ad-hoc regexes in workflow text.
 
-### Phase 2: Execute-Phase Provider Dispatcher
+### Phase 8.2: Execute-Phase Provider Dispatcher
 
 **Goal:** Update execute-phase orchestration so it consumes SDK execution bindings and dispatches executor/verifier work through the selected driver.
 
@@ -63,7 +63,7 @@
 - Command rendering must safely quote prompt paths/workdirs.
 - Avoid inventing `claude -p` fallback when SDK did not route to `claude-cli`.
 
-### Phase 3: Strict Regression Coverage
+### Phase 8.3: Strict Regression Coverage
 
 **Goal:** Add tests that lock the routing behavior and prevent recurrence of OpenAI bindings being executed through Claude CLI.
 
@@ -87,7 +87,7 @@
 - Keep CI credential-free: test command rendering/preflight failure surfaces, not actual remote provider calls.
 - If live smoke is added, gate it behind opt-in env vars only.
 
-### Phase 4: Docs, Gates, and Release Readiness
+### Phase 8.4: Docs, Gates, and Release Readiness
 
 **Goal:** Document the new operator-facing contract and verify the repo is ready for a subsequent release task.
 
@@ -113,13 +113,13 @@
 Start with:
 
 ```text
-/gsd-discuss-phase 1
+/gsd-discuss-phase 8.1
 ```
 
 or, if the design is already accepted:
 
 ```text
-/gsd-plan-phase 1
+/gsd-plan-phase 8.1
 ```
 
 ## Coverage Validation

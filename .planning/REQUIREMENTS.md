@@ -57,25 +57,25 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ROUTE-01 | Phase 1 | Pending |
-| ROUTE-02 | Phase 1 | Pending |
-| ROUTE-03 | Phase 1 | Pending |
-| ROUTE-04 | Phase 1 | Pending |
-| ROUTE-05 | Phase 1 | Pending |
-| DISP-01 | Phase 2 | Pending |
-| DISP-02 | Phase 2 | Pending |
-| DISP-03 | Phase 2 | Pending |
-| DISP-04 | Phase 2 | Pending |
-| DISP-05 | Phase 2 | Pending |
-| TEST-01 | Phase 3 | Pending |
-| TEST-02 | Phase 3 | Pending |
-| TEST-03 | Phase 3 | Pending |
-| TEST-04 | Phase 3 | Pending |
-| TEST-05 | Phase 3 | Pending |
-| TEST-06 | Phase 4 | Pending |
-| DOC-01 | Phase 4 | Pending |
-| DOC-02 | Phase 4 | Pending |
-| DOC-03 | Phase 4 | Pending |
+| ROUTE-01 | Phase 8.1 | Pending |
+| ROUTE-02 | Phase 8.1 | Pending |
+| ROUTE-03 | Phase 8.1 | Pending |
+| ROUTE-04 | Phase 8.1 | Pending |
+| ROUTE-05 | Phase 8.1 | Pending |
+| DISP-01 | Phase 8.2 | Pending |
+| DISP-02 | Phase 8.2 | Pending |
+| DISP-03 | Phase 8.2 | Pending |
+| DISP-04 | Phase 8.2 | Pending |
+| DISP-05 | Phase 8.2 | Pending |
+| TEST-01 | Phase 8.3 | Pending |
+| TEST-02 | Phase 8.3 | Pending |
+| TEST-03 | Phase 8.3 | Pending |
+| TEST-04 | Phase 8.3 | Pending |
+| TEST-05 | Phase 8.3 | Pending |
+| TEST-06 | Phase 8.4 | Pending |
+| DOC-01 | Phase 8.4 | Pending |
+| DOC-02 | Phase 8.4 | Pending |
+| DOC-03 | Phase 8.4 | Pending |
 
 **Coverage:**
 - v1.8 requirements: 19 total

@@ -2,10 +2,10 @@
 
 ## Current Position
 
-Phase: Not started (milestone initialized)
-Plan: —
-Status: Ready for Phase 1 discussion/planning
-Last activity: 2026-04-29 — Milestone v1.8 Provider-Routed Agent Execution started via /gsd-new-milestone
+Phase: 8.1 — Execution Binding Resolver
+Plan: .planning/phases/8.1-execution-binding-resolver/PLAN.md
+Status: Phase 8.1 planned; ready for execution
+Last activity: 2026-04-29 — Renumbered v1.8 phases to 8.1–8.4 and created Phase 8.1 plan
 
 ## Project Reference
 
@@ -22,18 +22,18 @@ Goal: Make `model_overrides` drive deterministic per-agent execution routing: An
 
 ## Next Up
 
-**Phase 1: Execution Binding Resolver** — Add a deterministic SDK/router layer that maps resolved model bindings to provider family, CLI driver, and normalized CLI model.
+**Phase 8.1: Execution Binding Resolver** — Add a deterministic SDK/router layer that maps resolved model bindings to provider family, CLI driver, and normalized CLI model.
 
 Recommended command:
 
 ```text
-/gsd-discuss-phase 1
+/gsd-discuss-phase 8.1
 ```
 
 or, if proceeding directly:
 
 ```text
-/gsd-plan-phase 1
+/gsd-plan-phase 8.1
 ```
 
 ## Accumulated Context
