@@ -4,9 +4,9 @@
 
 ---
 
-## GSD Hermes v1.6 Release Note
+## GSD Hermes v1.7 Release Note
 
-`gsd-hermes@1.6.0` carries upstream config and SDK query fixes through `upstream/main@9472f343` while preserving Hermes runtime model binding receipts, child-construction binding tests, and fail-fast validation for explicit per-agent model overrides. Hermes keeps the downstream default of avoiding silent model fallback: configured model bindings must resolve as configured or fail with actionable diagnostics. This sync preserves workstream-aware config/model resolution, expanded upstream runtime profile aliases, the `inherit` profile selector, and structured `parallelization` object parity across SDK/CJS config paths.
+`gsd-hermes@1.7.0` carries upstream config and SDK query fixes through `upstream/main@eeaf9c55` while preserving Hermes runtime model binding receipts, child-construction binding tests, and fail-fast validation for explicit per-agent model overrides. Hermes keeps the downstream default of avoiding silent model fallback: configured model bindings must resolve as configured or fail with actionable diagnostics. This sync preserves workstream-aware config/model resolution, expanded upstream runtime profile aliases, the `inherit` profile selector, and structured `parallelization` object parity across SDK/CJS config paths.
 
 ---
 
@@ -54,6 +54,7 @@ GSD stores project settings in `.planning/config.json`. Created during `/gsd-new
     "plan_chunked": false,
     "code_review_command": null,
     "cross_ai_execution": false,
+    "agent_execution_router": null,
     "cross_ai_command": null,
     "cross_ai_timeout": 300,
     "security_enforcement": true,
@@ -207,7 +208,8 @@ All workflow toggles follow the **absent = enabled** pattern. If a key is missin
 | `workflow.plan_chunked` | boolean | `false` | Enable chunked planning mode. When `true` (or when `--chunked` flag is passed to `/gsd-plan-phase`), the orchestrator splits the single long-lived planner Task into a short outline Task followed by N short per-plan Tasks (~3-5 min each). Each plan is committed individually for crash resilience. If a Task hangs and the terminal is force-killed, rerunning with `--chunked` resumes from the last completed plan. Particularly useful on Windows where long-lived Tasks may hang on stdio. Added in v1.38 |
 | `workflow.code_review_command` | string | (none) | Shell command for external code review integration in `/gsd-ship`. Receives changed file paths via stdin. Non-zero exit blocks the ship workflow. Added in v1.36 |
 | `workflow.tdd_mode` | boolean | `false` | Enable TDD pipeline as a first-class execution mode. When `true`, the planner aggressively applies `type: tdd` to eligible tasks (business logic, APIs, validations, algorithms) and the executor enforces RED/GREEN/REFACTOR gate sequence. An end-of-phase collaborative review checkpoint verifies gate compliance. Added in v1.36 |
-| `workflow.cross_ai_execution` | boolean | `false` | Delegate phase execution to an external AI CLI instead of spawning local executor agents. Useful for leveraging a different model's strengths for specific phases. Added in v1.36 |
+| `workflow.cross_ai_execution` | boolean | `false` | Legacy whole-plan external AI CLI fallback. In gsd-hermes provider-cli mode, valid `agent_execution_bindings` take priority and `cross_ai_execution` must not reroute a configured per-agent provider binding. Added in v1.36 |
+| `workflow.agent_execution_router` | string | (none) | Optional per-agent execution router. `provider-cli` turns explicit `model_overrides` into strict provider-family CLI bindings: Anthropic/Claude models route to Claude CLI, OpenAI/GPT models route to Codex CLI. Experimental in v1.8. |
 | `workflow.cross_ai_command` | string | (none) | Shell command template for cross-AI execution. Receives the phase prompt via stdin. Must produce SUMMARY.md-compatible output. Required when `cross_ai_execution` is `true`. Added in v1.36 |
 | `workflow.cross_ai_timeout` | number | `300` | Timeout in seconds for cross-AI execution commands. Prevents runaway external processes. Added in v1.36 |
 | `workflow.ai_integration_phase` | boolean | `true` | Enable the `/gsd-ai-integration-phase` command. When `false`, the command exits with a configuration gate message |
@@ -651,6 +653,52 @@ For Hermes installs, `model_overrides` are strict runtime intent, not best-effor
 If an explicit Hermes override cannot be honored by the selected runtime channel, GSD fails before spawning the child and reports the agent, configured model, runtime/channel, and suggested fix. It must not drop the model token and let the child inherit the parent/default model.
 
 Proof boundary: current tests prove GSD resolver behavior, workflow receipt serialization, fail-fast validation, and Hermes child `AIAgent(model=...)` construction. They do not claim live provider wire-level `model=...` enforcement unless future provider instrumentation records sanitized request metadata.
+
+#### Provider-routed agent execution (gsd-hermes v1.8 draft)
+
+Set `workflow.agent_execution_router` to `"provider-cli"` when you want `model_overrides` to select the matching external provider CLI per GSD agent instead of relying on one global runtime default. This is the strict mode for mixed-provider Hermes workflows.
+
+Copy/paste starting point:
+
+```json
+{
+  "runtime": "hermes",
+  "resolve_model_ids": "omit",
+  "workflow": {
+    "agent_execution_router": "provider-cli",
+    "cross_ai_execution": false
+  },
+  "model_overrides": {
+    "gsd-executor": "openai/gpt-5.5",
+    "gsd-verifier": "anthropic/claude-opus-4-7"
+  }
+}
+```
+
+| `model_overrides` family | `agent_execution_bindings.*.execution_driver` | Command shape |
+| --- | --- | --- |
+| `openai/*`, `gpt-*`, `o3`, `o4-*` | `codex-cli` | `codex exec --model {cli_model}` |
+| `anthropic/*`, `claude-*`, `opus`, `sonnet`, `haiku` | `claude-cli` | `claude -p --model {cli_model}` |
+
+Examples:
+
+```text
+model_overrides.gsd-executor = "openai/gpt-5.5"
+→ provider_family=openai
+→ execution_driver=codex-cli
+→ cli_model=gpt-5.5
+→ codex exec --model gpt-5.5
+
+model_overrides.gsd-verifier = "anthropic/claude-opus-4-7"
+→ provider_family=anthropic
+→ execution_driver=claude-cli
+→ cli_model=claude-opus-4-7
+→ claude -p --model claude-opus-4-7
+```
+
+Provider-cli mode is fail-fast. Unsupported provider families, missing `cli_model`, missing CLI binaries, or unavailable CLI authentication stop the workflow with an actionable diagnostic. They must not silently fall back to the parent model, Hermes `delegation.model`, or an unrelated CLI such as `claude -p` for OpenAI/GPT bindings.
+
+`workflow.cross_ai_execution` remains a legacy whole-plan fallback. It is lower priority than valid provider-cli direct bindings and should be used only when you deliberately want to bypass per-agent routing with an explicit `workflow.cross_ai_command`.
 
 `model_overrides` can be set in either `.planning/config.json` (per-project)
 or `~/.gsd/defaults.json` (global). Per-project entries win on conflict and

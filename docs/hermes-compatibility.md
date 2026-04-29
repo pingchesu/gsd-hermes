@@ -1,6 +1,6 @@
 # Hermes Compatibility and Guardrails
 
-This document makes the current Hermes support boundary explicit after Phase 13.
+This document makes the current Hermes support boundary explicit after the v1.8 provider-routed execution milestone.
 It should be read alongside [Fork Ownership](./fork-ownership.md),
 [Upstream Sync Workflow](./upstream-sync.md), and
 [Hermes Install](./hermes-install.md) so future runtime work stays inside the
@@ -19,6 +19,7 @@ approved seams.
 | Upstream sync routine | supported maintenance workflow | `npm run test:hermes` plus `npm test` when feasible | Sync review stays anchored to governance docs and merge history from upstream/main so Hermes drift remains visible. |
 | Native local Hermes install mode | out of scope | Documentation and docs tests | Project-linked mode uses skills.external_dirs instead. |
 | Runtime model binding receipts | supported with conservative proof boundary | `npm run test:hermes`, `tests/runtime-model-parity.test.cjs`, SDK init tests | Resolver/workflow receipts and Hermes child-construction proof are supported; live provider wire-level enforcement is not claimed without sanitized provider request evidence. |
+| Provider-routed CLI execution | supported with strict command-routing proof | `npm run test:hermes`, `tests/hermes-provider-routing-regression.test.cjs`, `tests/provider-cli-dispatch.test.cjs` | `workflow.agent_execution_router: "provider-cli"` routes OpenAI/GPT models to Codex CLI and Anthropic/Claude models to Claude Code CLI, or fails fast. |
 
 ## Runtime-Model Composition
 
@@ -47,6 +48,7 @@ Validation evidence: `node --test tests/runtime-model-parity.test.cjs` (enrolled
 | Resolver | `resolved_by_gsd` | GSD recognized the agent and resolved the configured model/profile/omit path into a binding token or an explicit rejection. | Proves GSD resolver behavior only. |
 | Workflow handoff | `passed_to_runtime` | GSD has a non-empty explicit token ready for a runtime handoff. | Proves workflow payload construction, not provider use. |
 | Hermes child construction | `runtime_binding_channel`, child construction tests | Hermes receives the intended child model through direct `delegate_task(model=...)` or batch `tasks[].model`. | Proves child `AIAgent(model=...)` construction, not live provider wire-level dispatch. |
+| Provider-routed CLI command | `agent_execution_bindings`, provider-cli dispatcher tests | GSD selects `codex exec --model ...` for OpenAI/GPT-family models and `claude -p --model ...` for Anthropic/Claude-family models. | Proves deterministic command routing and normalized CLI model arguments, not provider wire-level API routing inside external CLI tools. |
 | Provider diagnostics | sanitized provider metadata | Safe metadata can expose provider/model/proof source without raw headers, request bodies, messages, or secrets. | Diagnostic proof only; credentials and raw payloads must never be stored. |
 | Provider wire-level proof | `runtime_enforced` when supported by sanitized request evidence | A provider request or wire-level capture proves the live child request used `model=...`. | Highest-confidence proof; not claimed unless captured safely. |
 
@@ -55,6 +57,21 @@ Validation evidence: `node --test tests/runtime-model-parity.test.cjs` (enrolled
 Phase 11 selects the canonical direct Hermes binding seam as `delegate_task(model=...)` for single child spawns and `tasks[].model` for batch spawns. `delegation.model` remains a global default/fallback, not a per-agent GSD override channel. ACP `--model` remains transport-specific and is only relevant when ACP subprocess routing is selected. Phase 11 proof stops at child `AIAgent(model=...)` construction; provider request or wire-level `model=...` proof remains a separate provider-instrumentation boundary.
 
 Phase 12 adds fail-fast validation and proof tests: unsupported explicit Hermes bindings fail before spawn with actionable diagnostics, invalid explicit model tokens cannot silently fall back to the parent/default model, and Hermes Agent tests verify that GSD planner/executor overrides reach child `AIAgent(model=...)` construction.
+
+### Provider-Routed CLI Enforcement
+
+`workflow.agent_execution_router: "provider-cli"` is the recommended strict route when operators need different GSD agents to run under different provider CLIs in a Hermes workflow. The SDK emits `agent_execution_bindings` from `model_overrides`; `/gsd-execute-phase` consumes those bindings before legacy Task/delegate/cross-AI fallback paths.
+
+| Configured model | Provider family | Driver | Command proof |
+| --- | --- | --- | --- |
+| `openai/gpt-5.5` or `gpt-5.5` | OpenAI/GPT | Codex CLI | `codex exec --model gpt-5.5 ...` |
+| `anthropic/claude-opus-4-7` or `claude-opus-4-7` | Anthropic/Claude | Claude Code CLI | `claude -p --model claude-opus-4-7 ...` |
+
+This mode intentionally fails fast for unsupported families, missing `cli_model`, missing CLI binaries, or unavailable CLI authentication. A valid provider-cli binding has priority over `workflow.cross_ai_execution`; that legacy setting remains a whole-plan fallback and must not silently override per-agent provider routing.
+
+Proof boundary: provider-cli mode proves that GSD chose the matching CLI driver and passed the normalized `--model` argument. It does not prove what Anthropic, OpenAI, Codex CLI, or Claude Code CLI sends on the wire after that process starts. Wire-level proof would require separate sanitized provider diagnostics.
+
+Provider-cli mode is separate from Hermes native `delegate_task(model=...)` child-construction proof. Native delegate proof applies only when GSD uses Hermes child spawning; provider-cli proof applies when GSD deliberately uses external provider CLIs for per-agent routing.
 
 Do not log secrets while collecting receipt evidence. Provider requests or diagnostic captures must redact API keys, tokens, cookies, passwords, authorization headers, client secrets, and credential-bearing URLs. Raw provider headers, request bodies, messages, and connection strings must not be persisted.
 

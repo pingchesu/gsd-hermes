@@ -2,8 +2,8 @@
 
 **GSD Hermes** is a downstream fork of [get-shit-done-cc](https://github.com/gsd-build/get-shit-done) that adds Hermes Agent runtime support while preserving upstream GSD workflows.
 
-- **Package:** `gsd-hermes@1.6.0`
-- **Upstream base:** `upstream/main@9472f343` (`get-shit-done-cc@1.38.5`, synced from `f3685d91..9472f343`)
+- **Package:** `gsd-hermes@1.7.0`
+- **Upstream base:** `upstream/main@eeaf9c55` (`get-shit-done-cc@1.39.0-rc.5`, synced from `9472f343..eeaf9c55`)
 - **Install:** `npx gsd-hermes --hermes --global`
 
 ## Install & Quickstart
@@ -37,6 +37,31 @@ Current proof boundary is conservative:
 - Safe provider diagnostics expose sanitized model/provider metadata only.
 - Live provider wire-level `model=...` enforcement is not claimed unless captured through future sanitized provider instrumentation.
 
+### Provider-routed agent execution (v1.8 draft)
+
+When `.planning/config.json` sets `workflow.agent_execution_router` to `"provider-cli"`, explicit `model_overrides` are treated as strict per-agent provider intent and converted into deterministic CLI driver bindings before `/gsd-execute-phase` spawns work:
+
+```json
+{
+  "runtime": "hermes",
+  "resolve_model_ids": "omit",
+  "workflow": {
+    "agent_execution_router": "provider-cli"
+  },
+  "model_overrides": {
+    "gsd-executor": "openai/gpt-5.5",
+    "gsd-verifier": "anthropic/claude-opus-4-7"
+  }
+}
+```
+
+| Configured model family | Execution driver | Command shape |
+| --- | --- | --- |
+| `openai/*` or `gpt-*` | Codex CLI | `codex exec --model {cli_model}` |
+| `anthropic/*` or `claude-*` | Claude Code CLI | `claude -p --model {cli_model}` |
+
+The guarantee is matching driver or fail-fast: `openai/gpt-5.5` must not silently run through `claude -p`, and `anthropic/claude-opus-4-7` must not silently run through `codex exec`. This proves GSD command routing and normalized CLI model arguments; it does not claim wire-level provider API proof inside those external CLI tools.
+
 ## Docs
 
 - [docs/hermes-install.md](docs/hermes-install.md) — Hermes install modes (global, external-dir, macOS canonicalization)
@@ -48,9 +73,10 @@ Current proof boundary is conservative:
 - [docs/releases/v1.4.30-runtime-model-binding-receipts.md](docs/releases/v1.4.30-runtime-model-binding-receipts.md) — Release notes for Hermes runtime model binding receipts and fail-fast validation
 - [docs/releases/v1.5.0-upstream-sync-f3685d91.md](docs/releases/v1.5.0-upstream-sync-f3685d91.md) — Release notes for the upstream `get-shit-done-cc@1.38.5` sync
 - [docs/releases/v1.6.0-upstream-sync-9472f343.md](docs/releases/v1.6.0-upstream-sync-9472f343.md) — Release notes for the upstream `9472f343` sync
+- [docs/releases/v1.8.0-provider-routed-agent-execution.md](docs/releases/v1.8.0-provider-routed-agent-execution.md) — Draft release notes for provider-routed agent execution
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Based on Upstream GSD
 
-Based on upstream `get-shit-done@9472f343` — see [the upstream project](https://github.com/gsd-build/get-shit-done) for the source GSD system this fork extends.
+Based on upstream `get-shit-done@eeaf9c55` — see [the upstream project](https://github.com/gsd-build/get-shit-done) for the source GSD system this fork extends.

@@ -58,8 +58,9 @@ Execution Tuning:
 Discussion Tuning:
 - `workflow.max_discuss_passes` (default: `3`)
 
-Cross-AI Execution:
-- `workflow.cross_ai_execution` (default: `false`)
+Cross-AI Execution / Provider Routing:
+- `workflow.agent_execution_router` (default: `null`; set `"provider-cli"` for per-agent provider→CLI routing)
+- `workflow.cross_ai_execution` (default: `false`; legacy whole-plan fallback, lower priority than valid provider-cli bindings)
 - `workflow.cross_ai_command` (default: `null`)
 - `workflow.cross_ai_timeout` (default: `300`)
 

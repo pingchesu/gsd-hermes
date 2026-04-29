@@ -236,6 +236,20 @@ Execute all plans in a phase with wave-based parallelization, or run a specific 
 
 **Hermes runtime model receipts:** On Hermes, execute-phase init payloads include `model_binding_receipts` for executor and verifier agents. These receipts show the configured model, resolved model token, binding source, Hermes binding channel, and proof boundary before dispatch. Explicit per-agent `model_overrides` must either bind through the Hermes child construction path or fail before spawn; execute-phase must not silently fall back to the parent/default model.
 
+**Provider-routed CLI execution:** When `workflow.agent_execution_router` is `"provider-cli"`, execute-phase also reads `agent_execution_bindings` and uses the matching provider CLI per agent before legacy fallback paths:
+
+```text
+model_overrides.gsd-executor = "openai/gpt-5.5"
+→ codex-cli
+→ codex exec --model gpt-5.5
+
+model_overrides.gsd-verifier = "anthropic/claude-opus-4-7"
+→ claude-cli
+→ claude -p --model claude-opus-4-7
+```
+
+The guarantee is matching driver or fail-fast. OpenAI/GPT bindings must not silently run through `claude -p`, Anthropic/Claude bindings must not silently run through `codex exec`, and `workflow.cross_ai_execution` remains a lower-priority whole-plan fallback.
+
 ---
 
 ### `/gsd-verify-work`
@@ -1102,7 +1116,7 @@ All answers are merged via `gsd-sdk query config-set` into the resolved project 
 
 ### `/gsd-settings-advanced`
 
-Interactive configuration of power-user knobs — plan bounce, subagent timeouts, branch templates, cross-AI delegation, context window, and runtime output. Use after `/gsd-settings` once the common-case toggles are dialed in.
+Interactive configuration of power-user knobs — plan bounce, subagent timeouts, branch templates, provider routing / cross-AI delegation, context window, and runtime output. Use after `/gsd-settings` once the common-case toggles are dialed in.
 
 Six sections, each a focused prompt batch:
 
@@ -1111,7 +1125,7 @@ Six sections, each a focused prompt batch:
 | Planning Tuning | `workflow.plan_bounce`, `workflow.plan_bounce_passes`, `workflow.plan_bounce_script`, `workflow.subagent_timeout`, `workflow.inline_plan_threshold` |
 | Execution Tuning | `workflow.node_repair`, `workflow.node_repair_budget`, `workflow.auto_prune_state` |
 | Discussion Tuning | `workflow.max_discuss_passes` |
-| Cross-AI Execution | `workflow.cross_ai_execution`, `workflow.cross_ai_command`, `workflow.cross_ai_timeout` |
+| Cross-AI / Provider Routing | `workflow.agent_execution_router`, `workflow.cross_ai_execution`, `workflow.cross_ai_command`, `workflow.cross_ai_timeout` |
 | Git Customization | `git.base_branch`, `git.phase_branch_template`, `git.milestone_branch_template` |
 | Runtime / Output | `response_language`, `context_window`, `search_gitignored`, `graphify.build_timeout` |
 

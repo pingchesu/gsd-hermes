@@ -26,6 +26,7 @@ import { homedir } from 'node:os';
 import { loadConfig, type GSDConfig } from '../config.js';
 import { resolveModel, MODEL_PROFILES } from './config-query.js';
 import { resolveAgentBinding, toRuntimeModelReceipt, type RuntimeModelReceipt } from './runtime-model-contract.js';
+import { buildAgentExecutionBindings } from './agent-execution-router.js';
 import { findPhase } from './phase.js';
 import { roadmapGetPhase, getMilestoneInfo, extractCurrentMilestone, extractPhasesFromSection } from './roadmap.js';
 import { planningPaths, normalizePhaseName, toPosixPath, resolveAgentsDir, detectRuntime } from './helpers.js';
@@ -316,13 +317,17 @@ export const initExecutePhase: QueryHandler = async (args, projectDir, workstrea
   const incompletePlans = (phaseInfo?.incomplete_plans || []) as string[];
   const projectCode = (config as Record<string, unknown>).project_code as string || '';
 
+  const modelBindingReceipts = buildModelBindingReceipts('execute-phase', config, [
+    { role: 'executor', agent: 'gsd-executor' },
+    { role: 'verifier', agent: 'gsd-verifier' },
+  ]);
+  const agentExecutionBindings = buildAgentExecutionBindings(config, modelBindingReceipts);
+
   const result: Record<string, unknown> = {
     executor_model: executorModel,
     verifier_model: verifierModel,
-    model_binding_receipts: buildModelBindingReceipts('execute-phase', config, [
-      { role: 'executor', agent: 'gsd-executor' },
-      { role: 'verifier', agent: 'gsd-verifier' },
-    ]),
+    model_binding_receipts: modelBindingReceipts,
+    ...(agentExecutionBindings ? { agent_execution_bindings: agentExecutionBindings } : {}),
     tdd_mode: config.workflow.tdd_mode ?? false,
     commit_docs: config.commit_docs,
     sub_repos: (config as Record<string, unknown>).sub_repos ?? [],
