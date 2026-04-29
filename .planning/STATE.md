@@ -3,9 +3,9 @@
 ## Current Position
 
 Phase: 8.4 — Docs, Gates, and Release Readiness
-Plan: None
-Status: Phase 8.3 complete; ready to plan documentation and release-readiness gates
-Last activity: 2026-04-29 — Completed Phase 8.3 strict provider routing regression coverage
+Plan: 08.4-01-docs-gates-release-readiness
+Status: Phase 8.4 planned; ready to execute documentation and release-readiness gates
+Last activity: 2026-04-29 — Planned Phase 8.4 docs, gates, and release readiness
 
 ## Project Reference
 
@@ -27,7 +27,7 @@ Goal: Make `model_overrides` drive deterministic per-agent execution routing: An
 Recommended command:
 
 ```text
-/gsd-plan-phase 8.4
+/gsd-execute-phase 8.4
 ```
 
 ## Accumulated Context
