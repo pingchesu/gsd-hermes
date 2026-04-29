@@ -2,10 +2,10 @@
 
 ## Current Position
 
-Phase: 8.2 — Execute-Phase Provider Dispatcher
-Plan: 2 executable plans created
-Status: Phase 8.2 planned; ready for execution
-Last activity: 2026-04-29 — Planned Phase 8.2 provider CLI dispatcher implementation
+Phase: 8.3 — Strict Regression Coverage
+Plan: Not yet planned
+Status: Phase 8.2 complete; ready to plan Phase 8.3
+Last activity: 2026-04-29 — Executed Phase 8.2 provider CLI dispatcher implementation
 
 ## Project Reference
 
@@ -22,12 +22,12 @@ Goal: Make `model_overrides` drive deterministic per-agent execution routing: An
 
 ## Next Up
 
-**Phase 8.2: Execute-Phase Provider Dispatcher** — Make `/gsd-execute-phase` consume execution bindings and spawn the correct CLI path with preflight and receipts.
+**Phase 8.3: Strict Regression Coverage** — Prove Anthropic→Claude and OpenAI→Codex routing, and prevent silent fallback to the wrong runtime.
 
 Recommended command:
 
 ```text
-/gsd-execute-phase 8.2
+/gsd-plan-phase 8.3
 ```
 
 ## Accumulated Context

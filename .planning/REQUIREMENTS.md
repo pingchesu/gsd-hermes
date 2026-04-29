@@ -15,11 +15,11 @@
 
 ### Dispatcher Behavior
 
-- [ ] **DISP-01**: `/gsd-execute-phase` consumes SDK-provided execution bindings instead of inferring CLI commands directly from freeform workflow text.
-- [ ] **DISP-02**: When `workflow.agent_execution_router = "provider-cli"`, executor/verifier spawns use `claude-cli` for Anthropic bindings and `codex-cli` for OpenAI bindings.
-- [ ] **DISP-03**: Driver preflight checks verify required CLI availability and surface authentication/setup failures before executing a plan.
-- [ ] **DISP-04**: Execution receipts are printed before spawn and include enough evidence to inspect `agent → configured model → provider → driver → cli model`.
-- [ ] **DISP-05**: `workflow.cross_ai_execution` remains a legacy whole-plan fallback and does not override a valid provider-routed direct binding.
+- [x] **DISP-01**: `/gsd-execute-phase` consumes SDK-provided execution bindings instead of inferring CLI commands directly from freeform workflow text.
+- [x] **DISP-02**: When `workflow.agent_execution_router = "provider-cli"`, executor/verifier spawns use `claude-cli` for Anthropic bindings and `codex-cli` for OpenAI bindings.
+- [x] **DISP-03**: Driver preflight checks verify required CLI availability and surface authentication/setup failures before executing a plan.
+- [x] **DISP-04**: Execution receipts are printed before spawn and include enough evidence to inspect `agent → configured model → provider → driver → cli model`.
+- [x] **DISP-05**: `workflow.cross_ai_execution` remains a legacy whole-plan fallback and does not override a valid provider-routed direct binding.
 
 ### Tests and Safety
 

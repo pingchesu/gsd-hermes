@@ -341,6 +341,7 @@ Set via `manager.*` namespace (e.g., `"manager": { "flags": { "discuss": "--auto
 |-----|------|---------|----------------|-------------|
 | `parallelization` | boolean\|object | `true` | `true`, `false`, `{ "enabled": true }` | Enable parallel wave execution; object form allows additional sub-keys |
 | `model_overrides` | object\|null | `null` | `{ "<agent-type>": "<model-id>" }` | Override model selection per agent type |
+| `workflow.agent_execution_router` | string\|null | `null` | `"provider-cli"`, `null` | gsd-hermes per-agent provider routing. With `provider-cli`, `agent_execution_bindings` route Anthropic/Claude models to `claude -p` and OpenAI/GPT models to `codex exec`; unsupported drivers fail fast. |
 | `agent_skills` | object | `{}` | `{ "<agent-type>": "<skill-set>" }` | Assign skill sets to specific agent types |
 | `sub_repos` | array | `[]` | Array of relative path strings | Child directories with independent `.git` repos (auto-detected) |
 
@@ -363,7 +364,9 @@ Several config fields affect each other or trigger special behavior:
 
 2. **`branching_strategy` controls branch templates** -- The `phase_branch_template` and `milestone_branch_template` fields are only used when `branching_strategy` is set to `"phase"` or `"milestone"` respectively. When `branching_strategy` is `"none"`, all template fields are ignored.
 
-3. **`context_window` threshold triggers** -- When `context_window >= 500000`, workflows enable adaptive context enrichment: full-body reads of prior phase SUMMARYs, cross-phase context injection in plan-phase, and deeper read depth for anti-pattern references. Below 500000, only frontmatter and summaries are read.
+3. **`workflow.agent_execution_router` has priority over legacy `workflow.cross_ai_execution`** -- `provider-cli` is per-agent provider routing driven by `model_overrides` and `agent_execution_bindings`; `cross_ai_execution` is a legacy whole-plan fallback. A valid provider-cli binding must not be silently overridden by cross-AI fallback.
+
+4. **`context_window` threshold triggers** -- When `context_window >= 500000`, workflows enable adaptive context enrichment: full-body reads of prior phase SUMMARYs, cross-phase context injection in plan-phase, and deeper read depth for anti-pattern references. Below 500000, only frontmatter and summaries are read.
 
 4. **`parallelization` polymorphism** -- Accepts both a simple boolean and an object with an `enabled` field. `loadConfig()` normalizes either form to a boolean. `{ "enabled": true }` is equivalent to `true`.
 

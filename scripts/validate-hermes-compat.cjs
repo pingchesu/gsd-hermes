@@ -10,6 +10,8 @@ const testFiles = [
   'tests/multi-runtime-select.test.cjs',
   'tests/bugs-1656-1657.test.cjs',
   'tests/runtime-model-parity.test.cjs',
+  'tests/provider-cli-dispatch.test.cjs',
+  'tests/agent-execution-router.test.cjs',
   'tests/hermes-sdk-query.test.cjs',
 ];
 

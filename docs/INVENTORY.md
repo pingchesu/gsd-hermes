@@ -361,7 +361,7 @@ The `gsd-planner` agent is decomposed into a core agent plus reference modules t
 
 ---
 
-## CLI Modules (31 shipped)
+## CLI Modules (32 shipped)
 
 Full listing: `get-shit-done/bin/lib/*.cjs`.
 
@@ -387,6 +387,7 @@ Full listing: `get-shit-done/bin/lib/*.cjs`.
 | `milestone.cjs` | Milestone archival, requirements marking |
 | `model-profiles.cjs` | Model profile resolution table (authoritative profile data) |
 | `phase.cjs` | Phase directory operations, decimal numbering, plan indexing |
+| `provider-cli-dispatch.cjs` | gsd-hermes provider-cli command rendering and preflight helper for `agent_execution_bindings` (`claude -p` / `codex exec`) |
 | `profile-output.cjs` | Profile rendering, USER-PROFILE.md and dev-preferences.md generation |
 | `profile-pipeline.cjs` | User behavioral profiling data pipeline, session file scanning |
 | `roadmap.cjs` | ROADMAP.md parsing, phase extraction, plan progress |
