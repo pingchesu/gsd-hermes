@@ -2,10 +2,10 @@
 
 ## Current Position
 
-Phase: 8.1 — Execution Binding Resolver
-Plan: .planning/phases/8.1-execution-binding-resolver/PLAN.md
-Status: Phase 8.1 planned; ready for execution
-Last activity: 2026-04-29 — Renumbered v1.8 phases to 8.1–8.4 and created Phase 8.1 plan
+Phase: 8.2 — Execute-Phase Provider Dispatcher
+Plan: pending
+Status: Phase 8.1 complete; ready for Phase 8.2 planning
+Last activity: 2026-04-29 — Completed Phase 8.1 SDK execution binding resolver
 
 ## Project Reference
 
@@ -22,18 +22,18 @@ Goal: Make `model_overrides` drive deterministic per-agent execution routing: An
 
 ## Next Up
 
-**Phase 8.1: Execution Binding Resolver** — Add a deterministic SDK/router layer that maps resolved model bindings to provider family, CLI driver, and normalized CLI model.
+**Phase 8.2: Execute-Phase Provider Dispatcher** — Make `/gsd-execute-phase` consume execution bindings and spawn the correct CLI path with preflight and receipts.
 
 Recommended command:
 
 ```text
-/gsd-discuss-phase 8.1
+/gsd-discuss-phase 8.2
 ```
 
 or, if proceeding directly:
 
 ```text
-/gsd-plan-phase 8.1
+/gsd-plan-phase 8.2
 ```
 
 ## Accumulated Context

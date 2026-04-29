@@ -7,11 +7,11 @@
 
 ### Routing Contract
 
-- [ ] **ROUTE-01**: The SDK resolves each executable GSD agent into an execution binding containing `agent`, `configured_model`, `provider_family`, `execution_driver`, `cli_model`, `source`, `strict`, and diagnostic text before spawn time.
-- [ ] **ROUTE-02**: `anthropic/claude-*`, `claude-*`, and known Claude aliases route to `claude-cli` and normalize to the Claude CLI model token passed to `claude -p --model`.
-- [ ] **ROUTE-03**: `openai/*`, `gpt-*`, and known OpenAI aliases route to `codex-cli` and normalize to the Codex CLI model token passed to `codex exec --model`.
-- [ ] **ROUTE-04**: `inherit`, omitted model, and runtime-default model bindings preserve existing behavior when provider-routed execution is not explicitly enabled.
-- [ ] **ROUTE-05**: Unsupported provider families fail fast with an actionable error and never fall back to the parent runtime or another CLI.
+- [x] **ROUTE-01**: The SDK resolves each executable GSD agent into an execution binding containing `agent`, `configured_model`, `provider_family`, `execution_driver`, `cli_model`, `source`, `strict`, and diagnostic text before spawn time.
+- [x] **ROUTE-02**: `anthropic/claude-*`, `claude-*`, and known Claude aliases route to `claude-cli` and normalize to the Claude CLI model token passed to `claude -p --model`.
+- [x] **ROUTE-03**: `openai/*`, `gpt-*`, and known OpenAI aliases route to `codex-cli` and normalize to the Codex CLI model token passed to `codex exec --model`.
+- [x] **ROUTE-04**: `inherit`, omitted model, and runtime-default model bindings preserve existing behavior when provider-routed execution is not explicitly enabled.
+- [x] **ROUTE-05**: Unsupported provider families fail fast with an actionable error and never fall back to the parent runtime or another CLI.
 
 ### Dispatcher Behavior
 
@@ -57,11 +57,11 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ROUTE-01 | Phase 8.1 | Pending |
-| ROUTE-02 | Phase 8.1 | Pending |
-| ROUTE-03 | Phase 8.1 | Pending |
-| ROUTE-04 | Phase 8.1 | Pending |
-| ROUTE-05 | Phase 8.1 | Pending |
+| ROUTE-01 | Phase 8.1 | Complete |
+| ROUTE-02 | Phase 8.1 | Complete |
+| ROUTE-03 | Phase 8.1 | Complete |
+| ROUTE-04 | Phase 8.1 | Complete |
+| ROUTE-05 | Phase 8.1 | Complete |
 | DISP-01 | Phase 8.2 | Pending |
 | DISP-02 | Phase 8.2 | Pending |
 | DISP-03 | Phase 8.2 | Pending |

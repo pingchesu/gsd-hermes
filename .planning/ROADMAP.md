@@ -9,7 +9,7 @@
 
 | # | Phase | Goal | Requirements | Success Criteria |
 |---|-------|------|--------------|------------------|
-| 8.1 | Execution Binding Resolver | Add a deterministic SDK/router layer that maps resolved model bindings to provider family, CLI driver, and normalized CLI model. | ROUTE-01, ROUTE-02, ROUTE-03, ROUTE-04, ROUTE-05 | 5 |
+| 8.1 | Execution Binding Resolver | ✅ Complete — SDK emits strict provider-cli execution bindings from explicit model overrides. | ROUTE-01, ROUTE-02, ROUTE-03, ROUTE-04, ROUTE-05 | 5/5 |
 | 8.2 | Execute-Phase Provider Dispatcher | Make `/gsd-execute-phase` consume execution bindings and spawn the correct CLI path with preflight and receipts. | DISP-01, DISP-02, DISP-03, DISP-04, DISP-05 | 5 |
 | 8.3 | Strict Regression Coverage | Prove Anthropic→Claude and OpenAI→Codex routing, and prevent silent fallback to the wrong runtime. | TEST-01, TEST-02, TEST-03, TEST-04, TEST-05 | 5 |
 | 8.4 | Docs, Gates, and Release Readiness | Update operator docs and run full local release gates without publishing. | TEST-06, DOC-01, DOC-02, DOC-03 | 5 |
@@ -113,13 +113,13 @@
 Start with:
 
 ```text
-/gsd-discuss-phase 8.1
+/gsd-discuss-phase 8.2
 ```
 
 or, if the design is already accepted:
 
 ```text
-/gsd-plan-phase 8.1
+/gsd-plan-phase 8.2
 ```
 
 ## Coverage Validation
