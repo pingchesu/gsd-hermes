@@ -2,9 +2,9 @@
 
 # GSD Hermes
 
-**Hermes-first Get Shit Done distribution with strict provider-routed agent execution.**
+**Run the full Get Shit Done workflow inside Hermes, with model routing you can actually trust.**
 
-`gsd-hermes` packages the upstream [Get Shit Done](https://github.com/gsd-build/get-shit-done) workflow for Hermes Agent users who want the normal `/gsd-*` planning/execution loop plus explicit, auditable model/provider routing.
+`gsd-hermes` is the Hermes-first distribution of [Get Shit Done](https://github.com/gsd-build/get-shit-done). It gives you the familiar `/gsd-*` planning, execution, review, and shipping loop, then adds the piece Hermes users keep needing in real projects: explicit per-agent provider routing with no quiet fallback to the wrong CLI.
 
 [![npm version](https://img.shields.io/npm/v/gsd-hermes?style=for-the-badge&logo=npm&logoColor=white&color=CB3837)](https://www.npmjs.com/package/gsd-hermes)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
@@ -17,47 +17,47 @@ npx gsd-hermes@latest --hermes --global
 
 ---
 
-## What this distribution is
+## Why use gsd-hermes?
 
-`gsd-hermes` is not a rewrite of GSD. It is a downstream distribution that stays close to upstream GSD while making Hermes the primary install and runtime target.
+GSD is great at turning messy software work into concrete phases, plans, execution passes, reviews, and release steps. Hermes is great at running a tool-rich local agent environment. `gsd-hermes` brings those two together without pretending they are the same system.
 
 Use it when you want:
 
-- the upstream GSD command/workflow model (`/gsd-new-project`, `/gsd-plan-phase`, `/gsd-execute-phase`, `/gsd-ship`, ...);
-- Hermes Agent install semantics out of the box;
-- project-linked local Hermes installs via `./.gsd-hermes` + `skills.external_dirs`;
-- strict per-agent model intent through `model_overrides`;
-- deterministic provider-family dispatch for executor/verifier-style subagents;
-- fail-fast behavior when a configured model cannot be routed safely.
+- the upstream GSD command model (`/gsd-new-project`, `/gsd-plan-phase`, `/gsd-execute-phase`, `/gsd-ship`, ...);
+- a Hermes-native install path that works globally or links cleanly into one repo;
+- inspectable project-local skills under `./.gsd-hermes` when you choose local mode;
+- `model_overrides` that mean what they say for planner/executor/verifier agents;
+- OpenAI/GPT agents routed through Codex CLI and Claude agents routed through Claude Code CLI;
+- fail fast diagnostics instead of a configured GPT executor quietly running as `claude -p`.
 
-Upstream GSD now has basic Hermes Agent support. The value of `gsd-hermes` is the Hermes-first packaging, downstream compatibility gates, and strict provider-routed execution layer that prevents a configured GPT/OpenAI agent from silently falling back to `claude -p`.
+Upstream GSD now includes basic Hermes support. This package stays close to upstream, but keeps the Hermes-first packaging, compatibility gates, and strict provider-routed execution layer that make mixed-provider workflows safer to operate.
 
 ---
 
 ## Quick start
 
-### Global Hermes install
+### Install into Hermes globally
 
 ```bash
 npx gsd-hermes@latest --hermes --global
 ```
 
-Installs GSD skills under the Hermes home directory (`~/.hermes` by default, or `HERMES_HOME` / an explicit config dir when provided).
+Use this when you want the `/gsd-*` commands available everywhere you run Hermes. The installer writes the GSD skills into your Hermes home directory (`~/.hermes` by default, or `HERMES_HOME` / an explicit config dir when provided).
 
-### Project-linked Hermes install
+### Link it to one project
 
 ```bash
 npx gsd-hermes@latest --hermes --local
 ```
 
-For Hermes, local install means **project-linked mode**:
+Use this when a repo should carry its own inspectable GSD skill tree. For Hermes, local install means **project-linked mode**:
 
 ```text
 ./.gsd-hermes/skills/...
 ~/.hermes/config.yaml  # updated with skills.external_dirs
 ```
 
-This avoids claiming Hermes has a native per-project local skills root while still giving each repo an inspectable, versioned GSD skill tree.
+Hermes does not have a true per-project native skills root, so `gsd-hermes` links the project into Hermes via `skills.external_dirs`. You get a repo-visible skill tree without hiding how Hermes actually loads skills.
 
 ### Verify
 
@@ -78,6 +78,8 @@ Then start a project:
 ---
 
 ## Strict provider-routed execution
+
+The point of this package is simple: if you say the executor should use GPT, it should not quietly become a Claude subprocess just because delegation fell back to an older path.
 
 `model_overrides` is the source of per-agent model intent. When `workflow.agent_execution_router` is set to `"provider-cli"`, GSD resolves each configured model into an execution driver before spawning work.
 
