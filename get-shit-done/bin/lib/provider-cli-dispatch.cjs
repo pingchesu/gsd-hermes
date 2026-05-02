@@ -64,13 +64,6 @@ function renderProviderCliReceipt(binding) {
   };
 }
 
-function providerNameForHermes(providerFamily) {
-  if (providerFamily === 'openai') return 'openai';
-  if (providerFamily === 'anthropic') return 'anthropic';
-  if (providerFamily === 'google') return 'google';
-  return null;
-}
-
 function renderHermesDisplay(argv, promptPath, workdir) {
   const prefix = `cd ${shellQuote(workdir)} && `;
   const queryIndex = argv.indexOf('--query');
@@ -123,17 +116,12 @@ function renderProviderCliCommand(binding, options = {}) {
       '-C', workdir,
     ];
   } else if (driver === 'hermes-chat' || driver === 'hermes-terminal-tool') {
-    const provider = providerNameForHermes(normalized.provider_family);
-    if (!provider) {
-      throw bindingError(normalized, 'Hermes-native command rendering requires a supported provider_family.');
-    }
     argv = [
       'hermes',
       'chat',
       '--quiet',
       '--source', 'gsd-provider-cli',
       '--model', cliModel,
-      '--provider', provider,
     ];
     if (driver === 'hermes-terminal-tool') {
       argv.push('--toolsets', 'terminal,file');
@@ -190,7 +178,7 @@ function preflightProviderCliDriver(binding, env = process.env) {
       command,
       receipt,
       message: `Cannot execute ${normalized.agent || 'agent'}: unsupported provider CLI binding.`,
-      suggested_fix: normalized.suggested_fix || 'Choose a supported provider-cli model override or disable workflow.agent_execution_router.',
+      suggested_fix: normalized.suggested_fix || 'Choose a supported model_overrides value such as hermes/gpt-5-5, openai/gpt-5.5, or anthropic/claude-opus-4-7.',
     };
   }
 
@@ -205,7 +193,7 @@ function preflightProviderCliDriver(binding, env = process.env) {
         ? 'Install/login Claude Code CLI or change this agent model_overrides entry to a provider routed to an available driver.'
         : driver === 'codex-cli'
           ? 'Install/login Codex CLI or change this agent model_overrides entry to a provider routed to an available driver.'
-          : 'Install/login Hermes Agent CLI and configure the requested provider credentials, or set workflow.agent_execution_driver to provider-cli.',
+          : 'Install/login Hermes Agent CLI and configure the requested provider credentials, or use a plain openai/* or anthropic/* model_overrides value for direct provider-CLI routing.',
       path_entries: pathEntriesFromEnv(env),
     };
   }

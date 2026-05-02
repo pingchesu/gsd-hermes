@@ -10,6 +10,26 @@ syncs from.
 
 ## [Unreleased]
 
+## 1.11.0 — 2026-05-03
+
+GSD Hermes package version: `1.11.0`
+Upstream GSD base: `upstream/main@f2decefe` / upstream `get-shit-done-cc@1.40.0-rc.1` development line
+
+### Added
+- **Hermes model-prefix routing** — `model_overrides` values such as `hermes/gpt-5-5` and `hermes/claude-opus-4-7` now auto-select Hermes-native `hermes chat` execution without requiring `workflow.agent_execution_router` or `workflow.agent_execution_driver` in normal project config.
+- **Per-agent mixed routing safety** — `hermes/*` routes through Hermes while plain `openai/*` and `anthropic/*` overrides in the same phase continue to use Codex CLI and Claude Code CLI respectively.
+
+### Changed
+- Simplified README, configuration, command, and execute-phase workflow docs so the primary UX is model-string-first instead of `agent_execution_*`-first.
+- Hermes command rendering now omits `--provider ...`; Hermes receives a fully qualified model token such as `openai/gpt-5.5` or `anthropic/claude-opus-4-7` and resolves provider handling through its own config/runtime behavior.
+
+### Documentation
+- Added release notes: [`docs/releases/v1.11.0-hermes-model-prefix-routing.md`](docs/releases/v1.11.0-hermes-model-prefix-routing.md).
+
+### Verification
+- `npm run build:sdk`
+- `node --test tests/agent-execution-router.test.cjs tests/provider-cli-dispatch.test.cjs`
+
 ## 1.10.0 — 2026-05-03
 
 GSD Hermes package version: `1.10.0`

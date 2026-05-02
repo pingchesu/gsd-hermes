@@ -211,26 +211,27 @@ Execute all plans in a phase with wave-based parallelization, or run a specific 
 
 **Hermes runtime model receipts:** On Hermes, execute-phase init payloads include `model_binding_receipts` for executor and verifier agents. These receipts show the configured model, resolved model token, binding source, Hermes binding channel, and proof boundary before dispatch. Explicit per-agent `model_overrides` must either bind through the Hermes child construction path or fail before spawn; execute-phase must not silently fall back to the parent/default model.
 
-**Provider-routed execution:** When `workflow.agent_execution_router` is `"provider-cli"`, execute-phase also reads `agent_execution_bindings` and uses the matching strict execution route per agent before legacy fallback paths:
+**Provider-routed execution:** execute-phase reads `agent_execution_bindings` and uses the matching strict execution route per agent before legacy fallback paths. The easiest Hermes-native form is the model namespace `hermes/<model>` — no `workflow.agent_execution_*` fields are required:
 
 ```text
+model_overrides.gsd-executor = "hermes/gpt-5-5"
+→ hermes-terminal-tool
+→ hermes chat --toolsets terminal,file --model openai/gpt-5.5
+
+model_overrides.gsd-verifier = "hermes/claude-opus-4-7"
+→ hermes-terminal-tool
+→ hermes chat --toolsets terminal,file --model anthropic/claude-opus-4-7
+
 model_overrides.gsd-executor = "openai/gpt-5.5"
-workflow.agent_execution_driver = "provider-cli" (default)
 → codex-cli
 → codex exec --model gpt-5.5
 
 model_overrides.gsd-verifier = "anthropic/claude-opus-4-7"
-workflow.agent_execution_driver = "provider-cli" (default)
 → claude-cli
 → claude -p --model claude-opus-4-7
-
-model_overrides.gsd-executor = "openai/gpt-5.5"
-workflow.agent_execution_driver = "hermes-terminal-tool"
-→ hermes-terminal-tool
-→ hermes chat --toolsets terminal,file --model openai/gpt-5.5 --provider openai
 ```
 
-The guarantee is matching driver or fail-fast. OpenAI/GPT bindings must not silently run through `claude -p`, Anthropic/Claude bindings must not silently run through `codex exec`, Hermes-native driver preferences must not silently fall back to provider CLIs, and `workflow.cross_ai_execution` remains a lower-priority whole-plan fallback.
+The guarantee is matching driver or fail-fast. `hermes/*` bindings must not silently fall back to provider CLIs, OpenAI/GPT bindings must not silently run through `claude -p`, Anthropic/Claude bindings must not silently run through `codex exec`, and `workflow.cross_ai_execution` remains a lower-priority whole-plan fallback.
 
 ---
 
@@ -915,7 +916,7 @@ Configure GSD settings interactively — workflow toggles, advanced knobs, integ
 | Planning Tuning | `workflow.plan_bounce`, `workflow.plan_bounce_passes`, `workflow.plan_bounce_script`, `workflow.subagent_timeout`, `workflow.inline_plan_threshold` |
 | Execution Tuning | `workflow.node_repair`, `workflow.node_repair_budget`, `workflow.auto_prune_state` |
 | Discussion Tuning | `workflow.max_discuss_passes` |
-| Cross-AI / Provider Routing | `workflow.agent_execution_router`, `workflow.cross_ai_execution`, `workflow.cross_ai_command`, `workflow.cross_ai_timeout` |
+| Cross-AI / Provider Routing | `model_overrides` (`hermes/*`, `openai/*`, `anthropic/*`), `workflow.cross_ai_execution`, `workflow.cross_ai_command`, `workflow.cross_ai_timeout` |
 | Git Customization | `git.base_branch`, `git.phase_branch_template`, `git.milestone_branch_template` |
 | Runtime / Output | `response_language`, `context_window`, `search_gitignored`, `graphify.build_timeout` |
 
