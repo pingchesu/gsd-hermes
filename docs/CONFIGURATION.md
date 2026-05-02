@@ -4,9 +4,9 @@
 
 ---
 
-## GSD Hermes v1.9 Release Note
+## GSD Hermes v1.9.1 Release Note
 
-`gsd-hermes@1.9.0` carries upstream config and SDK query changes through `upstream/main@de25400b` while preserving the downstream strict-provider contract. For Hermes projects, `model_overrides` are the source of model intent; `workflow.agent_execution_router: "provider-cli"` binds OpenAI/GPT overrides to Codex CLI, Anthropic/Claude overrides to Claude CLI, and rejects unsupported routes instead of silently falling back to another provider.
+`gsd-hermes@1.9.1` carries upstream config, SDK query, and SDK diagnostic changes through `upstream/main@f2decefe` while preserving the downstream strict-provider contract. For Hermes projects, `model_overrides` are the source of model intent; `workflow.agent_execution_router: "provider-cli"` binds OpenAI/GPT overrides to Codex CLI, Anthropic/Claude overrides to Claude CLI, and rejects unsupported routes instead of silently falling back to another provider.
 
 ---
 
