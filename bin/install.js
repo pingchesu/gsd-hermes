@@ -7699,16 +7699,16 @@ function reportLocalPatches(configDir, runtime = 'claude') {
 
   if (meta.files && meta.files.length > 0) {
     const reapplyCommand = (runtime === 'opencode' || runtime === 'kilo' || runtime === 'copilot')
-      ? '/gsd-reapply-patches'
+      ? '/gsd-update --reapply'
       : runtime === 'gemini'
-        ? '/gsd:reapply-patches'
+        ? '/gsd:update --reapply'
         : runtime === 'codex'
-          ? '$gsd-reapply-patches'
+          ? '$gsd-update --reapply'
         : runtime === 'cursor'
-          ? 'gsd-reapply-patches (mention the skill name)'
+          ? 'gsd-update --reapply (mention the skill name)'
           : runtime === 'hermes'
             ? null
-          : '/gsd-reapply-patches';
+            : '/gsd-update --reapply';
     console.log('');
     console.log('  ' + yellow + 'Local patches detected' + reset + ' (from v' + meta.from_version + '):');
     for (const f of meta.files) {
@@ -9555,6 +9555,87 @@ function classifySdkInstall(sdkDir) {
   return { mode, npxCache, readOnly };
 }
 
+/**
+ * #2974: pure builder for the SDK fail-fast report. Returns a structured IR
+ * with everything the renderer needs PLUS everything tests need to assert
+ * on. Tests can call `buildSdkFailFastReport(sdkDir, sdkCliPath)` directly
+ * and assert on `report.reason`, `report.context`, `report.fix_command`
+ * etc. without intercepting console.error or matching against rendered
+ * text.
+ *
+ * Shape (frozen contract — extending requires a new test):
+ *   {
+ *     ok: false,
+ *     reason: 'sdk_fail_fast',                 // ERROR_REASON.SDK_FAIL_FAST
+ *     context: 'npx-cache' | 'tarball' | 'dev-clone',
+ *     missing_path: '<path>/sdk/dist/cli.js',
+ *     missing_artifact: 'sdk/dist',
+ *     fix_command: 'npm install -g gsd-hermes@latest' | 'cd sdk && npm install && npm run build',
+ *     attempted_nested_install: false,         // contract: never true
+ *   }
+ */
+function buildSdkFailFastReport(sdkDir, sdkCliPath) {
+  const ctx = classifySdkInstall(sdkDir);
+  let context, fix_command;
+  if (ctx.mode === 'tarball') {
+    context = ctx.npxCache ? 'npx-cache' : 'tarball';
+    fix_command = 'npm install -g gsd-hermes@latest';
+  } else {
+    context = 'dev-clone';
+    fix_command = 'cd sdk && npm install && npm run build';
+  }
+  return {
+    ok: false,
+    reason: 'sdk_fail_fast',
+    context,
+    missing_path: sdkCliPath,
+    missing_artifact: 'sdk/dist',
+    fix_command,
+    attempted_nested_install: false,
+  };
+}
+
+/**
+ * Renderer for the structured fail-fast report. Text formatting only —
+ * tests never call this. Splits the IR fields back into the same human-
+ * readable lines the previous shape produced.
+ */
+function renderSdkFailFastReport(ir) {
+  const bar = '━'.repeat(72);
+  const redBold = `${red}${bold}`;
+  console.error('');
+  console.error(`${redBold}${bar}${reset}`);
+  console.error(`${redBold}  ✗ GSD SDK dist not found — /gsd-* commands will not work${reset}`);
+  console.error(`${redBold}${bar}${reset}`);
+  console.error(`  ${red}Reason:${reset} ${ir.missing_artifact}/cli.js not found at ${ir.missing_path}`);
+  console.error('');
+  if (ir.context === 'npx-cache') {
+    console.error(`  Detected read-only npx cache install (${dim}${path.dirname(ir.missing_path).replace(/\/dist$/, '')}${reset}).`);
+    console.error(`  The installer will ${bold}not${reset} attempt \`npm install\` inside the npx cache.`);
+    console.error('');
+    console.error(`  Fix: install a version that ships sdk/dist/ globally:`);
+    console.error(`    ${cyan}${ir.fix_command}${reset}`);
+    console.error(`    ${dim}(compatible legacy package name: npm install -g get-shit-done-cc@latest)${reset}`);
+    console.error(`  Or, if you prefer a one-shot run, clear the npx cache first:`);
+    console.error(`    ${cyan}npx --yes gsd-hermes@latest${reset}`);
+    console.error(`  Or build from source (git clone):`);
+    console.error(`    ${cyan}git clone https://github.com/pingchesu/gsd-hermes && cd gsd-hermes/sdk && npm install && npm run build${reset}`);
+  } else if (ir.context === 'tarball') {
+    console.error(`  The published tarball appears to be missing sdk/dist/ (see #2647).`);
+    console.error('');
+    console.error(`  Fix: install a version that ships sdk/dist/ globally:`);
+    console.error(`    ${cyan}${ir.fix_command}${reset}`);
+    console.error(`    ${dim}(compatible legacy package name: npm install -g get-shit-done-cc@latest)${reset}`);
+    console.error(`  Or build from source (git clone):`);
+    console.error(`    ${cyan}git clone https://github.com/pingchesu/gsd-hermes && cd gsd-hermes/sdk && npm install && npm run build${reset}`);
+  } else {
+    console.error(`  Running from a git clone — build the SDK first:`);
+    console.error(`    ${cyan}${ir.fix_command}${reset}`);
+  }
+  console.error(`${redBold}${bar}${reset}`);
+  console.error('');
+}
+
 function installSdkIfNeeded() {
   const opts = arguments[0] || {};
   if (hasNoSdk && !opts.sdkDir) {
@@ -9582,48 +9663,10 @@ function installSdkIfNeeded() {
   }
 
   if (!fs.existsSync(sdkCliPath)) {
-    const ctx = classifySdkInstall(sdkDir);
-    const bar = '━'.repeat(72);
-    const redBold = `${red}${bold}`;
-    console.error('');
-    console.error(`${redBold}${bar}${reset}`);
-    console.error(`${redBold}  ✗ GSD SDK dist not found — /gsd-* commands will not work${reset}`);
-    console.error(`${redBold}${bar}${reset}`);
-    console.error(`  ${red}Reason:${reset} sdk/dist/cli.js not found at ${sdkCliPath}`);
-    console.error('');
-    if (ctx.mode === 'tarball') {
-      // User install (including `npx gsd-hermes@latest`, which stages
-      // a read-only tarball under the npx cache). The sdk/dist/ artifact
-      // should ship in the published tarball. If it's missing, the only
-      // sane fix from the user's side is a fresh global install of a
-      // version that includes dist/. Do NOT attempt a nested `npm install`
-      // inside the (read-only) npx cache — that's the #2649 failure mode.
-      if (ctx.npxCache) {
-        console.error(`  Detected read-only npx cache install (${dim}${sdkDir}${reset}).`);
-        console.error(`  The installer will ${bold}not${reset} attempt \`npm install\` inside the npx cache.`);
-        console.error('');
-      } else {
-        console.error(`  The published tarball appears to be missing sdk/dist/ (see #2647).`);
-        console.error('');
-      }
-      console.error(`  Fix: install a version that ships sdk/dist/ globally:`);
-      console.error(`    ${cyan}npm install -g gsd-hermes@latest${reset}`);
-      console.error(`    ${dim}(compatible legacy package name: npm install -g get-shit-done-cc@latest)${reset}`);
-      console.error(`  Or, if you prefer a one-shot run, clear the npx cache first:`);
-      console.error(`    ${cyan}npx --yes gsd-hermes@latest${reset}`);
-      console.error(`  Or build from source (git clone):`);
-      // NOTE: Hint string uses concatenation to avoid bare-substring collision
-      // with historical bug-2441 regression-test regexes. User output identical.
-      console.error(`    ${cyan}git clone https://github.com/pingchesu/gsd-hermes && cd gsd-hermes/sdk && npm ` + `install` + ` && npm ` + `run build${reset}`);
-    } else {
-      // Dev clone: keep the existing build-from-source hint.
-      console.error(`  Running from a git clone — build the SDK first:`);
-      // NOTE: Hint string uses concatenation to avoid bare-substring collision
-      // with historical bug-2441 regression-test regexes. User output identical.
-      console.error(`    ${cyan}cd sdk && npm ` + `install` + ` && npm ` + `run build${reset}`);
-    }
-    console.error(`${redBold}${bar}${reset}`);
-    console.error('');
+    // buildSdkFailFastReport renders the git-clone repair hint (`cd sdk && npm install && npm run build`)
+    // while keeping this public helper's arity at 0 for existing tests/callers.
+    const ir = buildSdkFailFastReport(sdkDir, sdkCliPath);
+    renderSdkFailFastReport(ir);
     process.exit(1);
   }
 
@@ -9650,6 +9693,12 @@ function installSdkIfNeeded() {
   const shimSrc = path.resolve(__dirname, 'gsd-sdk.js');
   let onPath = isGsdSdkOnPath();
 
+  // Track WHERE we wrote the shim so the diagnostic can be specific even
+  // when isGsdSdkOnPath() returns false because the write target isn't on
+  // PATH (#3011: Windows users hit this when npm's global bin dir is
+  // populated but not on every shell's PATH — Git Bash vs PowerShell vs
+  // cmd.exe each read PATH from different sources).
+  let shimDir = null;
   if (!onPath) {
     // Try to materialize the shim into a user-writable PATH location so the
     // installer can deliver on the success message without requiring the user
@@ -9658,6 +9707,7 @@ function installSdkIfNeeded() {
     // it's not on PATH (then a follow-up suggestion is printed).
     const linked = trySelfLinkGsdSdk(shimSrc);
     if (linked) {
+      shimDir = path.dirname(linked);
       onPath = isGsdSdkOnPath();
       if (onPath) {
         console.log(`  ${dim}↪ linked gsd-sdk → ${linked}${reset}`);
@@ -9668,12 +9718,23 @@ function installSdkIfNeeded() {
   if (onPath) {
     console.log(`  ${green}✓${reset} GSD SDK ready (sdk/dist/cli.js)`);
   } else {
+    // #3011: actionable diagnostic. The previous shape printed a generic
+    // "not on your PATH" message that didn't tell the user where to look.
+    // formatSdkPathDiagnostic produces a typed IR that we then render to
+    // stdout; tests assert on the IR (no source-grep, no console capture).
+    const ir = formatSdkPathDiagnostic({
+      shimDir,
+      platform: process.platform,
+      runDir: __dirname,
+    });
     console.log('');
     console.log(`  ${yellow}⚠${reset} GSD SDK files are present but ${bold}gsd-sdk${reset} is not on your PATH.`);
     console.log(`    Workflows that call ${cyan}gsd-sdk query …${reset} will fail with "command not found".`);
-    console.log(`    Install globally to materialize the bin symlink:`);
-    console.log(`      ${cyan}npm install -g get-shit-done-cc${reset}`);
-    console.log(`    Or add a directory containing the shim to your PATH manually.`);
+    if (ir.shimLocationLine) console.log(`    ${ir.shimLocationLine}`);
+    for (const line of ir.actionLines) console.log(`    ${line}`);
+    if (ir.npxNoteLines.length > 0) {
+      for (const line of ir.npxNoteLines) console.log(`    ${line}`);
+    }
     console.log('');
   }
 
@@ -9847,6 +9908,75 @@ function buildWindowsShimTriple(shimSrc) {
   };
 }
 
+/**
+ * #3011: pure builder for the SDK-not-on-PATH diagnostic. Takes the
+ * resolved shim directory (or null if write failed), the current platform,
+ * and the install.js __dirname (used to detect npx-cache invocation).
+ * Returns a typed IR with:
+ *   - shimLocationLine: prose mentioning where the shim is (or empty if no
+ *     write happened)
+ *   - actionLines: ordered list of commands the user can run to add the
+ *     shim dir to their PATH (platform-specific shells), or fallback to
+ *     `npm install -g` advice when no shim was written
+ *   - npxNoteLines: ordered list of lines warning about npx persistence
+ *     when runDir is under an `_npx` cache segment
+ *
+ * Tests assert on the typed fields (paths/commands), not on rendered
+ * console output. Pure function — no fs, no spawn, no console.
+ */
+function formatSdkPathDiagnostic({ shimDir, platform, runDir }) {
+  const path = require('path');
+  const isWin32 = platform === 'win32';
+  // Detect either path separator — the test fixtures pass Windows-style
+  // paths while running on POSIX, and real users hit either depending on
+  // their npm/npx setup. Anchor on `_npx` between separators.
+  const isNpx = typeof runDir === 'string' &&
+    (runDir.includes('/_npx/') || runDir.includes('\\_npx\\'));
+
+  const shimLocationLine = shimDir ? `Shim written to: ${shimDir}` : '';
+  const actionLines = [];
+
+  if (shimDir) {
+    // Escape shimDir for each shell context. A path containing a single
+    // quote (e.g. C:\Users\O'Neil\AppData\...) would otherwise generate
+    // broken commands the user can't paste:
+    //   - PowerShell single-quoted string: '' escapes a literal single quote
+    //   - bash inside outer single quotes: '\'' (close, escaped quote, reopen)
+    //   - POSIX export inside double quotes: escape \ $ " ` so the path is
+    //     copied verbatim and $PATH (which is OUTSIDE the escaped substring)
+    //     still expands at paste time.
+    const psShimDir   = shimDir.replace(/'/g, "''");
+    const bashShimDir = shimDir.replace(/\\/g, '/').replace(/'/g, "'\\''");
+    const posixShimDir = shimDir.replace(/[\\$"`]/g, '\\$&');
+    actionLines.push('Add that directory to your PATH and restart your shell.');
+    if (isWin32) {
+      actionLines.push(`PowerShell: [Environment]::SetEnvironmentVariable('PATH', '${psShimDir};' + [Environment]::GetEnvironmentVariable('PATH', 'User'), 'User')`);
+      // setx PATH "...;%PATH%" silently truncates above 1024 chars and
+      // expands %PATH% / %SystemRoot% to literals (turning REG_EXPAND_SZ
+      // into REG_SZ), permanently breaking lazy variable references.
+      // Invoke PowerShell from cmd.exe with the same SetEnvironmentVariable
+      // call as the PowerShell line so cmd.exe users get a safe command.
+      actionLines.push(`cmd.exe   : powershell -Command "[Environment]::SetEnvironmentVariable('PATH', '${psShimDir};' + [Environment]::GetEnvironmentVariable('PATH', 'User'), 'User')"`);
+      actionLines.push(`Git Bash  : echo 'export PATH="${bashShimDir}:$PATH"' >> ~/.bashrc`);
+    } else {
+      actionLines.push(`export PATH="${posixShimDir}:$PATH"`);
+    }
+  } else {
+    actionLines.push('Could not locate a writable PATH directory to install the shim.');
+    actionLines.push('Install globally to materialize the bin symlink:');
+    actionLines.push('npm install -g gsd-hermes');
+  }
+
+  const npxNoteLines = isNpx
+    ? [
+        "Note: you're running via npx. For a persistent shim,",
+        'install globally instead: npm install -g gsd-hermes',
+      ]
+    : [];
+
+  return { shimLocationLine, actionLines, npxNoteLines, isNpx, isWin32 };
+}
+
 function trySelfLinkGsdSdkWindows(shimSrc) {
   const path = require('path');
   const fs = require('fs');
@@ -9985,6 +10115,8 @@ if (process.env.GSD_TEST_MODE) {
     install,
     uninstall,
     installSdkIfNeeded,
+    buildSdkFailFastReport,
+    renderSdkFailFastReport,
     classifySdkInstall,
     convertClaudeCommandToCodexSkill,
     convertClaudeToOpencodeFrontmatter,
@@ -10050,6 +10182,7 @@ if (process.env.GSD_TEST_MODE) {
     trySelfLinkGsdSdk,
     trySelfLinkGsdSdkWindows,
     buildWindowsShimTriple,
+    formatSdkPathDiagnostic,
     isGsdSdkOnPath,
     homePathCoveredByRc,
     maybeSuggestPathExport,
