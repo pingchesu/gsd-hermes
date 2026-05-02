@@ -4,9 +4,9 @@
 
 ---
 
-## GSD Hermes v1.11.0 Release Note
+## GSD Hermes v1.11.1 Release Note
 
-`gsd-hermes@1.11.0` keeps the upstream base at `upstream/main@f2decefe` and simplifies Hermes-native provider routing. For Hermes projects, `model_overrides` remain the source of model intent: `hermes/gpt-5-5` and `hermes/claude-opus-4-7` automatically route through Hermes chat/tool execution without requiring `workflow.agent_execution_router` or `workflow.agent_execution_driver`. Plain `openai/*` and `anthropic/*` overrides still keep the strict direct Codex/Claude CLI routes.
+`gsd-hermes@1.11.1` keeps the upstream base at `upstream/main@f2decefe`, uses `hermes/gpt-5.5` as the canonical Hermes-native GPT example, and ensures Hermes-native provider routing delegates provider selection to Hermes itself. For Hermes projects, `model_overrides` remain the source of model intent: `hermes/gpt-5.5` and `hermes/claude-opus-4-7` automatically route through Hermes chat/tool execution without requiring `workflow.agent_execution_router` or `workflow.agent_execution_driver`. Hermes-native routes do not pass `--provider`; they use the provider currently configured in Hermes. Plain `openai/*` and `anthropic/*` overrides continue to route directly to Codex CLI and Claude CLI respectively. See [`docs/releases/v1.11.1-canonical-hermes-gpt-provider.md`](releases/v1.11.1-canonical-hermes-gpt-provider.md).
 
 ---
 
@@ -211,8 +211,8 @@ All workflow toggles follow the **absent = enabled** pattern. If a key is missin
 | `workflow.code_review_command` | string | (none) | Shell command for external code review integration in `/gsd-ship`. Receives changed file paths via stdin. Non-zero exit blocks the ship workflow. Added in v1.36 |
 | `workflow.tdd_mode` | boolean | `false` | Enable TDD pipeline as a first-class execution mode. When `true`, the planner aggressively applies `type: tdd` to eligible tasks (business logic, APIs, validations, algorithms) and the executor enforces RED/GREEN/REFACTOR gate sequence. An end-of-phase collaborative review checkpoint verifies gate compliance. Added in v1.36 |
 | `workflow.cross_ai_execution` | boolean | `false` | Legacy whole-plan external AI CLI fallback. In gsd-hermes strict routing, valid `agent_execution_bindings` take priority and `cross_ai_execution` must not reroute a configured per-agent binding. Added in v1.36 |
-| `workflow.agent_execution_router` | string | (none) | Advanced compatibility switch for explicit per-agent execution bindings. Normal Hermes-native usage should prefer `model_overrides` values like `hermes/gpt-5-5`; the SDK auto-emits bindings for `hermes/*` without this setting. `provider-cli` remains available for forcing direct provider-family CLI bindings. Experimental in v1.8; simplified `hermes/*` routing added in v1.11. |
-| `workflow.agent_execution_driver` | string | `provider-cli` | Advanced compatibility preference used only with the explicit router. Most users should not set it; use `hermes/<model>` in `model_overrides` for Hermes-native execution. `provider-cli` keeps direct Codex/Claude CLI routing; `hermes-chat` and `hermes-terminal-tool` remain available for advanced tests/migrations. Unsupported or unavailable drivers fail fast. Added in v1.10; primary docs simplified in v1.11. |
+| `workflow.agent_execution_router` | string | (none) | Advanced compatibility switch for explicit per-agent execution bindings. Normal Hermes-native usage should prefer `model_overrides` values like `hermes/gpt-5.5`; the SDK auto-emits bindings for `hermes/*` without this setting. `provider-cli` remains available for forcing direct provider-family CLI bindings. Experimental in v1.8; simplified `hermes/*` routing added in v1.11. |
+| `workflow.agent_execution_driver` | string | `provider-cli` | Advanced compatibility preference used only with the explicit router. Most users should not set it; use `hermes/<model>` in `model_overrides` for Hermes-native execution. `provider-cli` keeps direct Codex/Claude CLI routing; `hermes-chat` and `hermes-terminal-tool` invoke `hermes chat` without `--provider`, leaving provider selection to the currently configured Hermes provider. Unsupported or unavailable drivers fail fast. Added in v1.10; primary docs simplified in v1.11. |
 | `workflow.cross_ai_command` | string | (none) | Shell command template for cross-AI execution. Receives the phase prompt via stdin. Must produce SUMMARY.md-compatible output. Required when `cross_ai_execution` is `true`. Added in v1.36 |
 | `workflow.cross_ai_timeout` | number | `300` | Timeout in seconds for cross-AI execution commands. Prevents runaway external processes. Added in v1.36 |
 | `workflow.ai_integration_phase` | boolean | `true` | Enable the `/gsd-ai-integration-phase` command. When `false`, the command exits with a configuration gate message |
@@ -671,7 +671,7 @@ Copy/paste starting point for Hermes-native execution:
     "cross_ai_execution": false
   },
   "model_overrides": {
-    "gsd-executor": "hermes/gpt-5-5",
+    "gsd-executor": "hermes/gpt-5.5",
     "gsd-verifier": "hermes/claude-opus-4-7"
   }
 }
@@ -679,25 +679,27 @@ Copy/paste starting point for Hermes-native execution:
 
 | `model_overrides` value | `agent_execution_bindings.*.execution_driver` | Command shape |
 | --- | --- | --- |
-| `hermes/gpt-5-5` | `hermes-terminal-tool` | `hermes chat --toolsets terminal,file --model openai/gpt-5.5` |
-| `hermes/claude-opus-4-7` | `hermes-terminal-tool` | `hermes chat --toolsets terminal,file --model anthropic/claude-opus-4-7` |
+| `hermes/gpt-5.5` | `hermes-terminal-tool` | `hermes chat --toolsets terminal,file --model gpt-5.5` |
+| `hermes/claude-opus-4-7` | `hermes-terminal-tool` | `hermes chat --toolsets terminal,file --model claude-opus-4-7` |
 | `openai/gpt-5.5`, `gpt-*`, `o3`, `o4-*` | `codex-cli` | `codex exec --model {cli_model}` |
 | `anthropic/claude-opus-4-7`, `claude-*`, `opus`, `sonnet`, `haiku` | `claude-cli` | `claude -p --model {cli_model}` |
 
 Examples:
 
 ```text
-model_overrides.gsd-executor = "hermes/gpt-5-5"
+model_overrides.gsd-executor = "hermes/gpt-5.5"
 → provider_family=openai
 → execution_driver=hermes-terminal-tool
-→ cli_model=openai/gpt-5.5
-→ hermes chat --toolsets terminal,file --model openai/gpt-5.5
+→ cli_model=gpt-5.5
+→ hermes chat --toolsets terminal,file --model gpt-5.5
+→ provider selection comes from the currently configured Hermes provider
 
 model_overrides.gsd-verifier = "hermes/claude-opus-4-7"
 → provider_family=anthropic
 → execution_driver=hermes-terminal-tool
-→ cli_model=anthropic/claude-opus-4-7
-→ hermes chat --toolsets terminal,file --model anthropic/claude-opus-4-7
+→ cli_model=claude-opus-4-7
+→ hermes chat --toolsets terminal,file --model claude-opus-4-7
+→ provider selection comes from the currently configured Hermes provider
 
 model_overrides.gsd-executor = "openai/gpt-5.5"
 → provider_family=openai

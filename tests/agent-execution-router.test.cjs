@@ -108,7 +108,28 @@ describe('provider-routed agent execution bindings', () => {
     assert.equal(binding.strict, true);
   });
 
-  test('routes hermes-prefixed GPT overrides through Hermes by default without workflow.agent_execution_* config', () => {
+  test('routes canonical hermes/gpt-5.5 overrides through Hermes using the configured Hermes provider', () => {
+    const receipt = contract.toRuntimeModelReceipt(
+      contract.resolveAgentBinding({
+        runtime: 'hermes',
+        resolve_model_ids: 'omit',
+        model_overrides: { 'gsd-executor': 'hermes/gpt-5.5' },
+        workflow: {},
+      }, 'gsd-executor'),
+      'executor'
+    );
+
+    const binding = router.resolveAgentExecutionBinding(receipt);
+    assert.equal(binding.status, 'resolved');
+    assert.equal(binding.provider_family, 'openai');
+    assert.equal(binding.execution_driver, 'hermes-terminal-tool');
+    assert.equal(binding.cli_model, 'gpt-5.5');
+    assert.equal(binding.strict, true);
+    assert.match(binding.diagnostic, /configured Hermes provider/i);
+    assert.doesNotMatch(binding.diagnostic, /Claude Code CLI|Codex CLI/i);
+  });
+
+  test('keeps hermes/gpt-5-5 as a compatibility alias for hermes/gpt-5.5', () => {
     const receipt = contract.toRuntimeModelReceipt(
       contract.resolveAgentBinding({
         runtime: 'hermes',
@@ -123,10 +144,7 @@ describe('provider-routed agent execution bindings', () => {
     assert.equal(binding.status, 'resolved');
     assert.equal(binding.provider_family, 'openai');
     assert.equal(binding.execution_driver, 'hermes-terminal-tool');
-    assert.equal(binding.cli_model, 'openai/gpt-5.5');
-    assert.equal(binding.strict, true);
-    assert.match(binding.diagnostic, /Hermes/i);
-    assert.doesNotMatch(binding.diagnostic, /Claude Code CLI|Codex CLI/i);
+    assert.equal(binding.cli_model, 'gpt-5.5');
   });
 
   test('routes hermes-prefixed Claude overrides through Hermes by default without workflow.agent_execution_* config', () => {
@@ -144,7 +162,7 @@ describe('provider-routed agent execution bindings', () => {
     assert.equal(binding.status, 'resolved');
     assert.equal(binding.provider_family, 'anthropic');
     assert.equal(binding.execution_driver, 'hermes-terminal-tool');
-    assert.equal(binding.cli_model, 'anthropic/claude-opus-4-7');
+    assert.equal(binding.cli_model, 'claude-opus-4-7');
     assert.equal(binding.strict, true);
   });
 
@@ -154,7 +172,7 @@ describe('provider-routed agent execution bindings', () => {
         runtime: 'hermes',
         resolve_model_ids: 'omit',
         model_overrides: {
-          'gsd-executor': 'hermes/gpt-5-5',
+          'gsd-executor': 'hermes/gpt-5.5',
           'gsd-verifier': 'anthropic/claude-opus-4-7',
         },
         workflow: {},
@@ -166,7 +184,7 @@ describe('provider-routed agent execution bindings', () => {
         runtime: 'hermes',
         resolve_model_ids: 'omit',
         model_overrides: {
-          'gsd-executor': 'hermes/gpt-5-5',
+          'gsd-executor': 'hermes/gpt-5.5',
           'gsd-verifier': 'anthropic/claude-opus-4-7',
         },
         workflow: {},
@@ -200,7 +218,7 @@ describe('provider-routed agent execution bindings', () => {
     assert.equal(binding.status, 'resolved');
     assert.equal(binding.provider_family, 'openai');
     assert.equal(binding.execution_driver, 'hermes-chat');
-    assert.equal(binding.cli_model, 'openai/gpt-5.5');
+    assert.equal(binding.cli_model, 'gpt-5.5');
     assert.equal(binding.strict, true);
     assert.match(binding.diagnostic, /Hermes chat/i);
   });
@@ -223,9 +241,29 @@ describe('provider-routed agent execution bindings', () => {
     assert.equal(binding.status, 'resolved');
     assert.equal(binding.provider_family, 'anthropic');
     assert.equal(binding.execution_driver, 'hermes-terminal-tool');
-    assert.equal(binding.cli_model, 'anthropic/claude-opus-4-7');
+    assert.equal(binding.cli_model, 'claude-opus-4-7');
     assert.equal(binding.strict, true);
     assert.match(binding.diagnostic, /Hermes terminal tool/i);
+    assert.match(binding.diagnostic, /configured Hermes provider/i);
+  });
+
+  test('routes unknown families through Hermes when Hermes is the explicit execution surface', () => {
+    const receipt = contract.toRuntimeModelReceipt(
+      contract.resolveAgentBinding({
+        runtime: 'hermes',
+        resolve_model_ids: 'omit',
+        model_overrides: { 'gsd-executor': 'hermes/mistral-large-latest' },
+        workflow: {},
+      }, 'gsd-executor'),
+      'executor'
+    );
+
+    const binding = router.resolveAgentExecutionBinding(receipt);
+    assert.equal(binding.status, 'resolved');
+    assert.equal(binding.provider_family, 'unknown');
+    assert.equal(binding.execution_driver, 'hermes-terminal-tool');
+    assert.equal(binding.cli_model, 'mistral-large-latest');
+    assert.match(binding.diagnostic, /configured Hermes provider/i);
   });
 
   test('routes bare provider-family model tokens to the same CLI drivers', () => {
@@ -340,9 +378,9 @@ describe('init.execute-phase provider-routed bindings', () => {
     assert.equal(json.agent_execution_bindings.router, 'provider-cli');
     assert.equal(json.agent_execution_bindings.driver_preference, 'hermes-terminal-tool');
     assert.equal(json.agent_execution_bindings.agents.executor.execution_driver, 'hermes-terminal-tool');
-    assert.equal(json.agent_execution_bindings.agents.executor.cli_model, 'openai/gpt-5.5');
+    assert.equal(json.agent_execution_bindings.agents.executor.cli_model, 'gpt-5.5');
     assert.equal(json.agent_execution_bindings.agents.verifier.execution_driver, 'hermes-terminal-tool');
-    assert.equal(json.agent_execution_bindings.agents.verifier.cli_model, 'anthropic/claude-opus-4-7');
+    assert.equal(json.agent_execution_bindings.agents.verifier.cli_model, 'claude-opus-4-7');
   });
 
   test('init.execute-phase auto-emits Hermes-native bindings from hermes-prefixed model overrides without workflow.agent_execution_* config', () => {
@@ -363,10 +401,10 @@ describe('init.execute-phase provider-routed bindings', () => {
     assert.equal(json.agent_execution_bindings.driver_preference, 'hermes-terminal-tool');
     assert.equal(json.agent_execution_bindings.agents.executor.execution_driver, 'hermes-terminal-tool');
     assert.equal(json.agent_execution_bindings.agents.executor.provider_family, 'openai');
-    assert.equal(json.agent_execution_bindings.agents.executor.cli_model, 'openai/gpt-5.5');
+    assert.equal(json.agent_execution_bindings.agents.executor.cli_model, 'gpt-5.5');
     assert.equal(json.agent_execution_bindings.agents.verifier.execution_driver, 'hermes-terminal-tool');
     assert.equal(json.agent_execution_bindings.agents.verifier.provider_family, 'anthropic');
-    assert.equal(json.agent_execution_bindings.agents.verifier.cli_model, 'anthropic/claude-opus-4-7');
+    assert.equal(json.agent_execution_bindings.agents.verifier.cli_model, 'claude-opus-4-7');
   });
 
   test('omits agent_execution_bindings when provider-cli router is disabled and no hermes-prefixed overrides exist', () => {

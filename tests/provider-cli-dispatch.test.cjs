@@ -41,14 +41,14 @@ const ANTHROPIC_BINDING = {
 const HERMES_CHAT_BINDING = {
   ...OPENAI_BINDING,
   execution_driver: 'hermes-chat',
-  cli_model: 'openai/gpt-5.5',
+  cli_model: 'gpt-5.5',
   diagnostic: 'test hermes chat',
 };
 
 const HERMES_TERMINAL_BINDING = {
   ...ANTHROPIC_BINDING,
   execution_driver: 'hermes-terminal-tool',
-  cli_model: 'anthropic/claude-opus-4-7',
+  cli_model: 'claude-opus-4-7',
   diagnostic: 'test hermes terminal tool',
 };
 
@@ -144,11 +144,11 @@ describe('provider CLI dispatch helper', () => {
     assert.equal(command.driver, 'hermes-chat');
     assert.deepEqual(command.argv.slice(0, 4), ['hermes', 'chat', '--quiet', '--source']);
     assert.equal(command.argv.includes('--model'), true);
-    assert.equal(command.argv[command.argv.indexOf('--model') + 1], 'openai/gpt-5.5');
+    assert.equal(command.argv[command.argv.indexOf('--model') + 1], 'gpt-5.5');
     assert.equal(command.argv.includes('--provider'), false);
     assert.equal(command.argv.includes('claude'), false);
     assert.equal(command.argv.includes('codex'), false);
-    assert.match(command.display, /hermes chat .*--model openai\/gpt-5\.5/);
+    assert.match(command.display, /hermes chat .*--model gpt-5\.5/);
     assert.doesNotMatch(command.display, /claude -p|codex exec/);
   });
 
@@ -164,7 +164,7 @@ describe('provider CLI dispatch helper', () => {
     assert.equal(command.argv.includes('--toolsets'), true);
     assert.equal(command.argv[command.argv.indexOf('--toolsets') + 1], 'terminal,file');
     assert.equal(command.argv.includes('--model'), true);
-    assert.equal(command.argv[command.argv.indexOf('--model') + 1], 'anthropic/claude-opus-4-7');
+    assert.equal(command.argv[command.argv.indexOf('--model') + 1], 'claude-opus-4-7');
     assert.equal(command.argv.includes('--provider'), false);
     assert.doesNotMatch(command.display, /--provider|claude -p|codex exec/);
   });

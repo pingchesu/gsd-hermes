@@ -88,7 +88,7 @@ The point of this package is simple: if you say the executor should use GPT, it 
   "runtime": "hermes",
   "resolve_model_ids": "omit",
   "model_overrides": {
-    "gsd-executor": "hermes/gpt-5-5",
+    "gsd-executor": "hermes/gpt-5.5",
     "gsd-verifier": "hermes/claude-opus-4-7"
   }
 }
@@ -96,21 +96,21 @@ The point of this package is simple: if you say the executor should use GPT, it 
 
 | Configured model | Default execution driver | Command shape |
 | --- | --- | --- |
-| `hermes/gpt-5-5` | Hermes chat + terminal/file toolsets | `hermes chat --toolsets terminal,file --model openai/gpt-5.5` |
-| `hermes/claude-opus-4-7` | Hermes chat + terminal/file toolsets | `hermes chat --toolsets terminal,file --model anthropic/claude-opus-4-7` |
+| `hermes/gpt-5.5` | Hermes chat + terminal/file toolsets | `hermes chat --toolsets terminal,file --model gpt-5.5` |
+| `hermes/claude-opus-4-7` | Hermes chat + terminal/file toolsets | `hermes chat --toolsets terminal,file --model claude-opus-4-7` |
 | `openai/*`, `gpt-*` | Codex CLI | `codex exec --model {model}` |
 | `anthropic/*`, `claude-*` | Claude Code CLI | `claude -p --model {model}` |
 | unsupported / unavailable | none | fail fast with diagnostics |
 
 Guarantees:
 
-- `hermes/gpt-5-5` uses Hermes-native execution and must not silently run through `claude -p` or `codex exec`.
+- `hermes/gpt-5.5` uses Hermes-native execution and must not silently run through `claude -p` or `codex exec`; Hermes provider selection comes from the currently configured Hermes provider.
 - `openai/gpt-5.5` still routes directly to Codex CLI.
 - `anthropic/claude-opus-4-7` still routes directly to Claude Code CLI.
-- unsupported model families fail before spawn with actionable diagnostics.
+- unsupported direct provider-CLI model families fail before spawn with actionable diagnostics; `hermes/*` routes are only blocked when Hermes command rendering/preflight cannot produce a valid Hermes invocation.
 - init payloads expose both `model_binding_receipts` and `agent_execution_bindings` so the effective runtime/provider/model/driver is visible.
 
-Boundary: this proves GSD routing and CLI argument rendering. `hermes/*` is an execution namespace for Hermes chat/tooling; it does not claim Hermes is a wire-level model provider.
+Boundary: this proves GSD routing and CLI argument rendering. `hermes/*` is an execution namespace for Hermes chat/tooling; it does not claim Hermes is a wire-level model provider, and GSD intentionally does not pass `--provider` for Hermes-native routes.
 
 ---
 
@@ -128,8 +128,8 @@ Boundary: this proves GSD routing and CLI argument rendering. `hermes/*` is an e
   },
   "model_overrides": {
     "gsd-planner": "hermes/claude-opus-4-7",
-    "gsd-executor": "hermes/gpt-5-5",
-    "gsd-verifier": "hermes/gpt-5-5",
+    "gsd-executor": "hermes/gpt-5.5",
+    "gsd-verifier": "hermes/gpt-5.5",
     "gsd-code-reviewer": "hermes/claude-opus-4-7"
   }
 }
@@ -168,6 +168,7 @@ See [docs/COMMANDS.md](docs/COMMANDS.md) for the full command reference.
 - [docs/releases/v1.9.1-upstream-f2decefe-sync.md](docs/releases/v1.9.1-upstream-f2decefe-sync.md) — v1.9.1 upstream maintenance sync notes.
 - [docs/releases/v1.10.0-hermes-native-provider-routing.md](docs/releases/v1.10.0-hermes-native-provider-routing.md) — Hermes-native execution driver release notes.
 - [docs/releases/v1.11.0-hermes-model-prefix-routing.md](docs/releases/v1.11.0-hermes-model-prefix-routing.md) — simplified `hermes/<model>` routing release notes.
+- [docs/releases/v1.11.1-canonical-hermes-gpt-provider.md](docs/releases/v1.11.1-canonical-hermes-gpt-provider.md) — canonical `hermes/gpt-5.5` examples and Hermes configured-provider delegation notes.
 - [CHANGELOG.md](CHANGELOG.md) — downstream release history.
 
 ---
@@ -205,7 +206,7 @@ npm pack --dry-run --json
 
 ## Upstream base
 
-`gsd-hermes@1.11.0` keeps the upstream `gsd-build/get-shit-done@f2decefe` base while simplifying Hermes-native routing to `hermes/<model>` model overrides and preserving downstream package identity.
+`gsd-hermes@1.11.1` keeps the upstream `gsd-build/get-shit-done@f2decefe` base while simplifying Hermes-native routing to `hermes/<model>` model overrides and preserving downstream package identity.
 
 Public package identity remains:
 
