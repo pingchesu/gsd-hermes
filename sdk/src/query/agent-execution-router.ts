@@ -49,7 +49,7 @@ export function resolveAgentExecutionDriverPreference(config: Pick<GSDConfig, 'w
   return raw === 'hermes-chat' || raw === 'hermes-terminal-tool' ? raw : 'provider-cli';
 }
 
-function stripProviderPrefix(model: string, provider: 'anthropic' | 'openai'): string {
+function stripProviderPrefix(model: string, provider: 'anthropic' | 'openai' | 'google'): string {
   const prefix = `${provider}/`;
   return model.toLowerCase().startsWith(prefix) ? model.slice(prefix.length) : model;
 }
@@ -71,12 +71,6 @@ export function normalizeCliModel(model: string | null | undefined, providerFami
   return trimmed;
 }
 
-function normalizeHermesModel(model: string | null | undefined): string | null {
-  if (!model) return null;
-  const trimmed = model.trim();
-  return trimmed === '' ? null : trimmed;
-}
-
 function isHermesPrefixedModel(model: string | null | undefined): boolean {
   return typeof model === 'string' && model.trim().toLowerCase().startsWith('hermes/');
 }
@@ -86,9 +80,8 @@ function stripHermesPrefix(model: string): string {
 }
 
 function normalizeOpenAiHermesModel(model: string): string {
-  const unprefixed = model.toLowerCase().startsWith('openai/') ? model.slice('openai/'.length) : model;
-  const dotAlias = unprefixed.replace(/^gpt-(\d+)-(\d+)(.*)$/i, 'gpt-$1.$2$3');
-  return `openai/${dotAlias}`;
+  const unprefixed = stripProviderPrefix(model, 'openai');
+  return unprefixed.replace(/^gpt-(\d+)-(\d+)(.*)$/i, 'gpt-$1.$2$3');
 }
 
 function normalizeHermesRoutedModel(model: string | null | undefined, providerFamily: ModelFamily): string | null {
@@ -98,7 +91,7 @@ function normalizeHermesRoutedModel(model: string | null | undefined, providerFa
 
   if (providerFamily === 'anthropic') {
     const unprefixed = stripProviderPrefix(inner, 'anthropic');
-    return `anthropic/${MODEL_ALIAS_MAP[unprefixed] ?? unprefixed}`;
+    return MODEL_ALIAS_MAP[unprefixed] ?? unprefixed;
   }
 
   if (providerFamily === 'openai') {
@@ -106,15 +99,10 @@ function normalizeHermesRoutedModel(model: string | null | undefined, providerFa
   }
 
   if (providerFamily === 'google') {
-    const unprefixed = inner.toLowerCase().startsWith('google/') ? inner.slice('google/'.length) : inner;
-    return `google/${unprefixed}`;
+    return stripProviderPrefix(inner, 'google');
   }
 
   return inner;
-}
-
-function providerFamilySupportedByHermes(providerFamily: ModelFamily): boolean {
-  return providerFamily === 'anthropic' || providerFamily === 'openai' || providerFamily === 'google';
 }
 
 export function resolveAgentExecutionBinding(
@@ -130,11 +118,9 @@ export function resolveAgentExecutionBinding(
   const driverPreference = hermesPrefixed && requestedPreference === 'provider-cli'
     ? 'hermes-terminal-tool'
     : requestedPreference;
-  const cliModel = hermesPrefixed
-    ? normalizeHermesRoutedModel(providerModel, providerFamily)
-    : driverPreference === 'provider-cli'
-      ? normalizeCliModel(providerModel, providerFamily)
-      : normalizeHermesModel(providerModel);
+  const cliModel = driverPreference === 'provider-cli'
+    ? normalizeCliModel(providerModel, providerFamily)
+    : normalizeHermesRoutedModel(providerModel, providerFamily);
 
   if (receipt.status !== 'resolved' || receipt.binding_kind !== 'explicit' || !providerModel) {
     return {
@@ -148,12 +134,12 @@ export function resolveAgentExecutionBinding(
       source: receipt.source,
       strict: true,
       diagnostic: `Provider-routed execution requires an explicit model_overrides binding for ${receipt.agent}.`,
-      suggested_fix: `Set model_overrides.${receipt.agent} to hermes/gpt-5-5, hermes/claude-opus-4-7, an OpenAI/GPT model, or an Anthropic/Claude model.`,
+      suggested_fix: `Set model_overrides.${receipt.agent} to hermes/gpt-5.5, hermes/claude-opus-4-7, an OpenAI/GPT model, or an Anthropic/Claude model.`,
     };
   }
 
   if (driverPreference === 'hermes-chat' || driverPreference === 'hermes-terminal-tool') {
-    if (providerFamilySupportedByHermes(providerFamily) && cliModel) {
+    if (cliModel) {
       const label = driverPreference === 'hermes-chat' ? 'Hermes chat' : 'Hermes terminal tool';
       return {
         agent: receipt.agent,
@@ -165,7 +151,7 @@ export function resolveAgentExecutionBinding(
         cli_model: cliModel,
         source: receipt.source,
         strict: true,
-        diagnostic: `${receipt.agent} routes through ${label} with explicit model '${providerModel}'. Hermes is the execution surface; provider selection remains model-driven and must not use provider-specific CLIs.`,
+        diagnostic: `${receipt.agent} routes through ${label} with explicit model '${providerModel}'. Hermes is the execution surface; provider selection is delegated to the currently configured Hermes provider and must not use provider-specific CLIs.`,
         suggested_fix: null,
       };
     }
@@ -180,8 +166,8 @@ export function resolveAgentExecutionBinding(
       cli_model: null,
       source: receipt.source,
       strict: true,
-      diagnostic: `Hermes-native provider-routed execution does not support provider family '${providerFamily}' for ${receipt.agent}.`,
-      suggested_fix: `Use hermes/gpt-5-5, hermes/claude-opus-4-7, or a supported plain OpenAI/GPT or Anthropic/Claude override for ${receipt.agent}.`,
+      diagnostic: `Hermes-native provider-routed execution could not derive a non-empty Hermes model token for ${receipt.agent}.`,
+      suggested_fix: `Set model_overrides.${receipt.agent} to a non-empty Hermes model such as hermes/gpt-5.5 or hermes/claude-opus-4-7. Hermes will use its currently configured provider.`,
     };
   }
 
@@ -228,7 +214,7 @@ export function resolveAgentExecutionBinding(
     source: receipt.source,
     strict: true,
     diagnostic: `Provider-routed execution does not support provider family '${providerFamily}' for ${receipt.agent}.`,
-    suggested_fix: `Use an Anthropic/Claude, OpenAI/GPT, hermes/gpt-5-5, or hermes/claude-opus-4-7 model override for ${receipt.agent}.`,
+    suggested_fix: `Use an Anthropic/Claude, OpenAI/GPT, hermes/gpt-5.5, or hermes/claude-opus-4-7 model override for ${receipt.agent}.`,
   };
 }
 

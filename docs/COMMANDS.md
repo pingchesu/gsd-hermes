@@ -211,16 +211,16 @@ Execute all plans in a phase with wave-based parallelization, or run a specific 
 
 **Hermes runtime model receipts:** On Hermes, execute-phase init payloads include `model_binding_receipts` for executor and verifier agents. These receipts show the configured model, resolved model token, binding source, Hermes binding channel, and proof boundary before dispatch. Explicit per-agent `model_overrides` must either bind through the Hermes child construction path or fail before spawn; execute-phase must not silently fall back to the parent/default model.
 
-**Provider-routed execution:** execute-phase reads `agent_execution_bindings` and uses the matching strict execution route per agent before legacy fallback paths. The easiest Hermes-native form is the model namespace `hermes/<model>` — no `workflow.agent_execution_*` fields are required:
+**Provider-routed execution:** execute-phase reads `agent_execution_bindings` and uses the matching strict execution route per agent before legacy fallback paths. The easiest Hermes-native form is the model namespace `hermes/<model>` — no `workflow.agent_execution_*` fields are required, and Hermes-native routes intentionally use the provider currently configured in Hermes:
 
 ```text
-model_overrides.gsd-executor = "hermes/gpt-5-5"
+model_overrides.gsd-executor = "hermes/gpt-5.5"
 → hermes-terminal-tool
-→ hermes chat --toolsets terminal,file --model openai/gpt-5.5
+→ hermes chat --toolsets terminal,file --model gpt-5.5
 
 model_overrides.gsd-verifier = "hermes/claude-opus-4-7"
 → hermes-terminal-tool
-→ hermes chat --toolsets terminal,file --model anthropic/claude-opus-4-7
+→ hermes chat --toolsets terminal,file --model claude-opus-4-7
 
 model_overrides.gsd-executor = "openai/gpt-5.5"
 → codex-cli

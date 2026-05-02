@@ -178,7 +178,7 @@ function preflightProviderCliDriver(binding, env = process.env) {
       command,
       receipt,
       message: `Cannot execute ${normalized.agent || 'agent'}: unsupported provider CLI binding.`,
-      suggested_fix: normalized.suggested_fix || 'Choose a supported model_overrides value such as hermes/gpt-5-5, openai/gpt-5.5, or anthropic/claude-opus-4-7.',
+      suggested_fix: normalized.suggested_fix || 'Choose a supported model_overrides value such as hermes/gpt-5.5, openai/gpt-5.5, or anthropic/claude-opus-4-7.',
     };
   }
 
@@ -193,7 +193,7 @@ function preflightProviderCliDriver(binding, env = process.env) {
         ? 'Install/login Claude Code CLI or change this agent model_overrides entry to a provider routed to an available driver.'
         : driver === 'codex-cli'
           ? 'Install/login Codex CLI or change this agent model_overrides entry to a provider routed to an available driver.'
-          : 'Install/login Hermes Agent CLI and configure the requested provider credentials, or use a plain openai/* or anthropic/* model_overrides value for direct provider-CLI routing.',
+          : 'Install/login Hermes Agent CLI and configure the requested provider in Hermes, or use a plain openai/* or anthropic/* model_overrides value for direct provider-CLI routing.',
       path_entries: pathEntriesFromEnv(env),
     };
   }

@@ -10,18 +10,30 @@ syncs from.
 
 ## [Unreleased]
 
+## 1.11.1 — 2026-05-03
+
+GSD Hermes package version: `1.11.1`
+Upstream GSD base: `upstream/main@f2decefe` / upstream `get-shit-done-cc@1.40.0-rc.1` development line
+
+### Changed
+- Canonicalized Hermes-native GPT examples to `hermes/gpt-5.5`; `hermes/gpt-5-5` remains a tested backward-compatible alias.
+- Hermes-native strict execution now passes unqualified model tokens such as `gpt-5.5` or `claude-opus-4-7` to `hermes chat` without `--provider`, so provider selection comes from the currently configured Hermes provider.
+
+### Documentation
+- Added release notes: [`docs/releases/v1.11.1-canonical-hermes-gpt-provider.md`](docs/releases/v1.11.1-canonical-hermes-gpt-provider.md).
+
 ## 1.11.0 — 2026-05-03
 
 GSD Hermes package version: `1.11.0`
 Upstream GSD base: `upstream/main@f2decefe` / upstream `get-shit-done-cc@1.40.0-rc.1` development line
 
 ### Added
-- **Hermes model-prefix routing** — `model_overrides` values such as `hermes/gpt-5-5` and `hermes/claude-opus-4-7` now auto-select Hermes-native `hermes chat` execution without requiring `workflow.agent_execution_router` or `workflow.agent_execution_driver` in normal project config.
+- **Hermes model-prefix routing** — `model_overrides` values such as `hermes/gpt-5.5` and `hermes/claude-opus-4-7` now auto-select Hermes-native `hermes chat` execution without requiring `workflow.agent_execution_router` or `workflow.agent_execution_driver` in normal project config.
 - **Per-agent mixed routing safety** — `hermes/*` routes through Hermes while plain `openai/*` and `anthropic/*` overrides in the same phase continue to use Codex CLI and Claude Code CLI respectively.
 
 ### Changed
 - Simplified README, configuration, command, and execute-phase workflow docs so the primary UX is model-string-first instead of `agent_execution_*`-first.
-- Hermes command rendering now omits `--provider ...`; Hermes receives a fully qualified model token such as `openai/gpt-5.5` or `anthropic/claude-opus-4-7` and resolves provider handling through its own config/runtime behavior.
+- Hermes command rendering now omits `--provider ...`; Hermes receives a fully qualified model token such as `openai/gpt-5.5` or `anthropic/claude-opus-4-7` and resolves provider handling through its own config/model handling rather than through GSD-specific provider CLI fallback.
 
 ### Documentation
 - Added release notes: [`docs/releases/v1.11.0-hermes-model-prefix-routing.md`](docs/releases/v1.11.0-hermes-model-prefix-routing.md).

@@ -64,14 +64,14 @@ Phase 12 adds fail-fast validation and proof tests: unsupported explicit Hermes 
 
 | Configured model | Provider family | Driver | Command proof |
 | --- | --- | --- | --- |
-| `hermes/gpt-5-5` | OpenAI/GPT | Hermes terminal tool | `hermes chat --toolsets terminal,file --model openai/gpt-5.5 ...` |
-| `hermes/claude-opus-4-7` | Anthropic/Claude | Hermes terminal tool | `hermes chat --toolsets terminal,file --model anthropic/claude-opus-4-7 ...` |
+| `hermes/gpt-5.5` | OpenAI/GPT | Hermes terminal tool | `hermes chat --toolsets terminal,file --model gpt-5.5 ...` |
+| `hermes/claude-opus-4-7` | Anthropic/Claude | Hermes terminal tool | `hermes chat --toolsets terminal,file --model claude-opus-4-7 ...` |
 | `openai/gpt-5.5` or `gpt-5.5` | OpenAI/GPT | Codex CLI | `codex exec --model gpt-5.5 ...` |
 | `anthropic/claude-opus-4-7` or `claude-opus-4-7` | Anthropic/Claude | Claude Code CLI | `claude -p --model claude-opus-4-7 ...` |
 
-This mode intentionally fails fast for unsupported families, missing `cli_model`, missing CLI binaries, or unavailable CLI authentication. A valid per-agent binding has priority over `workflow.cross_ai_execution`; that legacy setting remains a whole-plan fallback and must not silently override per-agent provider routing.
+This mode intentionally fails fast for direct provider-CLI routes with unsupported families, missing `cli_model`, missing CLI binaries, or unavailable CLI authentication. For `hermes/*` routes, GSD renders `hermes chat` without `--provider` and leaves provider selection to the currently configured Hermes provider; failures should come from missing Hermes CLI/preflight or Hermes itself, not from GSD falling back to Codex/Claude. A valid per-agent binding has priority over `workflow.cross_ai_execution`; that legacy setting remains a whole-plan fallback and must not silently override per-agent provider routing.
 
-Proof boundary: provider-routed mode proves that GSD chose the matching driver and passed the normalized `--model` argument. It does not prove what Hermes Agent, Anthropic, OpenAI, Codex CLI, or Claude Code CLI sends on the wire after that process starts. Wire-level proof would require separate sanitized provider diagnostics.
+Proof boundary: provider-routed mode proves that GSD chose the matching driver and passed the normalized `--model` argument. For Hermes-native routes, this proof also covers that GSD did not pass `--provider`; it does not prove what Hermes Agent, Anthropic, OpenAI, Codex CLI, or Claude Code CLI sends on the wire after that process starts. Wire-level proof would require separate sanitized provider diagnostics.
 
 Provider-cli mode is separate from Hermes native `delegate_task(model=...)` child-construction proof. Native delegate proof applies only when GSD uses Hermes child spawning; provider-cli proof applies when GSD deliberately uses rendered commands (`hermes chat`, Codex CLI, or Claude Code CLI) for per-agent routing.
 

@@ -341,8 +341,8 @@ Set via `manager.*` namespace (e.g., `"manager": { "flags": { "discuss": "--auto
 |-----|------|---------|----------------|-------------|
 | `parallelization` | boolean\|object | `true` | `true`, `false`, `{ "enabled": true }` | Enable parallel wave execution; object form allows additional sub-keys |
 | `model_overrides` | object\|null | `null` | `{ "<agent-type>": "<model-id>" }` | Override model selection per agent type |
-| `workflow.agent_execution_router` | string\|null | `null` | `"provider-cli"`, `null` | Advanced gsd-hermes compatibility switch for explicit per-agent provider routing. Normal Hermes-native usage should prefer `model_overrides` values like `hermes/gpt-5-5`, which auto-emit `agent_execution_bindings` without this setting. |
-| `workflow.agent_execution_driver` | string\|null | `"provider-cli"` | `"provider-cli"`, `"hermes-chat"`, `"hermes-terminal-tool"` | Advanced driver preference for explicit provider routing. Most projects should leave this unset and use `hermes/<model>` for Hermes-native execution. |
+| `workflow.agent_execution_router` | string\|null | `null` | `"provider-cli"`, `null` | Advanced gsd-hermes compatibility switch for explicit per-agent provider routing. Normal Hermes-native usage should prefer `model_overrides` values like `hermes/gpt-5.5`, which auto-emit `agent_execution_bindings` without this setting. |
+| `workflow.agent_execution_driver` | string\|null | `"provider-cli"` | `"provider-cli"`, `"hermes-chat"`, `"hermes-terminal-tool"` | Advanced driver preference for explicit provider routing. Most projects should leave this unset and use `hermes/<model>` for Hermes-native execution. Hermes drivers invoke `hermes chat` without `--provider`, so provider selection comes from the currently configured Hermes provider. |
 | `agent_skills` | object | `{}` | `{ "<agent-type>": "<skill-set>" }` | Assign skill sets to specific agent types |
 | `sub_repos` | array | `[]` | Array of relative path strings | Child directories with independent `.git` repos (auto-detected) |
 
@@ -365,7 +365,7 @@ Several config fields affect each other or trigger special behavior:
 
 2. **`branching_strategy` controls branch templates** -- The `phase_branch_template` and `milestone_branch_template` fields are only used when `branching_strategy` is set to `"phase"` or `"milestone"` respectively. When `branching_strategy` is `"none"`, all template fields are ignored.
 
-3. **Per-agent execution bindings have priority over legacy `workflow.cross_ai_execution`** -- `model_overrides` values such as `hermes/gpt-5-5`, `openai/gpt-5.5`, and `anthropic/claude-opus-4-7` drive `agent_execution_bindings`; `cross_ai_execution` is a legacy whole-plan fallback. A valid per-agent binding must not be silently overridden by cross-AI fallback.
+3. **Per-agent execution bindings have priority over legacy `workflow.cross_ai_execution`** -- `model_overrides` values such as `hermes/gpt-5.5`, `openai/gpt-5.5`, and `anthropic/claude-opus-4-7` drive `agent_execution_bindings`; `cross_ai_execution` is a legacy whole-plan fallback. A valid per-agent binding must not be silently overridden by cross-AI fallback.
 
 4. **`context_window` threshold triggers** -- When `context_window >= 500000`, workflows enable adaptive context enrichment: full-body reads of prior phase SUMMARYs, cross-phase context injection in plan-phase, and deeper read depth for anti-pattern references. Below 500000, only frontmatter and summaries are read.
 
