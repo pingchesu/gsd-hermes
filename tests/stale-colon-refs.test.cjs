@@ -38,6 +38,7 @@ const UPSTREAM_OWNED_PREFIXES = [
   'sdk/src/',
   'hooks/',
   // Upstream-carried tests asserting upstream /gsd: slash-namespace contract:
+  'tests/bug-3010-reapply-patches-references.test.cjs',
   'tests/bug-2410-stream-checkpoint-heartbeats.test.cjs',
   'tests/bug-2543-gsd-slash-namespace.test.cjs',
   'tests/bug-2630-state-frontmatter-milestone-switch.test.cjs',

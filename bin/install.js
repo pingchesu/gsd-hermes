@@ -9663,6 +9663,8 @@ function installSdkIfNeeded() {
   }
 
   if (!fs.existsSync(sdkCliPath)) {
+    // buildSdkFailFastReport renders the git-clone repair hint (`cd sdk && npm install && npm run build`)
+    // while keeping this public helper's arity at 0 for existing tests/callers.
     const ir = buildSdkFailFastReport(sdkDir, sdkCliPath);
     renderSdkFailFastReport(ir);
     process.exit(1);
