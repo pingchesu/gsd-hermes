@@ -23,12 +23,12 @@ GSD is great at turning messy software work into concrete phases, plans, executi
 
 Use it when you want:
 
-- the upstream GSD command model (`/gsd-new-project`, `/gsd-plan-phase`, `/gsd-execute-phase`, `/gsd-ship`, ...);
-- a Hermes-native install path that works globally or links cleanly into one repo;
-- inspectable project-local skills under `./.gsd-hermes` when you choose local mode;
-- `model_overrides` that mean what they say for planner/executor/verifier agents;
-- OpenAI/GPT agents routed through Codex CLI and Claude agents routed through Claude Code CLI;
-- fail fast diagnostics instead of a configured GPT executor quietly running as `claude -p`.
+- 🧭 the upstream GSD command model (`/gsd-new-project`, `/gsd-plan-phase`, `/gsd-execute-phase`, `/gsd-ship`, ...);
+- ⚡ a Hermes-native install path that works globally or links cleanly into one repo;
+- 📁 inspectable project-local skills under `./.gsd-hermes` when you choose local mode;
+- 🛡 `model_overrides` that mean what they say for planner/executor/verifier agents;
+- 🔀 OpenAI/GPT agents routed through Codex CLI, Claude agents routed through Claude Code CLI, or explicit Hermes-native execution;
+- 🚦 fail-fast diagnostics instead of a configured GPT executor quietly running as `claude -p`.
 
 Upstream GSD now includes basic Hermes support. This package stays close to upstream, but keeps the Hermes-first packaging, compatibility gates, and strict provider-routed execution layer that make mixed-provider workflows safer to operate.
 
@@ -88,7 +88,8 @@ The point of this package is simple: if you say the executor should use GPT, it 
   "runtime": "hermes",
   "resolve_model_ids": "omit",
   "workflow": {
-    "agent_execution_router": "provider-cli"
+    "agent_execution_router": "provider-cli",
+    "agent_execution_driver": "provider-cli"
   },
   "model_overrides": {
     "gsd-executor": "openai/gpt-5.5",
@@ -97,20 +98,23 @@ The point of this package is simple: if you say the executor should use GPT, it 
 }
 ```
 
-| Configured model family | Execution driver | Command shape |
+| Configured model family | Default execution driver | Command shape |
 | --- | --- | --- |
 | `openai/*`, `gpt-*` | Codex CLI | `codex exec --model {model}` |
 | `anthropic/*`, `claude-*` | Claude Code CLI | `claude -p --model {model}` |
+| `openai/*`, `anthropic/*`, `google/*` with `workflow.agent_execution_driver: "hermes-chat"` | Hermes chat | `hermes chat --model {model} --provider {provider}` |
+| `openai/*`, `anthropic/*`, `google/*` with `workflow.agent_execution_driver: "hermes-terminal-tool"` | Hermes chat + terminal/file toolsets | `hermes chat --toolsets terminal,file --model {model}` |
 | unsupported / unavailable | none | fail fast with diagnostics |
 
 Guarantees:
 
 - `openai/gpt-5.5` must not silently run through `claude -p`.
 - `anthropic/claude-opus-4-7` must not silently run through `codex exec`.
+- Hermes-native drivers (`hermes-chat`, `hermes-terminal-tool`) preserve the fully-qualified `model_overrides` token and invoke `hermes chat`; they do not silently fall back to Claude/Codex CLIs.
 - unsupported model families fail before spawn with actionable diagnostics.
 - init payloads expose both `model_binding_receipts` and `agent_execution_bindings` so the effective runtime/provider/model/driver is visible.
 
-Boundary: this proves GSD routing and CLI argument rendering. It does not claim wire-level provider API proof inside Codex CLI or Claude Code CLI.
+Boundary: this proves GSD routing and CLI argument rendering. It does not claim wire-level provider API proof inside Hermes, Codex CLI, or Claude Code CLI.
 
 ---
 
@@ -125,6 +129,7 @@ Boundary: this proves GSD routing and CLI argument rendering. It does not claim 
   "resolve_model_ids": "omit",
   "workflow": {
     "agent_execution_router": "provider-cli",
+    "agent_execution_driver": "hermes-terminal-tool",
     "cross_ai_execution": false
   },
   "model_overrides": {
@@ -136,7 +141,7 @@ Boundary: this proves GSD routing and CLI argument rendering. It does not claim 
 }
 ```
 
-`cross_ai_execution` remains a legacy whole-plan fallback. Valid provider-cli bindings take priority and should not be overridden by `cross_ai_execution`.
+`cross_ai_execution` remains a legacy whole-plan fallback. Valid provider-cli bindings take priority and should not be overridden by `cross_ai_execution`. Leave `agent_execution_driver` unset or set it to `"provider-cli"` for direct Codex/Claude CLI routing; set it to `"hermes-chat"` or `"hermes-terminal-tool"` only when you explicitly want the selected model to run through Hermes itself.
 
 ---
 
@@ -167,6 +172,7 @@ See [docs/COMMANDS.md](docs/COMMANDS.md) for the full command reference.
 - [docs/releases/v1.8.0-provider-routed-agent-execution.md](docs/releases/v1.8.0-provider-routed-agent-execution.md) — provider-routing release notes.
 - [docs/releases/v1.9.0-hermes-first-upstream-sync.md](docs/releases/v1.9.0-hermes-first-upstream-sync.md) — v1.9 sync/repositioning notes.
 - [docs/releases/v1.9.1-upstream-f2decefe-sync.md](docs/releases/v1.9.1-upstream-f2decefe-sync.md) — v1.9.1 upstream maintenance sync notes.
+- [docs/releases/v1.10.0-hermes-native-provider-routing.md](docs/releases/v1.10.0-hermes-native-provider-routing.md) — Hermes-native execution driver release notes.
 - [CHANGELOG.md](CHANGELOG.md) — downstream release history.
 
 ---
@@ -204,7 +210,7 @@ npm pack --dry-run --json
 
 ## Upstream base
 
-`gsd-hermes@1.9.1` syncs to upstream `gsd-build/get-shit-done@f2decefe` while preserving downstream package identity and Hermes/provider-routing invariants.
+`gsd-hermes@1.10.0` syncs to upstream `gsd-build/get-shit-done@f2decefe` while adding Hermes-native provider-routing drivers and preserving downstream package identity.
 
 Public package identity remains:
 

@@ -10,6 +10,27 @@ syncs from.
 
 ## [Unreleased]
 
+## 1.10.0 — 2026-05-03
+
+GSD Hermes package version: `1.10.0`
+Upstream GSD base: `upstream/main@f2decefe` / upstream `get-shit-done-cc@1.40.0-rc.1` development line
+Previous downstream package version: `1.9.1`
+
+### Added
+- **Hermes-native provider routing** — `workflow.agent_execution_driver` now accepts `hermes-chat` and `hermes-terminal-tool`, rendering strict `hermes chat --model ... --provider ...` commands from explicit `model_overrides` instead of falling back to provider-specific CLIs.
+- **Driver preference receipts** — `agent_execution_bindings.driver_preference` records whether a phase is using default provider CLI routing or an explicit Hermes-native execution surface.
+- **Hermes dispatcher preflight** — provider-routed command rendering now fails fast when the requested `hermes` CLI is unavailable and keeps missing-driver diagnostics actionable.
+
+### Changed
+- Refreshed README and configuration docs with lightweight visual cues and explicit Hermes-native routing examples.
+- Updated execute-phase workflow guidance so provider-routed dispatch supports `claude-cli`, `codex-cli`, `hermes-chat`, and `hermes-terminal-tool` without silent fallback.
+
+### Documentation
+- Added release notes: [`docs/releases/v1.10.0-hermes-native-provider-routing.md`](docs/releases/v1.10.0-hermes-native-provider-routing.md).
+
+### Verification
+- Local validation passed: conflict-marker scan, `git diff --check`, `npm run build:sdk`, `node --test tests/agent-execution-router.test.cjs tests/provider-cli-dispatch.test.cjs`, `npm run test:hermes`, `npm test` (`6869/6869`), `npm run lint:tests`, and `npm pack --dry-run --json`.
+
 ## 1.9.1 — 2026-05-02
 
 GSD Hermes package version: `1.9.1`

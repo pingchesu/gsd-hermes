@@ -51,8 +51,10 @@ export interface WorkflowConfig {
   skip_discuss: boolean;
   /** Maximum self-discuss passes in auto/headless mode before forcing proceed. Default: 3. */
   max_discuss_passes: number;
-  /** Per-agent execution router. `provider-cli` maps model provider families to matching CLI drivers. */
+  /** Per-agent execution router. `provider-cli` maps model provider families to strict execution drivers. */
   agent_execution_router?: 'provider-cli' | string;
+  /** Optional driver preference for provider-cli routing (`hermes-chat` / `hermes-terminal-tool` use Hermes-native execution). */
+  agent_execution_driver?: 'provider-cli' | 'hermes-chat' | 'hermes-terminal-tool' | string;
   /** Subagent timeout in ms (matches `get-shit-done/bin/lib/core.cjs` default 300000). */
   subagent_timeout: number;
   /**
