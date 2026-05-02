@@ -101,26 +101,27 @@ describe('Hermes provider-routed execution regression fixture', () => {
   });
 });
 
-describe('execute-phase provider-cli workflow guardrails', () => {
-  test('workflow keeps provider-cli as canonical direct binding before legacy fallback', () => {
+describe('execute-phase provider-routed workflow guardrails', () => {
+  test('workflow keeps provider-routed bindings canonical before legacy fallback', () => {
     const workflow = require('node:fs').readFileSync(EXECUTE_PHASE, 'utf8');
 
     assert.match(workflow, /agent_execution_bindings\.router == "provider-cli"/);
     assert.match(workflow, /Provider CLI execution receipt/);
-    assert.match(workflow, /Proof boundary: provider-cli proves deterministic CLI driver selection/);
-    assert.match(workflow, /canonical driver selection/);
+    assert.match(workflow, /overrides may create this receipt automatically/i);
+    assert.match(workflow, /Proof boundary: provider-routed execution proves deterministic driver selection/);
+    assert.match(workflow, /hermes chat --model/);
     assert.match(workflow, /codex exec --model/);
     assert.match(workflow, /claude -p --model/);
-    assert.match(workflow, /legacy whole-plan fallback, lower priority than provider-cli/i);
+    assert.match(workflow, /legacy whole-plan fallback, lower priority than provider-routed bindings/i);
     assert.match(workflow, /do not let legacy `cross_ai_execution` override valid provider-routed bindings/);
-    assert.match(workflow, /valid OpenAI\/GPT binding from being silently rerouted to an unrelated `claude -p` fallback/);
+    assert.match(workflow, /silently rerouted to an unrelated fallback/);
   });
 
-  test('workflow does not describe cross_ai_execution as overriding provider-cli', () => {
+  test('workflow does not describe cross_ai_execution as overriding provider-routed bindings', () => {
     const workflow = require('node:fs').readFileSync(EXECUTE_PHASE, 'utf8');
 
-    assert.doesNotMatch(workflow, /cross_ai_execution[^\n]{0,120}overrides[^\n]{0,120}provider-cli/i);
-    assert.doesNotMatch(workflow, /provider-cli[^\n]{0,120}lower priority[^\n]{0,120}cross_ai_execution/i);
+    assert.doesNotMatch(workflow, /cross_ai_execution[^\n]{0,120}overrides[^\n]{0,120}provider-routed/i);
+    assert.doesNotMatch(workflow, /provider-routed[^\n]{0,120}lower priority[^\n]{0,120}cross_ai_execution/i);
     assert.doesNotMatch(workflow, /OpenAI[^\n]{0,120}fallback[^\n]{0,120}claude -p/i);
   });
 });

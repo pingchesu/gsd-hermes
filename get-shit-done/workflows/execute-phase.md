@@ -10,7 +10,7 @@ Orchestrator coordinates, not executes. Each subagent loads the full execute-pla
 
 <runtime_compatibility>
 **Subagent spawning is runtime-specific:**
-- **Provider CLI router (gsd-hermes):** When `agent_execution_bindings.router == "provider-cli"`, consume the SDK binding first and dispatch via the selected CLI driver (`codex exec` or `claude -p`) with prompt-file/stdin delivery. This branch is sequential on the current working tree in Phase 8.2 unless a later phase adds safe external worktree orchestration.
+- **Provider-routed execution (gsd-hermes):** When `agent_execution_bindings.router == "provider-cli"`, consume the SDK binding first and dispatch via the selected driver (`hermes chat`, `codex exec`, or `claude -p`) with prompt-file/stdin delivery. `hermes/<model>` overrides auto-select Hermes chat/tool execution without requiring workflow `agent_execution_*` config. This branch is sequential on the current working tree in Phase 8.2 unless a later phase adds safe external worktree orchestration.
 - **Claude Code:** Uses `Task(subagent_type="gsd-executor", ...)` — blocks until complete, returns result
 - **Copilot:** Subagent spawning does not reliably return completion signals. **Default to
   sequential inline execution**: read and follow execute-plan.md directly for each plan
@@ -71,13 +71,13 @@ Parse JSON for: `executor_model`, `verifier_model`, `model_binding_receipts`, `a
 ```
 `runtime_enforced=unknown is not provider proof`; runtime_binding_channel.kind=hermes-delegate-task-model with proof_level=child-construction maps Hermes explicit tokens to `delegate_task(model=...)`/`tasks[].model`; if unavailable, stop before spawning. Keep `executor_model === "inherit"` by omitting `model=`.
 
-**Provider-cli execution receipt:** If `agent_execution_bindings.router == "provider-cli"`, render/select `agent_execution_bindings.agents.*` before any spawn/fallback as the canonical driver selection:
+**Provider-routed execution receipt:** If `agent_execution_bindings.router == "provider-cli"`, render/select `agent_execution_bindings.agents.*` before any spawn/fallback as the canonical driver selection. `hermes/*` model overrides may create this receipt automatically even when workflow `agent_execution_*` settings are absent:
 
 ```text
 ## Provider CLI execution receipt — router={router} strict={strict}
 - executor/verifier: configured={configured_model} provider={provider_family} driver={execution_driver} cli_model={cli_model} source={source} status={status} diagnostic={diagnostic}
 ```
-Proof boundary: provider-cli proves deterministic CLI driver selection and model argument passing (`codex exec --model ...` or `claude -p --model ...`), not wire-level provider API proof. Unsupported/missing drivers fail before execution. do not re-derive provider family from raw model strings and do not let legacy `cross_ai_execution` override valid provider-routed bindings.
+Proof boundary: provider-routed execution proves deterministic driver selection and model argument passing (`hermes chat --model ...`, `codex exec --model ...`, or `claude -p --model ...`), not wire-level provider API proof. Unsupported/missing drivers fail before execution. Do not re-derive provider family from raw model strings and do not let legacy `cross_ai_execution` override valid provider-routed bindings.
 
 **Model resolution:** If `executor_model` is `"inherit"`, omit the `model=` parameter from all `Task()` calls — do NOT pass `model="inherit"` to Task. Omitting the `model=` parameter causes Claude Code to inherit the current orchestrator model automatically. Only set `model=` when `executor_model` is an explicit model name (e.g., `"claude-sonnet-4-6"`, `"claude-opus-4-7"`).
 
@@ -304,13 +304,13 @@ that should be delegated to an external AI command and executes them via stdin-b
 delivery. Plans handled here are removed from the execute_waves plan list so the normal
 executor skips them.
 
-**Activation logic (legacy whole-plan fallback, lower priority than provider-cli):**
+**Activation logic (legacy whole-plan fallback, lower priority than provider-routed bindings):**
 
-1. If `agent_execution_bindings.router == "provider-cli"` and the selected binding is valid, prefer provider-cli direct execution and skip legacy `workflow.cross_ai_execution`. This prevents a valid OpenAI/GPT binding from being silently rerouted to an unrelated `claude -p` fallback.
+1. If `agent_execution_bindings.router == "provider-cli"` and the selected binding is valid, prefer the per-agent binding and skip legacy `workflow.cross_ai_execution`. This prevents `hermes/*`, OpenAI/GPT, or Anthropic/Claude bindings from being silently rerouted to an unrelated fallback.
 2. If `CROSS_AI_DISABLED` is true (`--no-cross-ai` flag): skip this step entirely.
-3. If `CROSS_AI_FORCE` is true (`--cross-ai` flag): this is an explicit request to bypass provider-cli routing and use legacy whole-plan cross-AI. Before doing so, warn that provider-cli would otherwise have priority; if `workflow.agent_execution_router` is `provider-cli`, require the user to confirm or disable that router.
+3. If `CROSS_AI_FORCE` is true (`--cross-ai` flag): this is an explicit request to bypass per-agent routing and use legacy whole-plan cross-AI. Before doing so, warn that provider-routed bindings would otherwise have priority; if `agent_execution_bindings.router == "provider-cli"`, require the user to confirm or disable the binding source.
 4. Otherwise: check each plan's frontmatter for `cross_ai: true` AND verify config
-   `workflow.cross_ai_execution` is `true`. Plans matching both conditions are marked for cross-AI only when provider-cli router is absent/disabled or no valid provider-cli binding exists.
+   `workflow.cross_ai_execution` is `true`. Plans matching both conditions are marked for cross-AI only when provider-routed bindings are absent/disabled or no valid binding exists.
 
 ```bash
 CROSS_AI_ENABLED=$(gsd-sdk query config-get workflow.cross_ai_execution 2>/dev/null || echo "false")
@@ -481,7 +481,7 @@ increases monotonically across waves. `{status}` is `complete` (success),
 
    **Sequential dispatch for parallel execution (waves with 2+ agents):** Dispatch each `Task()` call one at a time with `run_in_background: true`; do not send multiple Task calls in one message. WRONG: multiple Task() calls in a single message. `git worktree add` locks `.git/config.lock`, so sequential dispatch avoids lock contention while agents still run in parallel after creation.
 
-   **Provider-cli dispatch (gsd-hermes, highest-priority direct binding):** Before any `Task()`/delegate fallback, if `agent_execution_bindings.router == "provider-cli"`, select `agent_execution_bindings.agents.executor`; require `status=resolved` and `execution_driver in {claude-cli,codex-cli,hermes-chat,hermes-terminal-tool}` or fail fast with `configured_model`, `provider_family`, `diagnostic`, and `suggested_fix`. Emit the Provider CLI receipt, state that provider-routed shell execution is sequential on the current working tree (no `Task(isolation="worktree")` claim), write the full prompt to `.planning/tmp/provider-cli/{phase_number}-{plan_id}-executor.md`, preflight/render via `node get-shit-done/bin/gsd-provider-cli-dispatch.cjs`, then execute exactly the rendered command display from the helper. Direct provider CLI drivers use stdin: `codex-cli` → `codex exec --model {cli_model} --full-auto -C {workdir} < {prompt_path}`; `claude-cli` → `claude -p --model {cli_model} --agent gsd-executor --permission-mode acceptEdits < {prompt_path}`. Hermes-native drivers use `hermes chat` with a query loaded from the prompt file: `hermes-chat` → `cd {workdir} && hermes chat --quiet --source gsd-provider-cli --model {cli_model} --provider {provider} --query "$(cat {prompt_path})"`; `hermes-terminal-tool` adds `--toolsets terminal,file`. Non-zero exit is plan failure; never silently fall back to `Task()` or a different CLI after provider-cli selected a driver. This branch consumes SDK binding fields only — no raw `configured_model` regexes.
+   **Provider-routed dispatch (gsd-hermes, highest-priority direct binding):** Before any `Task()`/delegate fallback, if `agent_execution_bindings.router == "provider-cli"`, select `agent_execution_bindings.agents.executor`; require `status=resolved` and `execution_driver in {claude-cli,codex-cli,hermes-chat,hermes-terminal-tool}` or fail fast with `configured_model`, `provider_family`, `diagnostic`, and `suggested_fix`. `hermes/<model>` overrides can produce `hermes-terminal-tool` here without any workflow `agent_execution_*` config. Emit the execution receipt, state that provider-routed shell execution is sequential on the current working tree (no `Task(isolation="worktree")` claim), write the full prompt to `.planning/tmp/provider-cli/{phase_number}-{plan_id}-executor.md`, preflight/render via `node get-shit-done/bin/gsd-provider-cli-dispatch.cjs`, then execute exactly the rendered command display from the helper. Direct provider CLI drivers use stdin: `codex-cli` → `codex exec --model {cli_model} --full-auto -C {workdir} < {prompt_path}`; `claude-cli` → `claude -p --model {cli_model} --agent gsd-executor --permission-mode acceptEdits < {prompt_path}`. Hermes-native drivers use `hermes chat` with a query loaded from the prompt file: `hermes-chat` → `cd {workdir} && hermes chat --quiet --source gsd-provider-cli --model {cli_model} --query "$(cat {prompt_path})"`; `hermes-terminal-tool` adds `--toolsets terminal,file`. Non-zero exit is plan failure; never silently fall back to `Task()` or a different CLI after provider-routed execution selected a driver. This branch consumes SDK binding fields only — no raw `configured_model` regexes.
 
    ```
    Task(
@@ -1345,7 +1345,7 @@ Verify phase achieved its GOAL, not just completed tasks.
 VERIFIER_SKILLS=$(gsd-sdk query agent-skills gsd-verifier)
 ```
 
-**Provider-cli verifier dispatch (gsd-hermes):** If `agent_execution_bindings.router == "provider-cli"`, select `agent_execution_bindings.agents.verifier` before `Task()` fallback, render/preflight with `get-shit-done/bin/gsd-provider-cli-dispatch.cjs`, write `.planning/tmp/provider-cli/{phase_number}-verifier.md`, and run the selected stdin command. Require `{phase_dir}/*-VERIFICATION.md`; CLI non-zero or missing verification fails with the binding diagnostic and must not retry through another runtime. Anthropic verifier → `claude -p --model {cli_model}`; OpenAI verifier → `codex exec --model {cli_model}`. The `Task(subagent_type="gsd-verifier", model="{verifier_model}")` block is fallback only when provider-cli is absent/disabled.
+**Provider-routed verifier dispatch (gsd-hermes):** If `agent_execution_bindings.router == "provider-cli"`, select `agent_execution_bindings.agents.verifier` before `Task()` fallback, render/preflight with `get-shit-done/bin/gsd-provider-cli-dispatch.cjs`, write `.planning/tmp/provider-cli/{phase_number}-verifier.md`, and run the selected stdin command. Require `{phase_dir}/*-VERIFICATION.md`; CLI non-zero or missing verification fails with the binding diagnostic and must not retry through another runtime. `hermes/*` verifier → `hermes chat --toolsets terminal,file --model {cli_model}`; Anthropic verifier → `claude -p --model {cli_model}`; OpenAI verifier → `codex exec --model {cli_model}`. The `Task(subagent_type="gsd-verifier", model="{verifier_model}")` block is fallback only when provider-routed bindings are absent/disabled.
 
 ```
 Task(

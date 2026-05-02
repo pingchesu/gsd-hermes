@@ -12,7 +12,7 @@
 | Tier | What ships | Version format | npm tag | Branch | Install |
 |------|-----------|---------------|---------|--------|---------|
 | Patch | Bug fixes only | `1.9.1` | `latest` | `hotfix/1.9.1` | `npx gsd-hermes@latest` |
-| Minor | Upstream syncs, non-breaking features | `1.10.0` | `latest` after validation | `release/1.10.0` | `npx gsd-hermes@latest` |
+| Minor | Upstream syncs, non-breaking features | `1.11.0` | `latest` after validation | `release/1.11.0` | `npx gsd-hermes@latest` |
 | Major | Breaking config/CLI/runtime changes | `2.0.0` | `latest` after validation | `release/2.0.0` | `npx gsd-hermes@latest` |
 
 Pre-releases, when needed, use the `next` dist-tag:

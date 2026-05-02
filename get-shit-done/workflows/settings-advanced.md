@@ -59,8 +59,10 @@ Discussion Tuning:
 - `workflow.max_discuss_passes` (default: `3`)
 
 Cross-AI Execution / Provider Routing:
-- `workflow.agent_execution_router` (default: `null`; set `"provider-cli"` for per-agent provider→CLI routing)
-- `workflow.cross_ai_execution` (default: `false`; legacy whole-plan fallback, lower priority than valid provider-cli bindings)
+- `model_overrides.<agent>` values like `hermes/gpt-5-5` or `hermes/claude-opus-4-7` are the preferred Hermes-native routing path
+- `workflow.agent_execution_router` (default: `null`; advanced compatibility switch for explicit provider→CLI routing)
+- `workflow.agent_execution_driver` (default: `provider-cli`; advanced compatibility preference, normally unset)
+- `workflow.cross_ai_execution` (default: `false`; legacy whole-plan fallback, lower priority than valid per-agent bindings)
 - `workflow.cross_ai_command` (default: `null`)
 - `workflow.cross_ai_timeout` (default: `300`)
 

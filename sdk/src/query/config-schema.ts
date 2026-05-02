@@ -48,7 +48,7 @@ export const VALID_CONFIG_KEYS: ReadonlySet<string> = new Set([
   'planning.commit_docs', 'planning.search_gitignored', 'planning.sub_repos',
   'review.ollama_host', 'review.lm_studio_host', 'review.llama_cpp_host',
   'workflow.cross_ai_execution', 'workflow.cross_ai_command', 'workflow.cross_ai_timeout',
-  'workflow.agent_execution_router',
+  'workflow.agent_execution_router', 'workflow.agent_execution_driver',
   'workflow.subagent_timeout',
   'workflow.inline_plan_threshold',
   'hooks.context_warnings',

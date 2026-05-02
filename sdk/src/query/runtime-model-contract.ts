@@ -181,9 +181,13 @@ function isGoogleModel(model: string): boolean {
   return /^(?:gemini(?:$|[-.])|google\/)/i.test(model);
 }
 
+function unwrapHermesModelPrefix(model: string): string {
+  return model.toLowerCase().startsWith('hermes/') ? model.slice('hermes/'.length) : model;
+}
+
 export function detectModelFamily(model: string | null | undefined): ModelFamily {
   if (!model) return 'unknown';
-  const normalized = model.trim();
+  const normalized = unwrapHermesModelPrefix(model.trim());
   if (normalized === '') return 'unknown';
   if (isAnthropicModel(normalized)) return 'anthropic';
   if (isOpenAiModel(normalized)) return 'openai';

@@ -145,8 +145,7 @@ describe('provider CLI dispatch helper', () => {
     assert.deepEqual(command.argv.slice(0, 4), ['hermes', 'chat', '--quiet', '--source']);
     assert.equal(command.argv.includes('--model'), true);
     assert.equal(command.argv[command.argv.indexOf('--model') + 1], 'openai/gpt-5.5');
-    assert.equal(command.argv.includes('--provider'), true);
-    assert.equal(command.argv[command.argv.indexOf('--provider') + 1], 'openai');
+    assert.equal(command.argv.includes('--provider'), false);
     assert.equal(command.argv.includes('claude'), false);
     assert.equal(command.argv.includes('codex'), false);
     assert.match(command.display, /hermes chat .*--model openai\/gpt-5\.5/);
@@ -166,8 +165,8 @@ describe('provider CLI dispatch helper', () => {
     assert.equal(command.argv[command.argv.indexOf('--toolsets') + 1], 'terminal,file');
     assert.equal(command.argv.includes('--model'), true);
     assert.equal(command.argv[command.argv.indexOf('--model') + 1], 'anthropic/claude-opus-4-7');
-    assert.equal(command.argv[command.argv.indexOf('--provider') + 1], 'anthropic');
-    assert.doesNotMatch(command.display, /claude -p|codex exec/);
+    assert.equal(command.argv.includes('--provider'), false);
+    assert.doesNotMatch(command.display, /--provider|claude -p|codex exec/);
   });
 
   test('preflight reports missing Hermes CLI for Hermes-native drivers', () => {

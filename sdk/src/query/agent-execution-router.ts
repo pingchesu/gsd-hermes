@@ -77,6 +77,42 @@ function normalizeHermesModel(model: string | null | undefined): string | null {
   return trimmed === '' ? null : trimmed;
 }
 
+function isHermesPrefixedModel(model: string | null | undefined): boolean {
+  return typeof model === 'string' && model.trim().toLowerCase().startsWith('hermes/');
+}
+
+function stripHermesPrefix(model: string): string {
+  return isHermesPrefixedModel(model) ? model.trim().slice('hermes/'.length) : model.trim();
+}
+
+function normalizeOpenAiHermesModel(model: string): string {
+  const unprefixed = model.toLowerCase().startsWith('openai/') ? model.slice('openai/'.length) : model;
+  const dotAlias = unprefixed.replace(/^gpt-(\d+)-(\d+)(.*)$/i, 'gpt-$1.$2$3');
+  return `openai/${dotAlias}`;
+}
+
+function normalizeHermesRoutedModel(model: string | null | undefined, providerFamily: ModelFamily): string | null {
+  if (!model) return null;
+  const inner = stripHermesPrefix(model);
+  if (inner === '') return null;
+
+  if (providerFamily === 'anthropic') {
+    const unprefixed = stripProviderPrefix(inner, 'anthropic');
+    return `anthropic/${MODEL_ALIAS_MAP[unprefixed] ?? unprefixed}`;
+  }
+
+  if (providerFamily === 'openai') {
+    return normalizeOpenAiHermesModel(inner);
+  }
+
+  if (providerFamily === 'google') {
+    const unprefixed = inner.toLowerCase().startsWith('google/') ? inner.slice('google/'.length) : inner;
+    return `google/${unprefixed}`;
+  }
+
+  return inner;
+}
+
 function providerFamilySupportedByHermes(providerFamily: ModelFamily): boolean {
   return providerFamily === 'anthropic' || providerFamily === 'openai' || providerFamily === 'google';
 }
@@ -86,13 +122,19 @@ export function resolveAgentExecutionBinding(
   options: { driverPreference?: AgentExecutionDriverPreference } = {},
 ): AgentExecutionBinding {
   const providerModel = receipt.model_token ?? receipt.resolved_model ?? receipt.configured_model;
-  const providerFamily = receipt.provider_family === 'unknown'
+  const hermesPrefixed = isHermesPrefixedModel(providerModel);
+  const providerFamily = receipt.provider_family === 'unknown' || hermesPrefixed
     ? detectModelFamily(providerModel)
     : receipt.provider_family;
-  const driverPreference = options.driverPreference ?? 'provider-cli';
-  const cliModel = driverPreference === 'provider-cli'
-    ? normalizeCliModel(providerModel, providerFamily)
-    : normalizeHermesModel(providerModel);
+  const requestedPreference = options.driverPreference ?? 'provider-cli';
+  const driverPreference = hermesPrefixed && requestedPreference === 'provider-cli'
+    ? 'hermes-terminal-tool'
+    : requestedPreference;
+  const cliModel = hermesPrefixed
+    ? normalizeHermesRoutedModel(providerModel, providerFamily)
+    : driverPreference === 'provider-cli'
+      ? normalizeCliModel(providerModel, providerFamily)
+      : normalizeHermesModel(providerModel);
 
   if (receipt.status !== 'resolved' || receipt.binding_kind !== 'explicit' || !providerModel) {
     return {
@@ -106,7 +148,7 @@ export function resolveAgentExecutionBinding(
       source: receipt.source,
       strict: true,
       diagnostic: `Provider-routed execution requires an explicit model_overrides binding for ${receipt.agent}.`,
-      suggested_fix: `Set model_overrides.${receipt.agent} to an Anthropic/Claude or OpenAI/GPT model, or disable workflow.agent_execution_router.`,
+      suggested_fix: `Set model_overrides.${receipt.agent} to hermes/gpt-5-5, hermes/claude-opus-4-7, an OpenAI/GPT model, or an Anthropic/Claude model.`,
     };
   }
 
@@ -123,7 +165,7 @@ export function resolveAgentExecutionBinding(
         cli_model: cliModel,
         source: receipt.source,
         strict: true,
-        diagnostic: `${receipt.agent} routes through ${label} with explicit model '${providerModel}'. Hermes is the execution surface; provider selection remains model-driven and must not fall back to Claude/Codex CLI.`,
+        diagnostic: `${receipt.agent} routes through ${label} with explicit model '${providerModel}'. Hermes is the execution surface; provider selection remains model-driven and must not use provider-specific CLIs.`,
         suggested_fix: null,
       };
     }
@@ -139,7 +181,7 @@ export function resolveAgentExecutionBinding(
       source: receipt.source,
       strict: true,
       diagnostic: `Hermes-native provider-routed execution does not support provider family '${providerFamily}' for ${receipt.agent}.`,
-      suggested_fix: `Use an Anthropic/Claude, OpenAI/GPT, or Google/Gemini model override for ${receipt.agent}; set workflow.agent_execution_driver to provider-cli; or disable workflow.agent_execution_router.`,
+      suggested_fix: `Use hermes/gpt-5-5, hermes/claude-opus-4-7, or a supported plain OpenAI/GPT or Anthropic/Claude override for ${receipt.agent}.`,
     };
   }
 
@@ -186,8 +228,15 @@ export function resolveAgentExecutionBinding(
     source: receipt.source,
     strict: true,
     diagnostic: `Provider-routed execution does not support provider family '${providerFamily}' for ${receipt.agent}.`,
-    suggested_fix: `Use an Anthropic/Claude or OpenAI/GPT model override for ${receipt.agent}, or disable workflow.agent_execution_router.`,
+    suggested_fix: `Use an Anthropic/Claude, OpenAI/GPT, hermes/gpt-5-5, or hermes/claude-opus-4-7 model override for ${receipt.agent}.`,
   };
+}
+
+function hasHermesPrefixedReceipt(modelBindingReceipts: { agents: Record<string, RuntimeModelReceipt> }): boolean {
+  return Object.values(modelBindingReceipts.agents).some((receipt) => {
+    const providerModel = receipt.model_token ?? receipt.resolved_model ?? receipt.configured_model;
+    return isHermesPrefixedModel(providerModel);
+  });
 }
 
 export function buildAgentExecutionBindings(
@@ -195,16 +244,20 @@ export function buildAgentExecutionBindings(
   modelBindingReceipts: { agents: Record<string, RuntimeModelReceipt> },
 ): AgentExecutionBindings | null {
   const router = resolveAgentExecutionRouterMode(config);
-  if (router !== 'provider-cli') return null;
+  const hermesPrefixed = hasHermesPrefixedReceipt(modelBindingReceipts);
+  if (router !== 'provider-cli' && !hermesPrefixed) return null;
 
-  const driverPreference = resolveAgentExecutionDriverPreference(config);
+  const configDriverPreference = resolveAgentExecutionDriverPreference(config);
+  const driverPreference = hermesPrefixed && configDriverPreference === 'provider-cli'
+    ? 'hermes-terminal-tool'
+    : configDriverPreference;
   const agents: Record<string, AgentExecutionBinding> = {};
   for (const [role, receipt] of Object.entries(modelBindingReceipts.agents)) {
-    agents[role] = resolveAgentExecutionBinding(receipt, { driverPreference });
+    agents[role] = resolveAgentExecutionBinding(receipt, { driverPreference: configDriverPreference });
   }
 
   return {
-    router,
+    router: 'provider-cli',
     strict: true,
     driver_preference: driverPreference,
     agents,
