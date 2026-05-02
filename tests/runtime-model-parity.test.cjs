@@ -97,9 +97,9 @@ const MATRIX = [
   //   - explicit model_override (step 1, override wins over runtime-aware)
   //   - runtime: codex + profile: inherit (step 5-inherit, returns 'inherit')
   //   - runtime: codex + omit for gsd-unknown-agent (unsupported rejects both sides)
-  //   - runtime: hermes (recognized runtime without built-in profile IDs —
-  //     resolveTierEntry returns null and falls through to profile lookup;
-  //     CJS and SDK agree on Claude alias unless explicit overrides are set)
+  //   - runtime: hermes (recognized runtime with gsd-hermes aggregator-aware
+  //     profile IDs; legacy CJS string resolution may emit provider-qualified
+  //     Anthropic slugs while SDK receipts keep profile binding metadata)
   //   - cross_ai_execution: true (no effect on token resolution; HERM-04 is
   //     about the flag being preserved through the binding shape)
   //   - resolve_model_ids: true + adaptive profile (alias mapping path)
@@ -130,11 +130,12 @@ const MATRIX = [
     expectedInitToken: '',
   },
   {
-    name: 'runtime: hermes is recognized and falls through to Claude-safe profile alias without explicit overrides (PROFILE-01 fork-identity)',
+    name: 'runtime: hermes uses aggregator-aware profile slug in legacy CJS while SDK keeps profile binding metadata (PROFILE-01 fork-identity)',
     agent: 'gsd-planner',
     config: { runtime: 'hermes', model_profile: 'balanced', workflow: {} },
-    expectedLegacyToken: 'opus',
+    expectedLegacyToken: 'anthropic/claude-opus-4-7',
     expectedInitToken: 'opus',
+    runtimeAwareLegacyToken: true,
   },
   {
     name: 'cross_ai_execution: true keeps legacy/init tokens on Claude default path (HERM-04 fallback flag preserved)',
@@ -248,8 +249,16 @@ describe('runtime-model parity', () => {
       assert.strictEqual(cjsInitToken, sdkInitToken,
         'legacy init token projection must match SDK init projection');
       if (sdkResolution.bindingKind !== 'inherit') {
-        assert.strictEqual(cjsLegacyToken, sdkLegacyToken,
-          'legacy CJS string adapter must match SDK legacy token projection for non-inherit bindings');
+        if (entry.runtimeAwareLegacyToken) {
+          assert.strictEqual(
+            sdkLegacyToken,
+            cjsInitToken,
+            'SDK legacy/init projections keep the profile binding token when legacy CJS runtime-aware resolution emits a provider-qualified slug'
+          );
+        } else {
+          assert.strictEqual(cjsLegacyToken, sdkLegacyToken,
+            'legacy CJS string adapter must match SDK legacy token projection for non-inherit bindings');
+        }
       } else {
         assert.strictEqual(cjsLegacyToken, 'inherit',
           'legacy CJS string adapter must preserve inherit as a semantic binding token');

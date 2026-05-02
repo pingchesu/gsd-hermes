@@ -1,3 +1,8 @@
+// allow-test-rule: pending-migration-to-typed-ir [#2974]
+// Tracked in #2974 for migration to typed-IR assertions per CONTRIBUTING.md
+// "Prohibited: Raw Text Matching on Test Outputs". Per-file review may
+// reclassify some entries as source-text-is-the-product during migration.
+
 /**
  * GSD Tools Tests - Kilo Install Plumbing
  *
@@ -207,7 +212,10 @@ describe('configureKiloPermissions', () => {
 describe('Source code integration (Kilo)', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'bin', 'install.js'), 'utf8');
   const updateWorkflowSrc = fs.readFileSync(path.join(__dirname, '..', 'get-shit-done', 'workflows', 'update.md'), 'utf8');
-  const reapplyPatchesSrc = fs.readFileSync(path.join(__dirname, '..', 'commands', 'gsd', 'reapply-patches.md'), 'utf8');
+  // #2790: reapply-patches.md command was absorbed into update.md --reapply.
+  // The Kilo-specific env-var checks (KILO_CONFIG_DIR, KILO_CONFIG, XDG_CONFIG_HOME)
+  // now live in the update.md workflow (which covers both --sync and --reapply paths).
+  const reapplyPatchesSrc = updateWorkflowSrc;
 
   test('--kilo flag parsing exists', () => {
     assert.ok(src.includes("args.includes('--kilo')"), '--kilo flag parsed');
@@ -221,13 +229,30 @@ describe('Source code integration (Kilo)', () => {
     assert.ok(src.includes("'kilo'"), '--all includes kilo runtime');
   });
 
-  test('promptRuntime runtimeMap has Kilo as option 10', () => {
-    assert.ok(src.includes("'10': 'kilo'"), 'runtimeMap has 10 -> kilo');
+  test('promptRuntime runtimeMap has Kilo as option 11', () => {
+    // Structural assertion against exported runtimeMap rather than source-grep.
+    process.env.GSD_TEST_MODE = '1';
+    delete require.cache[require.resolve(path.join(__dirname, '..', 'bin', 'install.js'))];
+    const { runtimeMap } = require(path.join(__dirname, '..', 'bin', 'install.js'));
+    assert.strictEqual(runtimeMap['11'], 'kilo', 'runtimeMap has 11 -> kilo');
   });
 
   test('prompt text shows Kilo above OpenCode without marketing copy', () => {
-    assert.ok(src.includes('10${reset}) Kilo'), 'prompt lists Kilo as option 10');
-    assert.ok(!src.includes('the #1 AI coding platform on OpenRouter'), 'prompt does not include marketing tagline');
+    // Call the exported prompt builder; assert against rendered text, not raw source.
+    process.env.GSD_TEST_MODE = '1';
+    delete require.cache[require.resolve(path.join(__dirname, '..', 'bin', 'install.js'))];
+    const { buildRuntimePromptText } = require(path.join(__dirname, '..', 'bin', 'install.js'));
+    const promptText = buildRuntimePromptText();
+    // Strip ANSI color codes so assertions don't depend on terminal escapes.
+    // eslint-disable-next-line no-control-regex
+    const plain = promptText.replace(/\x1b\[[0-9;]*m/g, '');
+    assert.ok(/\b11\)\s*Kilo\b/.test(plain), 'prompt lists Kilo as option 11');
+    const kiloIdx = plain.indexOf('11) Kilo');
+    const opencodeIdx = plain.indexOf('OpenCode');
+    assert.ok(kiloIdx > -1 && opencodeIdx > -1 && kiloIdx < opencodeIdx,
+      'Kilo appears above OpenCode in prompt');
+    assert.ok(!plain.includes('the #1 AI coding platform on OpenRouter'),
+      'prompt does not include marketing tagline');
   });
 
   test('hooks are skipped for Kilo', () => {

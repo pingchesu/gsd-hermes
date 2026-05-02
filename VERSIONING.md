@@ -1,126 +1,90 @@
 # Versioning & Release Strategy
 
-GSD follows [Semantic Versioning 2.0.0](https://semver.org/) with three release tiers mapped to npm dist-tags.
+`gsd-hermes` uses an independent downstream version line from upstream `get-shit-done-cc`.
 
-## Release Tiers
+- Public package: `gsd-hermes`
+- Install command: `npx gsd-hermes@latest`
+- Upstream source: `gsd-build/get-shit-done`
+- Release target: Hermes-first GSD distribution with strict provider-routed execution
+
+## Release tiers
 
 | Tier | What ships | Version format | npm tag | Branch | Install |
 |------|-----------|---------------|---------|--------|---------|
-| **Patch** | Bug fixes only | `1.3.1` | `latest` | `hotfix/1.3.1` | `npx gsd-hermes@latest` |
-| **Minor** | Fixes + enhancements | `1.4.0` | `latest` (after RC) | `release/1.4.0` | `npx gsd-hermes@next` (RC) |
-| **Major** | Fixes + enhancements + features | `2.0.0` | `latest` (after beta) | `release/2.0.0` | `npx gsd-hermes@next` (beta) |
+| Patch | Bug fixes only | `1.9.1` | `latest` | `hotfix/1.9.1` | `npx gsd-hermes@latest` |
+| Minor | Upstream syncs, non-breaking features | `1.10.0` | `latest` after validation | `release/1.10.0` | `npx gsd-hermes@latest` |
+| Major | Breaking config/CLI/runtime changes | `2.0.0` | `latest` after validation | `release/2.0.0` | `npx gsd-hermes@latest` |
 
-## npm Dist-Tags
-
-Only two tags, following Angular/Next.js convention:
-
-| Tag | Meaning | Installed by |
-|-----|---------|-------------|
-| `latest` | Stable production release | `npm install gsd-hermes` (default) |
-| `next` | Pre-release (RC or beta) | `npm install get-shit-done-cc@next` (opt-in) |
-
-The version string (`-rc.1` vs `-beta.1`) communicates stability level. Users never get pre-releases unless they explicitly opt in.
-
-## Semver Rules
-
-| Increment | When | Examples |
-|-----------|------|----------|
-| **PATCH** (1.3.x) | Bug fixes, typo corrections, test additions | Hook filter fix, config corruption fix |
-| **MINOR** (1.x.0) | Non-breaking enhancements, new commands, new runtime support | New workflow command, discuss-mode feature |
-| **MAJOR** (x.0.0) | Breaking changes to config format, CLI flags, or runtime API; new features that alter existing behavior | Removing a command, changing config schema |
-
-## Pre-Release Version Progression
-
-Major and minor releases use different pre-release types:
-
-```
-Minor: 1.4.0-rc.1  →  1.4.0-rc.2  →  1.4.0
-Major: 2.0.0-beta.1 →  2.0.0-beta.2 →  2.0.0
-```
-
-- **beta** (major releases only): Feature-complete but not fully tested. API mostly stable. Used for major releases to signal a longer testing cycle.
-- **rc** (minor releases only): Production-ready candidate. Only critical fixes expected.
-- Each version uses one pre-release type throughout its cycle. The `rc` action in the release workflow automatically selects the correct type based on the version.
-
-## Branch Structure
-
-```
-main                              ← stable, always deployable
-  │
-  ├── hotfix/1.3.1               ← patch: cherry-pick fix from main, publish to latest
-  │
-  ├── release/1.4.0              ← minor: accumulate fixes + enhancements, RC cycle
-  │     ├── v1.4.0-rc.1          ← tag: published to next
-  │     └── v1.4.0               ← tag: promoted to latest
-  │
-  ├── release/2.0.0               ← major: features + breaking changes, beta cycle
-  │     ├── v2.0.0-beta.1         ← tag: published to next
-  │     ├── v2.0.0-beta.2         ← tag: published to next
-  │     └── v2.0.0                ← tag: promoted to latest
-  │
-  ├── fix/1200-bug-description    ← bug fix branch (merges to main)
-  ├── feat/925-feature-name       ← feature branch (merges to main)
-  └── chore/1206-maintenance      ← maintenance branch (merges to main)
-```
-
-## Release Workflows
-
-### Patch Release (Hotfix)
-
-For critical bugs that can't wait for the next minor release.
-
-1. Trigger `hotfix.yml` with version (e.g., `1.3.1`)
-2. Workflow creates `hotfix/1.3.1` branch from the latest patch tag for that minor version (e.g., `v1.27.0` or `v1.3.1`)
-3. Cherry-pick or apply fix on the hotfix branch
-4. Push — CI runs tests automatically
-5. Trigger `hotfix.yml` finalize action
-6. Workflow runs full test suite, bumps version, tags, publishes to `latest`
-7. Merge hotfix branch back to main
-
-### Minor Release (Standard Cycle)
-
-For accumulated fixes and enhancements.
-
-1. Trigger `release.yml` with action `create` and version (e.g., `1.4.0`)
-2. Workflow creates `release/1.4.0` branch from main, bumps package.json
-3. Trigger `release.yml` with action `rc` to publish `1.4.0-rc.1` to `next`
-4. Test the RC: `npx gsd-hermes@next`
-5. If issues found: fix on release branch, publish `rc.2`, `rc.3`, etc.
-6. Trigger `release.yml` with action `finalize` — publishes `1.4.0` to `latest`
-7. Merge release branch to main
-
-### Major Release
-
-Same as minor but uses `-beta.N` instead of `-rc.N`, signaling a longer testing cycle.
-
-1. Trigger `release.yml` with action `create` and version (e.g., `2.0.0`)
-2. Trigger `release.yml` with action `rc` to publish `2.0.0-beta.1` to `next`
-3. If issues found: fix on release branch, publish `beta.2`, `beta.3`, etc.
-4. Trigger `release.yml` with action `finalize` -- publishes `2.0.0` to `latest`
-5. Merge release branch to main
-
-## Conventional Commits
-
-Branch names map to commit types:
-
-| Branch prefix | Commit type | Version bump |
-|--------------|-------------|-------------|
-| `fix/` | `fix:` | PATCH |
-| `feat/` | `feat:` | MINOR |
-| `hotfix/` | `fix:` | PATCH (immediate) |
-| `chore/` | `chore:` | none |
-| `docs/` | `docs:` | none |
-| `refactor/` | `refactor:` | none |
-
-## Publishing Commands (Reference)
+Pre-releases, when needed, use the `next` dist-tag:
 
 ```bash
-# Stable release (sets latest tag automatically)
-npm publish
+npm install gsd-hermes@next
+```
 
-# Pre-release (must use --tag to avoid overwriting latest)
-npm publish --tag next
+## Dist-tags
 
-# Verify what latest and next point to
+| Tag | Meaning |
+|-----|---------|
+| `latest` | Stable downstream release. |
+| `next` | Pre-release candidate or canary when intentionally published. |
+
+Stable releases should ensure `next` does not remain pinned to an older package than `latest`.
+
+## Downstream versioning rule
+
+A `gsd-hermes` release may be a minor even when upstream used an RC/development version. The downstream semver communicates compatibility and risk for Hermes-first users, not upstream's package number.
+
+Each release entry must record:
+
+1. `gsd-hermes` package version.
+2. upstream commit/base version.
+3. downstream invariants preserved.
+4. validation gates.
+
+## Release workflow
+
+1. Sync upstream on a clean branch and resolve conflicts.
+2. Preserve downstream invariants:
+   - package identity `gsd-hermes`;
+   - CLI `npx gsd-hermes`;
+   - Hermes global/project-linked install semantics;
+   - `model_binding_receipts` and `agent_execution_bindings`;
+   - strict provider routing (`openai/gpt-*` → Codex CLI, `anthropic/claude-*` → Claude CLI);
+   - fail-fast on unsupported provider families;
+   - Trusted Publishing workflow.
+3. Run focused Hermes/provider-routing regressions.
+4. Update README, COMMANDS, CONFIGURATION/compatibility docs as needed, CHANGELOG, and release notes.
+5. Run full gates:
+
+```bash
+npm run test:hermes
+npm test
+npm run lint:tests
+npm pack --dry-run --json
+```
+
+6. Open PR and track CI to green.
+7. Merge to `main`.
+8. Create GitHub Release `vX.Y.Z`.
+9. Use GitHub Actions Trusted Publishing to publish to npm.
+10. Verify:
+
+```bash
+npm view gsd-hermes version
 npm dist-tag ls gsd-hermes
 ```
+
+## Publishing commands reference
+
+Local publishing is not the preferred path. Prefer GitHub Actions Trusted Publishing.
+
+```bash
+# Verify what npm sees
+npm view gsd-hermes version
+npm dist-tag ls gsd-hermes
+
+# Dry-run package contents locally
+npm pack --dry-run --json
+```
+
+Do not store npm tokens in the repository or release notes.

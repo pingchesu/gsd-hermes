@@ -1,45 +1,85 @@
+<div align="center">
+
 # GSD Hermes
 
-**GSD Hermes** is a downstream fork of [get-shit-done-cc](https://github.com/gsd-build/get-shit-done) that adds Hermes Agent runtime support while preserving upstream GSD workflows.
+**Hermes-first Get Shit Done distribution with strict provider-routed agent execution.**
 
-- **Package:** `gsd-hermes@1.7.0`
-- **Upstream base:** `upstream/main@eeaf9c55` (`get-shit-done-cc@1.39.0-rc.5`, synced from `9472f343..eeaf9c55`)
-- **Install:** `npx gsd-hermes --hermes --global`
+`gsd-hermes` packages the upstream [Get Shit Done](https://github.com/gsd-build/get-shit-done) workflow for Hermes Agent users who want the normal `/gsd-*` planning/execution loop plus explicit, auditable model/provider routing.
 
-## Install & Quickstart
-
-Hermes install modes (global, project-linked external-dir, macOS canonicalization) are documented in [docs/hermes-install.md](docs/hermes-install.md).
-
-Quick start:
+[![npm version](https://img.shields.io/npm/v/gsd-hermes?style=for-the-badge&logo=npm&logoColor=white&color=CB3837)](https://www.npmjs.com/package/gsd-hermes)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=for-the-badge)](LICENSE)
 
 ```bash
-npx gsd-hermes --hermes --global
+npx gsd-hermes@latest --hermes --global
 ```
 
-Other modes — project-linked external-dir, per-user prefix fallback, macOS canonicalization — see [docs/hermes-install.md](docs/hermes-install.md).
+</div>
 
-## Workflow
+---
 
-After install, GSD commands (`/gsd-new-project`, `/gsd-plan-phase`, `/gsd-execute-phase`, etc.) run against a Hermes Agent runtime the same way they run on any other supported runtime. Hermes-specific semantics — runtime selection, model profile composition, dash-form command discovery, and upstream colon-namespace compatibility boundaries — are documented in [docs/hermes-compatibility.md](docs/hermes-compatibility.md).
+## What this distribution is
 
-Compatibility gate: `npm run test:hermes` validates Hermes install modes + SDK query behavior + runtime-model parity + slash command inventory. This gate is the single authoritative Hermes-specific regression signal.
+`gsd-hermes` is not a rewrite of GSD. It is a downstream distribution that stays close to upstream GSD while making Hermes the primary install and runtime target.
 
-### Hermes runtime model binding receipts
+Use it when you want:
 
-`gsd-hermes@1.6.0` preserves per-agent model binding receipts and imports upstream `upstream/main@9472f343` fixes/features. The v1.4.30 model-binding release made per-agent model binding explicit in plan-phase and execute-phase init payloads through `model_binding_receipts`. These receipts show the resolver decision, configured model, resolved runtime token, binding source, Hermes runtime binding channel, and proof boundary for each spawned GSD agent.
+- the upstream GSD command/workflow model (`/gsd-new-project`, `/gsd-plan-phase`, `/gsd-execute-phase`, `/gsd-ship`, ...);
+- Hermes Agent install semantics out of the box;
+- project-linked local Hermes installs via `./.gsd-hermes` + `skills.external_dirs`;
+- strict per-agent model intent through `model_overrides`;
+- deterministic provider-family dispatch for executor/verifier-style subagents;
+- fail-fast behavior when a configured model cannot be routed safely.
 
-Hermes model override semantics are strict: if `.planning/config.json` configures a per-agent model, GSD must either pass that model to the Hermes child construction path or fail before spawn with an actionable diagnostic. Silent fallback to the parent/default model is not acceptable.
+Upstream GSD now has basic Hermes Agent support. The value of `gsd-hermes` is the Hermes-first packaging, downstream compatibility gates, and strict provider-routed execution layer that prevents a configured GPT/OpenAI agent from silently falling back to `claude -p`.
 
-Current proof boundary is conservative:
+---
 
-- GSD resolver and workflow receipts prove the configured intent and handoff metadata.
-- Hermes Agent child-construction tests prove `delegate_task(model=...)` and batch `tasks[].model` reach `AIAgent(model=...)`.
-- Safe provider diagnostics expose sanitized model/provider metadata only.
-- Live provider wire-level `model=...` enforcement is not claimed unless captured through future sanitized provider instrumentation.
+## Quick start
 
-### Provider-routed agent execution (v1.8 draft)
+### Global Hermes install
 
-When `.planning/config.json` sets `workflow.agent_execution_router` to `"provider-cli"`, explicit `model_overrides` are treated as strict per-agent provider intent and converted into deterministic CLI driver bindings before `/gsd-execute-phase` spawns work:
+```bash
+npx gsd-hermes@latest --hermes --global
+```
+
+Installs GSD skills under the Hermes home directory (`~/.hermes` by default, or `HERMES_HOME` / an explicit config dir when provided).
+
+### Project-linked Hermes install
+
+```bash
+npx gsd-hermes@latest --hermes --local
+```
+
+For Hermes, local install means **project-linked mode**:
+
+```text
+./.gsd-hermes/skills/...
+~/.hermes/config.yaml  # updated with skills.external_dirs
+```
+
+This avoids claiming Hermes has a native per-project local skills root while still giving each repo an inspectable, versioned GSD skill tree.
+
+### Verify
+
+In Hermes Agent, run:
+
+```text
+/gsd-help
+```
+
+Then start a project:
+
+```text
+/gsd-new-project
+/gsd-plan-phase 1
+/gsd-execute-phase 1
+```
+
+---
+
+## Strict provider-routed execution
+
+`model_overrides` is the source of per-agent model intent. When `workflow.agent_execution_router` is set to `"provider-cli"`, GSD resolves each configured model into an execution driver before spawning work.
 
 ```json
 {
@@ -57,26 +97,117 @@ When `.planning/config.json` sets `workflow.agent_execution_router` to `"provide
 
 | Configured model family | Execution driver | Command shape |
 | --- | --- | --- |
-| `openai/*` or `gpt-*` | Codex CLI | `codex exec --model {cli_model}` |
-| `anthropic/*` or `claude-*` | Claude Code CLI | `claude -p --model {cli_model}` |
+| `openai/*`, `gpt-*` | Codex CLI | `codex exec --model {model}` |
+| `anthropic/*`, `claude-*` | Claude Code CLI | `claude -p --model {model}` |
+| unsupported / unavailable | none | fail fast with diagnostics |
 
-The guarantee is matching driver or fail-fast: `openai/gpt-5.5` must not silently run through `claude -p`, and `anthropic/claude-opus-4-7` must not silently run through `codex exec`. This proves GSD command routing and normalized CLI model arguments; it does not claim wire-level provider API proof inside those external CLI tools.
+Guarantees:
 
-## Docs
+- `openai/gpt-5.5` must not silently run through `claude -p`.
+- `anthropic/claude-opus-4-7` must not silently run through `codex exec`.
+- unsupported model families fail before spawn with actionable diagnostics.
+- init payloads expose both `model_binding_receipts` and `agent_execution_bindings` so the effective runtime/provider/model/driver is visible.
 
-- [docs/hermes-install.md](docs/hermes-install.md) — Hermes install modes (global, external-dir, macOS canonicalization)
-- [docs/hermes-compatibility.md](docs/hermes-compatibility.md) — Compatibility surface contract, runtime-model composition, slash command inventory
-- [docs/fork-ownership.md](docs/fork-ownership.md) — Path ownership matrix + merge-conflict routing rules
-- [docs/upstream-sync.md](docs/upstream-sync.md) — Upstream sync workflow + sync-log precedent
-- [docs/sync-logs/2026-04-sync-0a049149.md](docs/sync-logs/2026-04-sync-0a049149.md) — Per-hunk classification for the v1.3 upstream sync
-- [docs/releases/v1.4.0-upstream-sync-cd057255.md](docs/releases/v1.4.0-upstream-sync-cd057255.md) — Release notes for the v1.4 upstream sync package
-- [docs/releases/v1.4.30-runtime-model-binding-receipts.md](docs/releases/v1.4.30-runtime-model-binding-receipts.md) — Release notes for Hermes runtime model binding receipts and fail-fast validation
-- [docs/releases/v1.5.0-upstream-sync-f3685d91.md](docs/releases/v1.5.0-upstream-sync-f3685d91.md) — Release notes for the upstream `get-shit-done-cc@1.38.5` sync
-- [docs/releases/v1.6.0-upstream-sync-9472f343.md](docs/releases/v1.6.0-upstream-sync-9472f343.md) — Release notes for the upstream `9472f343` sync
-- [docs/releases/v1.8.0-provider-routed-agent-execution.md](docs/releases/v1.8.0-provider-routed-agent-execution.md) — Draft release notes for provider-routed agent execution
+Boundary: this proves GSD routing and CLI argument rendering. It does not claim wire-level provider API proof inside Codex CLI or Claude Code CLI.
 
-See [CHANGELOG.md](CHANGELOG.md) for release history.
+---
 
-## Based on Upstream GSD
+## Configuration example
 
-Based on upstream `get-shit-done@eeaf9c55` — see [the upstream project](https://github.com/gsd-build/get-shit-done) for the source GSD system this fork extends.
+`.planning/config.json`:
+
+```json
+{
+  "runtime": "hermes",
+  "model_profile": "quality",
+  "resolve_model_ids": "omit",
+  "workflow": {
+    "agent_execution_router": "provider-cli",
+    "cross_ai_execution": false
+  },
+  "model_overrides": {
+    "gsd-planner": "anthropic/claude-opus-4-7",
+    "gsd-executor": "openai/gpt-5.5",
+    "gsd-verifier": "openai/gpt-5.5",
+    "gsd-code-reviewer": "anthropic/claude-opus-4-7"
+  }
+}
+```
+
+`cross_ai_execution` remains a legacy whole-plan fallback. Valid provider-cli bindings take priority and should not be overridden by `cross_ai_execution`.
+
+---
+
+## Commands
+
+Most commands match upstream GSD. Common entry points:
+
+| Command | Purpose |
+| --- | --- |
+| `/gsd-new-project` | Initialize project context, requirements, roadmap, and config. |
+| `/gsd-discuss-phase` | Clarify a phase before planning. |
+| `/gsd-plan-phase` | Produce a detailed, validated implementation plan. |
+| `/gsd-execute-phase` | Execute phase plans with agent orchestration and provider routing. |
+| `/gsd-verify-work` | Conversational UAT / verification pass. |
+| `/gsd-ship` | Prepare PR/release workflow after verification. |
+| `/gsd-config` | Configure workflow toggles, model profile, provider routing, integrations. |
+
+See [docs/COMMANDS.md](docs/COMMANDS.md) for the full command reference.
+
+---
+
+## Documentation
+
+- [docs/COMMANDS.md](docs/COMMANDS.md) — command reference.
+- [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — config keys, model overrides, workflow toggles.
+- [docs/hermes-install.md](docs/hermes-install.md) — Hermes install modes and project-linked semantics.
+- [docs/hermes-compatibility.md](docs/hermes-compatibility.md) — Hermes compatibility contract and regression gate.
+- [docs/releases/v1.8.0-provider-routed-agent-execution.md](docs/releases/v1.8.0-provider-routed-agent-execution.md) — provider-routing release notes.
+- [docs/releases/v1.9.0-hermes-first-upstream-sync.md](docs/releases/v1.9.0-hermes-first-upstream-sync.md) — v1.9 sync/repositioning notes.
+- [CHANGELOG.md](CHANGELOG.md) — downstream release history.
+
+---
+
+## Development and validation
+
+Hermes-specific gate:
+
+```bash
+npm run test:hermes
+```
+
+Focused provider-routing regressions:
+
+```bash
+node --test \
+  tests/hermes-install.test.cjs \
+  tests/hermes-lifecycle.test.cjs \
+  tests/hermes-provider-routing-regression.test.cjs \
+  tests/provider-cli-dispatch.test.cjs \
+  tests/agent-execution-router.test.cjs \
+  tests/multi-runtime-select.test.cjs
+```
+
+Full local gates before release:
+
+```bash
+npm run test:hermes
+npm test
+npm run lint:tests
+npm pack --dry-run --json
+```
+
+---
+
+## Upstream base
+
+`gsd-hermes@1.9.0` syncs to upstream `gsd-build/get-shit-done@de25400b` while preserving downstream package identity and Hermes/provider-routing invariants.
+
+Public package identity remains:
+
+```text
+gsd-hermes
+npx gsd-hermes
+```
+
+The upstream package remains `get-shit-done-cc`; this repo intentionally ships a separate downstream package line for Hermes-first users.

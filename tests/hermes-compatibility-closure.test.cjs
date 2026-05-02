@@ -1,3 +1,4 @@
+// allow-test-rule: Hermes downstream regression tests intentionally assert installer/docs/CLI text contracts where no typed IR exists yet.
 const fs = require('node:fs');
 const test = require('node:test');
 const assert = require('node:assert/strict');

@@ -17,6 +17,8 @@ import { CLITransport } from './cli-transport.js';
 import { WSTransport } from './ws-transport.js';
 import { InitRunner } from './init-runner.js';
 import { validateWorkstreamName } from './workstream-utils.js';
+import { loadConfig } from './config.js';
+import { assertRuntimeSupportsAutoMode } from './runtime-gate.js';
 
 // ─── Parsed CLI args ─────────────────────────────────────────────────────────
 
@@ -441,7 +443,13 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
           output = extractField(output, pickField);
         }
 
-        console.log(JSON.stringify(output, null, 2));
+        // Handlers can signal format:'text' to emit a raw string (e.g. agent-skills
+        // emits an <agent_skills> XML block workflows embed via $(...) substitution).
+        if (!pickField && result.format === 'text' && typeof output === 'string') {
+          process.stdout.write(output);
+        } else {
+          console.log(JSON.stringify(output, null, 2));
+        }
       }
     } catch (err) {
       if (err instanceof GSDError) {
@@ -556,6 +564,18 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<void
 
   // ─── Auto command ─────────────────────────────────────────────────────────
   if (args.command === 'auto') {
+    // #2832: refuse to silently route non-Claude runtime projects through the
+    // Claude Agent SDK. Load project config (best effort — falls back to
+    // defaults when missing) and gate before constructing GSD/InitRunner.
+    try {
+      const cfg = await loadConfig(args.projectDir, args.ws);
+      assertRuntimeSupportsAutoMode(cfg);
+    } catch (err) {
+      console.error(`Fatal error: ${(err as Error).message}`);
+      process.exitCode = 1;
+      return;
+    }
+
     const gsd = new GSD({
       projectDir: args.projectDir,
       model: args.model,

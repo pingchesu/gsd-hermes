@@ -35,6 +35,7 @@
   "scripts": {
     "build": "tsc",
     "postbuild": "chmod 755 dist/cli.js",
+    "check:alias-drift": "npm run build && node scripts/check-command-aliases-fresh.mjs",
     "prepublishOnly": "rm -rf dist && tsc && chmod +x dist/cli.js",
     "test": "vitest run",
     "test:unit": "vitest run --project unit",

@@ -10,6 +10,26 @@ syncs from.
 
 ## [Unreleased]
 
+## 1.9.0 — 2026-05-02
+
+GSD Hermes package version: `1.9.0`
+Upstream GSD base: `upstream/main@de25400b` / upstream `get-shit-done-cc@1.40.0-rc.1` development line
+Previous downstream package version: `1.8.0`
+
+### Synced
+- **Upstream sync to `upstream/main@de25400b`** — imports the latest GSD command consolidation, Hermes Agent skill-layout hardening, workstream/session locking, release-flow updates, SDK query routers, and test coverage while preserving downstream `gsd-hermes` package identity.
+
+### Added
+- **Hermes-first positioning** — documentation now presents `gsd-hermes` as a Hermes-first distribution of Get Shit Done rather than a fork whose only purpose is adding basic Hermes support.
+- **Strict provider-routed execution remains first-class** — `workflow.agent_execution_router: "provider-cli"` keeps routing OpenAI/GPT model overrides to `codex exec --model ...` and Anthropic/Claude overrides to `claude -p --model ...`, with unsupported bindings failing fast.
+
+### Changed
+- Reconciled upstream Hermes Agent improvements with downstream project-linked install semantics: global installs target `~/.hermes`, local installs use `./.gsd-hermes` plus `skills.external_dirs`.
+- Refreshed README, command docs, inventory docs, and release notes around Hermes-first usage and strict model/provider routing.
+
+### Verification
+- See release PR checks for focused Hermes/provider-routing regressions, `npm run test:hermes`, `npm test`, `npm run lint:tests`, and `npm pack --dry-run --json`.
+
 ## 1.8.0 — 2026-04-29
 
 GSD Hermes package version: `1.8.0`
@@ -225,57 +245,11 @@ Upstream GSD base: `get-shit-done-cc@1.37.1`
 ## [1.37.1] - 2026-04-17
 
 ### Fixed
-- UI-phase researcher now loads sketch findings skills, preventing re-asking questions already answered during `/gsd-sketch`
+- UI-p
 
-## [1.37.0] - 2026-04-17
+... [OUTPUT TRUNCATED - 7006 chars omitted out of 57006 total] ...
 
-### Added
-- **`/gsd-spike` and `/gsd-sketch` commands** — First-class GSD commands for rapid feasibility spiking and UI design sketching. Each produces throwaway experiments (spikes) or HTML mockups with multi-variant exploration (sketches), saved to `.planning/spikes/` and `.planning/sketches/` with full GSD integration: banners, checkpoint boxes, `gsd-sdk query` commits, and `--quick` flag to skip intake. Neither requires `/gsd-new-project` — auto-creates `.planning/` subdirs on demand
-- **`/gsd-spike-wrap-up` and `/gsd-sketch-wrap-up` commands** — Package spike/sketch findings into project-local skills at `./.claude/skills/` with a planning summary at `.planning/`. Curates each spike/sketch one-at-a-time, groups by feature/design area, and adds auto-load routing to project CLAUDE.md
-- **Spike/sketch pipeline integration** — `new-project` detects prior spike/sketch work on init, `discuss-phase` loads findings into prior context, `plan-phase` includes findings in planner `<files_to_read>`, `explore` offers spike/sketch as output routes, `next` surfaces pending spike/sketch work as notices, `pause-work` detects active sketch context for handoff, `do` routes spike/sketch intent to new commands
-- **`/gsd-spec-phase` command** — Socratic spec refinement with ambiguity scoring to clarify WHAT a phase delivers before discuss-phase. Produces a SPEC.md with falsifiable requirements locked before implementation decisions begin (#2213)
-- **`/gsd-progress --forensic` flag** — Appends a 6-check integrity audit after the standard progress report (#2231)
-- **`/gsd-discuss-phase --all` flag** — Skip area selection and discuss all gray areas interactively (#2230)
-- **Parallel discuss across independent phases** — Multiple phases without dependencies can be discussed concurrently (#2268)
-- **`gsd-read-injection-scanner` hook** — PostToolUse hook that scans for prompt injection attempts in read file contents (#2201)
-- **SDK Phase 2 caller migration** — Workflows, agents, and commands now use `gsd-sdk query` instead of raw `gsd-tools.cjs` calls (#2179)
-- **Project identity in Next Up blocks** — All Next Up blocks include workspace context for multi-project clarity (#1948)
-- **Agent size-budget enforcement** — New `tests/agent-size-budget.test.cjs` enforces tiered line-count limits on every `gsd-*.md` agent (XL=1600, LARGE=1000, DEFAULT=500). Unbounded agent growth is paid in context on every subagent dispatch; the test prevents regressions and requires a deliberate PR rationale to raise a budget (#2361)
-- **Shared `references/mandatory-initial-read.md`** — Extracts the `<required_reading>` enforcement block that was duplicated across 5 top agents. Agents now include it via a single `@~/.claude/get-shit-done/references/mandatory-initial-read.md` line, using Claude Code's progressive-disclosure `@file` reference mechanism (#2361)
-- **Shared `references/project-skills-discovery.md`** — Extracts the 5-step project skills discovery checklist that was copy-pasted across 5 top agents with slight divergence. Single source of truth with a per-agent "Application" paragraph documenting how planners, executors, researchers, verifiers, and debuggers each apply the rules (#2361)
-
-### Changed
-- **`gsd-debugger` philosophy extracted to shared reference** — The 76-line `<philosophy>` block containing evergreen debugging disciplines (user-as-reporter framing, meta-debugging, foundation principles, cognitive-bias table, systematic investigation, when-to-restart protocol) is now in `get-shit-done/references/debugger-philosophy.md` and pulled into the agent via a single `@file` include. Same content, lighter per-dispatch context footprint (#2363)
-- **`gsd-planner`, `gsd-executor`, `gsd-debugger`, `gsd-verifier`, `gsd-phase-researcher`** — Migrated to `@file` includes for the mandatory-initial-read and project-skills-discovery boilerplate. Reduces per-dispatch context load without changing behavior (#2361)
-- **Consolidated emphasis-marker density in top 4 agent files** — `gsd-planner.md` (23 → 15), `gsd-phase-researcher.md` (14 → 9), `gsd-doc-writer.md` (11 → 6), and `gsd-executor.md` (10 → 7). Removed `CRITICAL:` prefixes from H2/H3 headings and dropped redundant `CRITICAL:` + `MUST` / `ALWAYS:` + `NEVER:` stacking. RFC-2119 `MUST`/`NEVER` verbs inside normative sentences are preserved. Behavior-preserving; no content removed (#2368)
-
-### Fixed
-- **Broken `@planner-source-audit.md` relative references in `gsd-planner.md`** — Two locations referenced `@planner-source-audit.md` (resolves relative to working directory, almost always missing) instead of the correct absolute `@~/.claude/get-shit-done/references/planner-source-audit.md`. The planner's source audit discipline was silently unenforced (#2361)
-- **Shell hooks falsely flagged as stale** — `.sh` hooks now ship with version headers; installer stamps them; stale-hook detector matches bash comment syntax (#2136)
-- **Worktree cleanup** — Orphaned worktrees pruned in code, not prose; pre-merge deletion guard in quick.md (#2367, #2275)
-- **`/gsd-quick` crashes** — gsd-sdk pre-flight check with install hint (#2334); rescue uncommitted SUMMARY.md before worktree removal (#2296)
-- **Pattern mapper redundant reads** — Early-stop rule prevents re-reading files (#2312)
-- **Context meter scaling** — Respects `CLAUDE_CODE_AUTO_COMPACT_WINDOW` for accurate context bar (#2219)
-- **Codex install paths** — Replace all `~/.claude/` paths in Codex `.toml` files (#2320)
-- **Graphify edge fallback** — Falls back to `graph.links` when `graph.edges` is absent (#2323)
-- **New-project saved defaults** — Display saved defaults before prompting to use them (#2333)
-- **UAT parser** — Accept bracketed result values and fix decimal phase renumber padding (#2283)
-- **Stats duplicate rows** — Normalize phase numbers in Map to prevent duplicates (#2220)
-- **Review prompt shell expansion** — Pipe prompts via stdin (#2222)
-- **Intel scope resolution** — Detect .kilo runtime layout (#2351)
-- **Read-guard CLAUDECODE env** — Check env var in skip condition (#2344)
-- **Add-backlog directory ordering** — Write ROADMAP entry before directory creation (#2286)
-- **Settings workstream routing** — Route reads/writes through workstream-aware config path (#2285)
-- **Quick normalize flags** — `--discuss --research --validate` combo normalizes to FULL_MODE (#2274)
-- **Windows path normalization** — Normalize in update scope detection (#2278)
-- **Codex/OpenCode model overrides** — Embed model_overrides in agent files (#2279)
-- **Installer custom files** — Restore detect-custom-files and backup_custom_files (#1997)
-- **Agent re-read loops** — Add no-re-read critical rules to ui-checker and planner (#2346)
-
-## [1.36.0] - 2026-04-14
-
-### Added
-- **`/gsd-graphify` integration** — Knowledge graph for planning agents, enabling richer context connections between project artif
+artif
 
 ... [OUTPUT TRUNCATED - 85011 chars omitted out of 135011 total] ...
 

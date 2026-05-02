@@ -1,0 +1,790 @@
+# Release SDK Bundle
+#
+# Stopgap workflow_dispatch publish path: builds get-shit-done-cc with the
+# compiled SDK and the SDK .tgz bundled inside the CC tarball, then
+# publishes the CC package to ONE chosen dist-tag (dev | next | latest)
+# per run.
+#
+# Why this exists: @gsd-build/sdk publishes from canary.yml and release.yml
+# fail because the @gsd-build npm token is currently unavailable. CC users
+# do not consume @gsd-build/sdk directly — bin/gsd-sdk.js resolves
+# sdk/dist/cli.js from inside the installed CC package, so the bundled
+# copy is sufficient for full functionality. This workflow ships CC alone
+# (no separate @gsd-build/sdk publish attempt) and additionally bakes a
+# bundled gsd-sdk-<version>.tgz at sdk-bundle/gsd-sdk.tgz inside the CC
+# tarball as a recoverable npm-installable artifact.
+#
+# Existing canary.yml and release.yml are intentionally untouched. They
+# remain the canonical two-package publish path; restore them to primary
+# use once @gsd-build/sdk ownership is recovered.
+#
+# Tracking issues: #2925 (initial workflow), #2929 (CI-gate parity with release.yml)
+
+name: Release SDK Bundle
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'publish = normal dev/next/latest publish; hotfix = create hotfix/X.YY.Z branch from latest vX.YY.* tag, cherry-pick fix:/chore: from main, publish to @latest'
+        required: true
+        type: choice
+        default: publish
+        options:
+          - publish
+          - hotfix
+      tag:
+        description: 'npm dist-tag (publish action only; hotfix forces latest)'
+        required: false
+        type: choice
+        default: latest
+        options:
+          - dev
+          - next
+          - latest
+      version:
+        description: 'Version. publish: explicit (e.g. 1.50.0-dev.3) or empty to derive. hotfix: REQUIRED patch (e.g. 1.27.1, Z>0).'
+        required: false
+        type: string
+      ref:
+        description: 'Branch or ref to build from. Ignored for hotfix (workflow uses hotfix/X.YY.Z).'
+        required: false
+        type: string
+      auto_cherry_pick:
+        description: 'Hotfix only: auto-cherry-pick fix:/chore: commits from origin/main since base tag.'
+        required: false
+        type: boolean
+        default: true
+      dry_run:
+        description: 'Dry run (skip npm publish, git tag, and push). Hotfix branch creation/push also skipped.'
+        required: false
+        type: boolean
+        default: false
+
+# Per stream (dist-tag for publish, version for hotfix) — no concurrent publishes for the same stream.
+concurrency:
+  group: release-sdk-${{ inputs.action == 'hotfix' && format('hotfix-{0}', inputs.version) || inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: 24
+
+jobs:
+  # Resolves the effective git ref for this run.
+  #
+  # action=publish  → outputs inputs.ref verbatim (may be empty = workflow ref)
+  # action=hotfix   → branches hotfix/X.YY.Z from highest existing vX.YY.* tag,
+  #                   auto-cherry-picks fix:/chore: from origin/main, pushes,
+  #                   and outputs the new branch as ref. Idempotent: if branch
+  #                   already exists (operator pre-prepared it via hotfix.yml),
+  #                   we just check it out and re-run the cherry-pick step
+  #                   no-ops since `git cherry` will report nothing new.
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      ref: ${{ steps.out.outputs.ref }}
+      base_tag: ${{ steps.hotfix.outputs.base_tag }}
+    steps:
+      - name: Validate hotfix inputs
+        if: inputs.action == 'hotfix'
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [ -z "$VERSION" ]; then
+            echo "::error::action=hotfix requires the 'version' input (e.g. 1.27.1)"
+            exit 1
+          fi
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[1-9][0-9]*$'; then
+            echo "::error::Hotfix version must match X.YY.Z with Z>0 (got: $VERSION)"
+            exit 1
+          fi
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        if: inputs.action == 'hotfix'
+        with:
+          fetch-depth: 0
+
+      - name: Configure git identity
+        if: inputs.action == 'hotfix'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Prepare hotfix branch
+        id: hotfix
+        if: inputs.action == 'hotfix'
+        env:
+          VERSION: ${{ inputs.version }}
+          AUTO_CHERRY_PICK: ${{ inputs.auto_cherry_pick }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          # Stash the shipped-paths classifier from the dispatched ref's
+          # working tree BEFORE `git checkout -b ... "$BASE_TAG"` below
+          # overwrites it. Base tags predating #2980 don't have the
+          # classifier in their tree, so the loop must reference a
+          # location that survives the working-tree swap. Bug #2983.
+          CLASSIFIER_SRC="scripts/diff-touches-shipped-paths.cjs"
+          if [ ! -f "$CLASSIFIER_SRC" ]; then
+            echo "::error::shipped-paths classifier not found at $CLASSIFIER_SRC in dispatched ref — refusing to run"
+            exit 1
+          fi
+          CLASSIFIER="${RUNNER_TEMP}/diff-touches-shipped-paths.cjs"
+          cp "$CLASSIFIER_SRC" "$CLASSIFIER"
+          if [ ! -f "$CLASSIFIER" ]; then
+            echo "::error::failed to stage classifier at $CLASSIFIER"
+            exit 1
+          fi
+
+          MAJOR_MINOR=$(echo "$VERSION" | cut -d. -f1-2)
+          TARGET_TAG="v${VERSION}"
+          BRANCH="hotfix/${VERSION}"
+          # Semver-correct selection: append TARGET_TAG, sort -V, take preceding entry.
+          # Plain lexicographic compare mis-orders multi-digit patches (v1.27.10 vs v1.27.9).
+          BASE_TAG=$( ( git tag -l "v${MAJOR_MINOR}.*" | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$"; echo "$TARGET_TAG" ) \
+            | sort -V \
+            | awk -v target="$TARGET_TAG" '$1 == target { print prev; exit } { prev = $1 }')
+          if [ -z "$BASE_TAG" ]; then
+            echo "::error::No prior stable tag found for ${MAJOR_MINOR}.x before $TARGET_TAG"
+            exit 1
+          fi
+          echo "base_tag=$BASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+          # Idempotent branch creation — operator may have pre-prepared via hotfix.yml.
+          git fetch origin main:refs/remotes/origin/main
+          if git ls-remote --exit-code origin "refs/heads/$BRANCH" >/dev/null 2>&1; then
+            echo "Branch $BRANCH already exists on origin; checking out"
+            git fetch origin "$BRANCH"
+            git checkout "$BRANCH"
+            BRANCH_PRE_EXISTED=1
+          else
+            git checkout -b "$BRANCH" "$BASE_TAG"
+            BRANCH_PRE_EXISTED=0
+            # Push the skeleton up-front (real runs only) so cherry-pick conflicts
+            # leave a remote artefact the operator can resolve. Dry-run keeps
+            # everything local — no orphan branch created on origin.
+            if [ "$DRY_RUN" != "true" ]; then
+              git push -u origin "$BRANCH"
+            fi
+          fi
+
+          if [ "$AUTO_CHERRY_PICK" = "true" ]; then
+            CANDIDATES=$(git cherry HEAD origin/main | awk '/^\+ / {print $2}')
+            if [ -n "$CANDIDATES" ]; then
+              ORDERED=$(git log --reverse --format='%H' "${BASE_TAG}..origin/main" \
+                | grep -F -f <(echo "$CANDIDATES") || true)
+              INCLUDED=""
+              # POLICY_SKIPPED — commits intentionally not picked because they
+              # don't match the fix/chore filter (feat/refactor/docs/etc).
+              # CONFLICT_SKIPPED — fix/chore commits whose cherry-pick failed
+              # and were skipped per the full-automation policy (#2968).
+              # NON_SHIPPED_SKIPPED — fix/chore commits whose diff doesn't
+              # touch any path in the npm tarball's `files` whitelist
+              # (CI / test / docs / planning-only changes). They can't
+              # affect the published package's behavior, so picking them
+              # into a hotfix is meaningless — and picking workflow-file
+              # changes specifically would also fail the push step because
+              # the default GITHUB_TOKEN lacks the `workflow` scope. The
+              # shipped-paths filter is the precise root cause: bug #2980.
+              # Operators reviewing the run summary need these distinct so
+              # the manual-review queue (CONFLICT_SKIPPED) isn't buried in
+              # the noise from the other two buckets.
+              POLICY_SKIPPED=""
+              CONFLICT_SKIPPED=""
+              NON_SHIPPED_SKIPPED=""
+              while IFS= read -r SHA; do
+                [ -z "$SHA" ] && continue
+                SUBJECT=$(git log -1 --format='%s' "$SHA")
+                if echo "$SUBJECT" | grep -qE '^(fix|chore)(\([^)]+\))?!?: '; then
+                  # Merge commits with fix:/chore: titles can't be cherry-picked
+                  # without `-m <parent>` and we can't pick the parent
+                  # automatically. They fail BEFORE entering cherry-pick state
+                  # (no CHERRY_PICK_HEAD), so an unconditional `--skip` would
+                  # then fail and brick the loop. Skip them upfront with a
+                  # distinct reason. Bug #2968 / CodeRabbit on PR #2970.
+                  PARENT_COUNT=$(git rev-list --parents -n 1 "$SHA" | awk '{print NF - 1}')
+                  if [ "$PARENT_COUNT" -gt 1 ]; then
+                    REASON="merge commit — manual -m parent selection required"
+                    echo "↷ skipping $SHA — $REASON"
+                    CONFLICT_SKIPPED="${CONFLICT_SKIPPED}- \`${SHA}\` ${SUBJECT} ($REASON)"$'\n'
+                    continue
+                  fi
+                  # Pre-pick guard: a hotfix release can only be affected
+                  # by commits whose diff intersects the npm tarball's
+                  # shipped paths (package.json `files` whitelist plus
+                  # package.json itself, which `npm pack` always
+                  # includes). Commits that touch only CI workflows,
+                  # tests, docs, or planning artifacts cannot change what
+                  # ships, so picking them into a hotfix is meaningless.
+                  # As a side benefit, this excludes
+                  # `.github/workflows/*` changes whose push would
+                  # otherwise be rejected by GitHub because the default
+                  # GITHUB_TOKEN lacks the `workflow` scope. The filter
+                  # is implemented in
+                  # scripts/diff-touches-shipped-paths.cjs rather than
+                  # inline so the rules (read package.json `files`,
+                  # treat entries as file-OR-directory prefix, the
+                  # `package.json`-always-shipped rule) are
+                  # unit-testable. Bug #2980.
+                  #
+                  # Use $CLASSIFIER (staged at workflow-start, before
+                  # `git checkout -b ... "$BASE_TAG"` swapped the working
+                  # tree) rather than `scripts/...` directly — base tags
+                  # older than #2980 don't have the classifier in their
+                  # tree. Capture the exit code via PIPESTATUS and
+                  # dispatch on it: 0 = shipped, 1 = not shipped, 2+ =
+                  # classifier error → fail-fast (don't silently treat
+                  # tooling errors as informational skips). Bug #2983.
+                  #
+                  # PIPESTATUS capture must happen IMMEDIATELY after the
+                  # pipeline — the previous form (`pipeline || true; RC=
+                  # ${PIPESTATUS[1]}`) had a subtle bug: when the
+                  # pipeline fails (exit 1 or 2 — exactly the cases we
+                  # care about), `|| true` runs `true` as a one-command
+                  # pipeline, overwriting PIPESTATUS to (0). The fix is
+                  # to wrap the pipeline in `set +e`/`set -e` and snapshot
+                  # PIPESTATUS into a local array on the very next line.
+                  # CodeRabbit on PR #2984.
+                  set +e
+                  git diff-tree --no-commit-id --name-only -r "$SHA" \
+                    | node "$CLASSIFIER"
+                  PIPE_RC=("${PIPESTATUS[@]}")
+                  set -e
+                  DIFFTREE_RC="${PIPE_RC[0]}"
+                  CLASSIFIER_RC="${PIPE_RC[1]}"
+                  if [ "$DIFFTREE_RC" -ne 0 ]; then
+                    echo "::error::git diff-tree failed for $SHA (exit $DIFFTREE_RC) — refusing to classify on incomplete input."
+                    exit "$DIFFTREE_RC"
+                  fi
+                  case "$CLASSIFIER_RC" in
+                    0) ;;
+                    1)
+                      REASON="touches no shipped paths (CI / test / docs / planning only)"
+                      echo "↷ skipping $SHA — $REASON"
+                      NON_SHIPPED_SKIPPED="${NON_SHIPPED_SKIPPED}- \`${SHA}\` ${SUBJECT}"$'\n'
+                      continue
+                      ;;
+                    *)
+                      echo "::error::shipped-paths classifier failed for $SHA (exit $CLASSIFIER_RC). Refusing to silently skip — bug #2983."
+                      exit "$CLASSIFIER_RC"
+                      ;;
+                  esac
+                  echo "→ cherry-picking $SHA  $SUBJECT"
+                  # Pin merge.conflictStyle=merge on the cherry-pick so the
+                  # awk classifier below sees deterministic marker shapes —
+                  # diff3/zdiff3 would inject `||||||| ancestor` lines into
+                  # the HEAD section and cause context-missing conflicts to
+                  # misclassify as real. Bug #2966.
+                  if ! git -c merge.conflictStyle=merge cherry-pick -x --allow-empty --keep-redundant-commits "$SHA"; then
+                    # Full automation policy (bug #2968): any conflict the
+                    # cherry-pick can't auto-resolve is skipped, not aborted.
+                    # The hotfix run completes with whatever applies cleanly;
+                    # the CONFLICT_SKIPPED list below becomes the operator's
+                    # review queue (see "Cherry-pick summary" in the run
+                    # summary).
+                    #
+                    # Classify the conflict for the skip reason (operator-
+                    # facing diagnostic — doesn't change control flow):
+                    #   - context absent at base: HEAD section in every
+                    #     conflict marker is empty (the picked commit modifies
+                    #     code that doesn't exist at the base). Bug #2966.
+                    #   - merge conflict: HEAD section has content (both base
+                    #     and patch want different content for the same
+                    #     region). Typical when the base tag was cut from a
+                    #     branch that has diverged from main. Bug #2968.
+                    UNMERGED=$(git diff --name-only --diff-filter=U)
+                    REASON="merge conflict — manual review"
+                    if [ -n "$UNMERGED" ]; then
+                      ALL_EMPTY_HEAD=true
+                      while IFS= read -r CONFLICTED; do
+                        [ -z "$CONFLICTED" ] && continue
+                        # Guard the classifier against degenerate cases that
+                        # would otherwise skew toward "context absent" (the
+                        # auto-skip path) when they're actually unsafe to skip:
+                        #   - file missing or unreadable: don't pretend the
+                        #     conflict is benign; treat as real.
+                        #   - file listed as unmerged but no conflict markers
+                        #     present: anomalous git state; treat as real so
+                        #     the pick goes to the manual-review queue.
+                        # CodeRabbit on PR #2970.
+                        if [ ! -r "$CONFLICTED" ] || ! grep -q '^<<<<<<< ' "$CONFLICTED" 2>/dev/null; then
+                          ALL_EMPTY_HEAD=false
+                          break
+                        fi
+                        REAL=$(awk '
+                          /^<<<<<<< / { in_head=1; head=""; next }
+                          /^=======$/ && in_head { in_head=0; next }
+                          /^>>>>>>> / {
+                            if (head ~ /[^[:space:]]/) { print "real"; exit }
+                            head=""
+                            next
+                          }
+                          in_head { head = head $0 "\n" }
+                        ' "$CONFLICTED" 2>/dev/null || echo "real")
+                        if [ "$REAL" = "real" ]; then
+                          ALL_EMPTY_HEAD=false
+                          break
+                        fi
+                      done <<< "$UNMERGED"
+                      if [ "$ALL_EMPTY_HEAD" = "true" ]; then
+                        REASON="context absent at base"
+                      fi
+                    fi
+
+                    echo "↷ skipping $SHA — $REASON"
+                    # Guard `--skip`: cherry-pick can fail before entering the
+                    # conflict state (e.g. unreadable commit, empty-without-
+                    # --allow-empty edge cases the flag misses). Calling
+                    # `--skip` outside an in-progress cherry-pick exits non-
+                    # zero and would brick the loop. CodeRabbit on PR #2970.
+                    if git rev-parse -q --verify CHERRY_PICK_HEAD >/dev/null 2>&1; then
+                      git cherry-pick --skip
+                    fi
+                    CONFLICT_SKIPPED="${CONFLICT_SKIPPED}- \`${SHA}\` ${SUBJECT} ($REASON)"$'\n'
+                    continue
+                  fi
+                  INCLUDED="${INCLUDED}- \`${SHA}\` ${SUBJECT}"$'\n'
+                else
+                  POLICY_SKIPPED="${POLICY_SKIPPED}- \`${SHA}\` ${SUBJECT}"$'\n'
+                fi
+              done <<< "$ORDERED"
+              {
+                echo "## Cherry-pick summary"
+                echo ""
+                echo "Base: \`$BASE_TAG\` → Branch: \`$BRANCH\`$([ "$DRY_RUN" = "true" ] && echo " (DRY RUN — local only)")"
+                echo ""
+                if [ -n "$INCLUDED" ]; then
+                  echo "### Included (fix/chore)"
+                  echo ""
+                  echo "$INCLUDED"
+                else
+                  echo "_No fix/chore commits to include._"
+                fi
+                if [ -n "$NON_SHIPPED_SKIPPED" ]; then
+                  echo "### Skipped — touches no shipped paths (informational)"
+                  echo ""
+                  echo "These fix/chore commits don't touch any path in the npm tarball's \`files\` whitelist (or \`package.json\`), so they cannot change the published package's behavior. CI / test / docs / planning-only changes belong on \`main\`, not in a hotfix. No action needed."
+                  echo ""
+                  echo "$NON_SHIPPED_SKIPPED"
+                fi
+                if [ -n "$CONFLICT_SKIPPED" ]; then
+                  echo "### Skipped — cherry-pick conflict (manual review)"
+                  echo ""
+                  echo "$CONFLICT_SKIPPED"
+                fi
+                if [ -n "$POLICY_SKIPPED" ]; then
+                  echo "### Not auto-included (feat/refactor/docs/etc)"
+                  echo ""
+                  echo "$POLICY_SKIPPED"
+                fi
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi
+
+          # Bump version on the branch (committed) so downstream install-smoke +
+          # release jobs build the correct version. The release job's own in-tree
+          # bump becomes a no-op when the file already has the right version.
+          CURRENT=$(node -p "require('./package.json').version")
+          if [ "$CURRENT" != "$VERSION" ]; then
+            npm version "$VERSION" --no-git-tag-version
+            git add package.json package-lock.json
+            if [ -f sdk/package.json ]; then
+              (cd sdk && npm version "$VERSION" --no-git-tag-version)
+              git add sdk/package.json
+              [ -f sdk/package-lock.json ] && git add sdk/package-lock.json
+            fi
+            git commit -m "chore: bump version to $VERSION for hotfix"
+          fi
+          if [ "$DRY_RUN" != "true" ]; then
+            git push origin "$BRANCH"
+          else
+            echo "DRY RUN — cherry-picks applied locally; branch not pushed. Downstream install-smoke will run against \`$BASE_TAG\` (the cherry-pick verification above is the dry-run signal)."
+          fi
+
+      - name: Determine effective ref
+        id: out
+        env:
+          ACTION: ${{ inputs.action }}
+          INPUT_REF: ${{ inputs.ref }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          BASE_TAG: ${{ steps.hotfix.outputs.base_tag }}
+          BRANCH: ${{ steps.hotfix.outputs.branch }}
+        run: |
+          if [ "$ACTION" = "hotfix" ]; then
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "ref=$BASE_TAG" >> "$GITHUB_OUTPUT"
+            else
+              echo "ref=$BRANCH" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "ref=$INPUT_REF" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Cross-platform install validation gate (parity with release.yml).
+  install-smoke:
+    needs: prepare
+    permissions:
+      contents: read
+    uses: ./.github/workflows/install-smoke.yml
+    with:
+      ref: ${{ needs.prepare.outputs.ref }}
+
+  release:
+    needs: [prepare, install-smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write  # tag + push + GitHub Release
+      id-token: write  # provenance
+      # The merge-back PR step (and the pull-request scope it required)
+      # was removed in #2983 — auto-cherry-pick hotfix flow only picks
+      # commits already on main, so there's nothing to merge back.
+    environment: npm-publish
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.prepare.outputs.ref }}
+
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f  # v6.3.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Determine version
+        id: ver
+        env:
+          ACTION: ${{ inputs.action }}
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_OVERRIDE: ${{ inputs.version }}
+        run: |
+          set -e
+          # Hotfix forces version=inputs.version and dist-tag=latest.
+          if [ "$ACTION" = "hotfix" ]; then
+            if [ -z "$INPUT_OVERRIDE" ]; then
+              echo "::error::action=hotfix requires the 'version' input"
+              exit 1
+            fi
+            VERSION="$INPUT_OVERRIDE"
+            EFFECTIVE_TAG="latest"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "tag=$EFFECTIVE_TAG" >> "$GITHUB_OUTPUT"
+            echo "→ Hotfix: will publish v${VERSION} to dist-tag '${EFFECTIVE_TAG}'"
+            exit 0
+          fi
+          RAW=$(node -p "require('./package.json').version")
+          BASE=$(echo "$RAW" | sed 's/-.*//')
+          if [ -n "$INPUT_OVERRIDE" ]; then
+            VERSION="$INPUT_OVERRIDE"
+          else
+            case "$INPUT_TAG" in
+              dev)
+                N=1
+                while git tag -l "v${BASE}-dev.${N}" | grep -q .; do
+                  N=$((N + 1))
+                done
+                VERSION="${BASE}-dev.${N}"
+                ;;
+              next)
+                N=1
+                while git tag -l "v${BASE}-rc.${N}" | grep -q .; do
+                  N=$((N + 1))
+                done
+                VERSION="${BASE}-rc.${N}"
+                ;;
+              latest)
+                VERSION="$BASE"
+                ;;
+              *)
+                echo "::error::Unknown tag '$INPUT_TAG' (expected dev|next|latest)"
+                exit 1
+                ;;
+            esac
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$INPUT_TAG" >> "$GITHUB_OUTPUT"
+          echo "→ Will publish v${VERSION} to dist-tag '${INPUT_TAG}'"
+
+      # Reconciliation mode: if version is already on npm (a prior run
+       # published successfully but a downstream step failed), don't hard-fail.
+       # Set a flag and skip the publish step below; tag/release/PR/dist-tag
+       # steps still execute so the rerun can finish reconciling state.
+      - name: Detect prior publish (reconciliation mode)
+        id: prior_publish
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          EXISTING=$(npm view get-shit-done-cc@"$VERSION" version 2>/dev/null || true)
+          if [ -n "$EXISTING" ]; then
+            echo "::warning::get-shit-done-cc@${VERSION} is already on the registry — entering reconciliation mode (skip publish, continue with tag/release/PR/dist-tag)."
+            echo "skip_publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip_publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Tolerant tag-existence check (matches release.yml pattern). An
+      # operator re-running after a mid-flight publish-step failure should
+      # not be blocked just because the tag step succeeded last time. Only
+      # error if the existing tag points at a different commit than HEAD.
+      - name: Check git tag (skip if matches HEAD, error if mismatched)
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          if git rev-parse -q --verify "refs/tags/v${VERSION}" >/dev/null; then
+            EXISTING_SHA=$(git rev-parse "refs/tags/v${VERSION}")
+            HEAD_SHA=$(git rev-parse HEAD)
+            if [ "$EXISTING_SHA" != "$HEAD_SHA" ]; then
+              echo "::error::git tag v${VERSION} already exists pointing at ${EXISTING_SHA}, but HEAD is ${HEAD_SHA}"
+              exit 1
+            fi
+            echo "::notice::tag v${VERSION} already exists at HEAD; tag step will skip"
+          fi
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump in-tree version (not committed)
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          # --allow-same-version: prepare may have already committed this bump
+          # on the hotfix branch (release checks out BRANCH in real runs,
+          # BASE_TAG in dry-runs — only the latter has the older version).
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          cd sdk && npm version "$VERSION" --no-git-tag-version --allow-same-version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run full test suite with coverage (parity with release.yml)
+        run: npm run test:coverage
+
+      - name: Build SDK dist for tarball
+        run: npm run build:sdk
+
+      - name: Verify CC tarball ships sdk/dist/cli.js (bug #2647 guard)
+        run: bash scripts/verify-tarball-sdk-dist.sh
+
+      - name: Pack SDK as tarball and bundle into CC source tree
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -e
+          cd sdk
+          npm pack
+          # npm pack emits gsd-build-sdk-<version>.tgz in the cwd
+          TARBALL="gsd-build-sdk-${VERSION}.tgz"
+          if [ ! -f "$TARBALL" ]; then
+            echo "::error::Expected $TARBALL but npm pack did not produce it. Listing sdk/:"
+            ls -la
+            exit 1
+          fi
+          mkdir -p ../sdk-bundle
+          mv "$TARBALL" ../sdk-bundle/gsd-sdk.tgz
+          cd ..
+          ls -la sdk-bundle/
+
+      - name: Add sdk-bundle to CC files whitelist (in-tree, not committed)
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          if (!Array.isArray(pkg.files)) {
+            console.error('::error::package.json files is not an array');
+            process.exit(1);
+          }
+          if (!pkg.files.includes('sdk-bundle')) {
+            pkg.files.push('sdk-bundle');
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+            console.log('Added sdk-bundle/ to package.json files whitelist');
+          } else {
+            console.log('sdk-bundle/ already in files whitelist');
+          }
+          NODE
+
+      - name: Verify CC tarball will contain sdk-bundle/gsd-sdk.tgz
+        run: |
+          set -e
+          TARBALL=$(npm pack --ignore-scripts 2>/dev/null | tail -1)
+          if [ -z "$TARBALL" ] || [ ! -f "$TARBALL" ]; then
+            echo "::error::npm pack produced no tarball"
+            exit 1
+          fi
+          echo "Inspecting $TARBALL for sdk-bundle/gsd-sdk.tgz:"
+          if ! tar -tzf "$TARBALL" | grep -q "package/sdk-bundle/gsd-sdk.tgz"; then
+            echo "::error::CC tarball is missing package/sdk-bundle/gsd-sdk.tgz"
+            tar -tzf "$TARBALL" | grep -E "sdk-bundle|sdk/dist" | head -20
+            exit 1
+          fi
+          echo "✅ CC tarball contains sdk-bundle/gsd-sdk.tgz"
+          rm -f "$TARBALL"
+
+      - name: Dry-run publish validation
+        # Skip the rehearsal when the version is already on npm
+        # (reconciliation mode). `npm publish --dry-run` contacts the
+        # registry and fails with "You cannot publish over the
+        # previously published versions" if the version exists, even
+        # though no actual publish would be attempted. The real publish
+        # step (further down) is gated on the same condition; gate the
+        # rehearsal too so re-runs of an already-published hotfix don't
+        # fail here on a check that doesn't apply. Bug #2987.
+        if: ${{ steps.prior_publish.outputs.skip_publish != 'true' }}
+        env:
+          TAG: ${{ steps.ver.outputs.tag }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --dry-run --tag "$TAG"
+
+      - name: Tag and push
+        if: ${{ !inputs.dry_run }}
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          if git rev-parse -q --verify "refs/tags/v${VERSION}" >/dev/null; then
+            echo "Tag v${VERSION} already exists at HEAD (per pre-flight check); skipping git tag step"
+          else
+            git tag "v${VERSION}"
+          fi
+          git push origin "v${VERSION}"
+
+      - name: Publish to npm (CC bundle, SDK included as both loose tree and .tgz)
+        if: ${{ !inputs.dry_run && steps.prior_publish.outputs.skip_publish != 'true' }}
+        env:
+          TAG: ${{ steps.ver.outputs.tag }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public --tag "$TAG"
+
+      # Keep `next` from going stale relative to `latest`. When publishing a
+      # stable release, also point `next` at it so users on `@next` don't
+      # get stuck on an older pre-release than what's now stable. Parity
+      # with release.yml#finalize "Clean up next dist-tag" step.
+      - name: Re-point next dist-tag at the new latest (only when tag=latest)
+        if: ${{ !inputs.dry_run && steps.ver.outputs.tag == 'latest' }}
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm dist-tag add "get-shit-done-cc@${VERSION}" next
+          echo "✅ next dist-tag re-pointed to v${VERSION} (matches latest)"
+
+      - name: Create GitHub Release (idempotent)
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          # Per-tag release flags:
+          #   dev, next → --prerelease (won't be highlighted as the latest release on the repo page)
+          #   latest    → --latest (becomes the highlighted release)
+          # Idempotent: if release already exists (rerun after a transient
+          # downstream failure), edit the latest flag instead of failing.
+          if gh release view "v${VERSION}" >/dev/null 2>&1; then
+            echo "GitHub Release v${VERSION} already exists; reconciling --latest flag"
+            if [ "$TAG" = "latest" ]; then
+              gh release edit "v${VERSION}" --latest || true
+            fi
+          elif [ "$TAG" = "latest" ]; then
+            gh release create "v${VERSION}" \
+              --title "v${VERSION}" \
+              --generate-notes \
+              --latest
+          else
+            gh release create "v${VERSION}" \
+              --title "v${VERSION}" \
+              --generate-notes \
+              --prerelease
+          fi
+          echo "✅ GitHub Release v${VERSION} ready"
+
+      # Merge-back PR step removed — bug #2983.
+      #
+      # The auto-cherry-pick hotfix flow only picks commits already on
+      # main (`git cherry HEAD origin/main` outputs unmerged commits;
+      # we filter to fix:/chore: from main). By construction every code
+      # commit on the hotfix branch is already on main. The only
+      # hotfix-branch-only commit is `chore: bump version to X.Y.Z for
+      # hotfix`, which would either no-op against main (already past
+      # X.Y.Z) or rewind main's in-progress version — strictly
+      # counterproductive in either case.
+      #
+      # The original merge-back step also failed in production with
+      # `GitHub Actions is not permitted to create or approve pull
+      # requests (createPullRequest)` (org policy), but even if the
+      # policy were lifted the PR would have nothing useful to merge.
+      # Run 25232968975 was the trigger for removal.
+
+      - name: Verify publish landed on registry
+        if: ${{ !inputs.dry_run }}
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          PUBLISHED="NOT_FOUND"
+          for delay in 5 10 20 30 45; do
+            PUBLISHED=$(npm view get-shit-done-cc@"$VERSION" version 2>/dev/null || echo "NOT_FOUND")
+            if [ "$PUBLISHED" = "$VERSION" ]; then
+              break
+            fi
+            echo "Waiting ${delay}s for registry to catch up (saw: $PUBLISHED)..."
+            sleep "$delay"
+          done
+          if [ "$PUBLISHED" != "$VERSION" ]; then
+            echo "::error::Version $VERSION did not appear on the registry within timeout"
+            exit 1
+          fi
+          TAG_VERSION=$(npm view get-shit-done-cc dist-tags."$TAG" 2>/dev/null || echo "NOT_FOUND")
+          if [ "$TAG_VERSION" != "$VERSION" ]; then
+            echo "::error::dist-tag '$TAG' resolves to '$TAG_VERSION', expected '$VERSION'"
+            exit 1
+          fi
+          echo "✅ get-shit-done-cc@${VERSION} live on dist-tag '${TAG}'"
+
+      - name: Summary
+        env:
+          ACTION: ${{ inputs.action }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          BASE_TAG: ${{ needs.prepare.outputs.base_tag }}
+          BRANCH: ${{ needs.prepare.outputs.ref }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          {
+            if [ "$ACTION" = "hotfix" ]; then
+              echo "## Release SDK Bundle (hotfix): v${VERSION} → @${TAG}"
+              echo ""
+              echo "- Base (cumulative-fix anchor): \`${BASE_TAG}\`"
+              echo "- Branch: \`${BRANCH}\`"
+            else
+              echo "## Release SDK Bundle: v${VERSION} → @${TAG}"
+            fi
+            echo ""
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "**DRY RUN** — npm publish, git tag, push, and GitHub Release were skipped."
+            else
+              echo "- Published \`get-shit-done-cc@${VERSION}\` to dist-tag \`${TAG}\`"
+              echo "- SDK bundled inside the CC tarball at:"
+              echo "  - \`sdk/dist/cli.js\` (loose tree, consumed by \`bin/gsd-sdk.js\` shim)"
+              echo "  - \`sdk-bundle/gsd-sdk.tgz\` (npm-installable artifact)"
+              echo "- Git tag \`v${VERSION}\` pushed"
+              echo "- GitHub Release \`v${VERSION}\` created"
+              if [ "$TAG" = "latest" ]; then
+                echo "- \`next\` dist-tag re-pointed at \`v${VERSION}\` (kept current with \`latest\`)"
+              fi
+              if [ "$ACTION" = "hotfix" ]; then
+                # Auto-cherry-pick hotfixes only pick commits already on
+                # main, so there's nothing to merge back. The merge-back
+                # PR step was removed in #2983; this line surfaces the
+                # explicit non-action so operators don't expect a PR
+                # that was never opened.
+                echo "- No merge-back PR (auto-picked commits are already on main)"
+              fi
+              echo "- Install: \`npm install -g get-shit-done-cc@${TAG}\`"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

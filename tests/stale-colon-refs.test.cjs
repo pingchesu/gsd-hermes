@@ -44,6 +44,9 @@ const UPSTREAM_OWNED_PREFIXES = [
   'tests/claude-md.test.cjs',
   'tests/claude-skills-migration.test.cjs',
   'tests/execute-phase-wave.test.cjs',
+  'docs/RELEASE-v1.39.0-rc.7.md',
+  'scripts/fix-slash-commands.cjs',
+  'tests/gemini-namespacing.test.cjs',
   'tests/gsd-settings-advanced.test.cjs',
   'tests/import-command.test.cjs',
   'tests/qwen-skills-migration.test.cjs',
@@ -100,6 +103,10 @@ function isTestInput(filePath, line) {
   // (upstream #2543 migration); Hermes-owned paths still use /gsd- dash form.
   // See docs/hermes-compatibility.md §Slash Command Inventory.
   if (isUpstreamOwnedPath(rel)) return true;
+
+  // Upstream Gemini runtime prompts use colon namespacing even though the
+  // installer also carries Hermes-specific branches in this downstream file.
+  if (rel === 'bin/install.js' && /\/gsd:/.test(line)) return true;
 
   // SDK test files (.ts) that test sanitizer stripping of /gsd: patterns
   if (rel === 'sdk/src/prompt-sanitizer.test.ts') return true;
