@@ -182,10 +182,52 @@ Quick tasks can run mid-phase - validation only checks ROADMAP.md exists, not ph
 
 **If `branch_name` is empty/null:** Skip and continue on the current branch.
 
-**If `branch_name` is set:** Check out the quick-task branch before any planning commits:
+**If `branch_name` is set:** Check out the quick-task branch before any planning commits.
+
+The new branch must fork off the project's default branch (`origin/HEAD`), not
+off whatever HEAD happens to be checked out — otherwise consecutive quick tasks
+compound on top of each other and stay unpushed (#2916). If `$branch_name`
+already exists locally, reuse it as-is so resumed work is not rebased.
 
 ```bash
-git checkout -b "$branch_name" 2>/dev/null || git checkout "$branch_name"
+DEFAULT_BRANCH=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')
+DEFAULT_BRANCH=${DEFAULT_BRANCH:-main}
+
+if git show-ref --verify --quiet "refs/heads/$branch_name"; then
+  git switch "$branch_name" \
+    || { echo "ERROR: Could not switch to existing quick-task branch '$branch_name'." >&2; exit 1; }
+else
+  # Fetch the default branch so origin/$DEFAULT_BRANCH is current. If the fetch
+  # fails (offline, no remote, auth failure) AND we have no local copy of
+  # origin/$DEFAULT_BRANCH to fall back on, abort — creating the branch off
+  # arbitrary HEAD is exactly the bug #2916 fixed.
+  if ! git fetch --quiet origin "$DEFAULT_BRANCH"; then
+    if ! git show-ref --verify --quiet "refs/remotes/origin/$DEFAULT_BRANCH"; then
+      echo "ERROR: Could not fetch origin/$DEFAULT_BRANCH and no local copy exists. Refusing to create '$branch_name' off the current HEAD (#2916). Resolve the remote/network issue and retry." >&2
+      exit 1
+    fi
+    echo "WARNING: git fetch origin $DEFAULT_BRANCH failed; using the local copy of origin/$DEFAULT_BRANCH as base." >&2
+  fi
+
+  if [ -n "$(git status --porcelain)" ]; then
+    echo "WARNING: Uncommitted changes present. Carrying them onto the new quick-task branch — they will be branched off origin/$DEFAULT_BRANCH (not the previous-task HEAD)."
+  else
+    # Best-effort: fast-forward the local default branch so subsequent local
+    # work sees the latest tip. Failure here is non-fatal because we always
+    # create the new branch directly from origin/$DEFAULT_BRANCH below.
+    git switch --quiet "$DEFAULT_BRANCH" 2>/dev/null \
+      && git merge --ff-only --quiet "origin/$DEFAULT_BRANCH" 2>/dev/null \
+      || true
+  fi
+
+  # Pin the new branch to origin/$DEFAULT_BRANCH so the start point is
+  # deterministic regardless of which branch we are currently on (#2916).
+  # On success HEAD is exactly at origin/$DEFAULT_BRANCH, so a post-creation
+  # merge-base / "ahead-of" guard would be unreachable — the explicit base
+  # argument here is the single source of correctness for #2916.
+  git checkout -b "$branch_name" "origin/$DEFAULT_BRANCH" \
+    || { echo "ERROR: Could not create '$branch_name' from origin/$DEFAULT_BRANCH (#2916)." >&2; exit 1; }
+fi
 ```
 
 All quick-task commits for this run stay on that branch. User handles merge/rebase afterward.
@@ -597,7 +639,21 @@ if [ "${USE_WORKTREES}" != "false" ]; then
   COMMIT_DOCS=$(gsd-sdk query config-get commit_docs 2>/dev/null || echo "true")
   if [ "$COMMIT_DOCS" != "false" ]; then
     git add "${QUICK_DIR}/${quick_id}-PLAN.md"
-    git commit --no-verify -m "docs(${quick_id}): pre-dispatch plan for ${DESCRIPTION}" -- "${QUICK_DIR}/${quick_id}-PLAN.md" || true
+    # No-op skip if nothing actually staged (idempotent re-runs).
+    if git diff --cached --quiet -- "${QUICK_DIR}/${quick_id}-PLAN.md"; then
+      echo "ℹ Pre-dispatch PLAN.md commit skipped (no staged changes)"
+    else
+      # Run hooks normally (#2924). If a project opts out via
+      # workflow.worktree_skip_hooks=true, honor that opt-in only.
+      SKIP_HOOKS=$(gsd-sdk query config-get workflow.worktree_skip_hooks 2>/dev/null || echo "false")
+      if [ "$SKIP_HOOKS" = "true" ]; then
+        git commit --no-verify -m "docs(${quick_id}): pre-dispatch plan for ${DESCRIPTION}" -- "${QUICK_DIR}/${quick_id}-PLAN.md" \
+          || { echo "ERROR: pre-dispatch PLAN.md commit failed (--no-verify path). Aborting before executor dispatch." >&2; exit 1; }
+      else
+        git commit -m "docs(${quick_id}): pre-dispatch plan for ${DESCRIPTION}" -- "${QUICK_DIR}/${quick_id}-PLAN.md" \
+          || { echo "ERROR: pre-dispatch PLAN.md commit failed — likely a pre-commit hook failure. Fix the hook output above (or set workflow.worktree_skip_hooks=true to bypass) and re-run." >&2; exit 1; }
+      fi
+    fi
   fi
 fi
 ```
@@ -620,12 +676,31 @@ Execute quick task ${quick_id}.
 
 ${USE_WORKTREES !== "false" ? `
 <worktree_branch_check>
-FIRST ACTION before any other work: verify this worktree branch is based on the correct commit.
-Run: git merge-base HEAD ${EXPECTED_BASE}
-If the result differs from ${EXPECTED_BASE}, hard-reset to the correct base (safe — runs before any agent work):
-  git reset --hard ${EXPECTED_BASE}
-Then verify: if [ "$(git rev-parse HEAD)" != "${EXPECTED_BASE}" ]; then echo "ERROR: Could not correct worktree base"; exit 1; fi
-This corrects a known issue where EnterWorktree creates branches from main instead of the feature branch HEAD (affects all platforms).
+FIRST ACTION before any other work: verify this worktree's HEAD is bound to a per-agent
+branch and that the branch is based on the correct commit.
+
+Step 1 — HEAD attachment assertion (MANDATORY, runs before any reset/commit):
+  HEAD_REF=$(git symbolic-ref --quiet HEAD || echo "DETACHED")
+  ACTUAL_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  if [ "$HEAD_REF" = "DETACHED" ] || echo "$ACTUAL_BRANCH" | grep -Eq '^(main|master|develop|trunk|release/.*)$'; then
+    echo "FATAL: worktree HEAD is on '$ACTUAL_BRANCH' (expected per-agent branch like worktree-agent-*)." >&2
+    echo "Refusing to commit/reset on a protected ref. DO NOT self-recover via 'git update-ref refs/heads/$ACTUAL_BRANCH' — that destroys concurrent work (#2924)." >&2
+    echo "Aborting before any commits. Surface as a blocker for human review." >&2
+    exit 1
+  fi
+  if ! echo "$ACTUAL_BRANCH" | grep -Eq '^worktree-agent-[A-Za-z0-9._/-]+$'; then
+    echo "FATAL: worktree HEAD '$ACTUAL_BRANCH' is not in the worktree-agent-* namespace (Claude Code's per-agent worktree branch namespace)." >&2
+    echo "Refusing to commit; surface as blocker (#2924)." >&2
+    exit 1
+  fi
+
+Step 2 — Base correctness (only after Step 1 passes):
+  Run: git merge-base HEAD ${EXPECTED_BASE}
+  If the result differs from ${EXPECTED_BASE}, hard-reset to the correct base (safe — Step 1 confirmed HEAD is on a per-agent branch and the worktree is fresh):
+    git reset --hard ${EXPECTED_BASE}
+  Then verify: if [ "$(git rev-parse HEAD)" != "${EXPECTED_BASE}" ]; then echo "ERROR: Could not correct worktree base"; exit 1; fi
+
+This corrects a known issue where EnterWorktree creates branches from main instead of the feature branch HEAD (#2015) and prevents the destructive HEAD-on-master self-recovery path (#2924).
 </worktree_branch_check>
 ` : ''}
 
@@ -754,14 +829,20 @@ After executor returns:
          fi
        fi
 
-       # Safety net: rescue uncommitted SUMMARY.md before worktree removal (#2296, mirrors #2070)
-       UNCOMMITTED_SUMMARY=$(git -C "$WT" ls-files --modified --others --exclude-standard -- "*SUMMARY.md" 2>/dev/null || true)
-       if [ -n "$UNCOMMITTED_SUMMARY" ]; then
-         echo "⚠ SUMMARY.md was not committed by executor — committing now to prevent data loss"
-         git -C "$WT" add -- "*SUMMARY.md" 2>/dev/null || true
-         git -C "$WT" commit --no-verify -m "docs(recovery): rescue uncommitted SUMMARY.md before worktree removal (#2070)" 2>/dev/null || true
-         git merge "$WT_BRANCH" --no-edit -m "chore: merge rescued SUMMARY.md from executor worktree ($WT_BRANCH)" 2>/dev/null || true
-       fi
+       # Safety net: rescue uncommitted SUMMARY.md before worktree removal (#2296, mirrors #2070, #2838).
+       # Filesystem-level (find + cp) bypasses git's --exclude-standard filter, which silently
+       # drops .planning/SUMMARY.md when projects gitignore .planning/ — the rescue's prior
+       # `git ls-files --exclude-standard` form returned empty in that case and the SUMMARY
+       # was lost on `git worktree remove --force`.
+       while IFS= read -r SUMMARY; do
+         [ -z "$SUMMARY" ] && continue
+         REL_PATH="${SUMMARY#$WT/}"
+         if [ ! -f "$REL_PATH" ] || ! cmp -s "$SUMMARY" "$REL_PATH"; then
+           mkdir -p "$(dirname "$REL_PATH")"
+           cp "$SUMMARY" "$REL_PATH"
+           echo "⚠ Rescued $REL_PATH from worktree before removal"
+         fi
+       done < <(find "$WT/.planning" -name "*SUMMARY.md" 2>/dev/null)
 
        if ! git worktree remove "$WT" --force; then
          WT_NAME=$(basename "$WT")

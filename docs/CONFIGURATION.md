@@ -4,9 +4,9 @@
 
 ---
 
-## GSD Hermes v1.7 Release Note
+## GSD Hermes v1.9 Release Note
 
-`gsd-hermes@1.7.0` carries upstream config and SDK query fixes through `upstream/main@eeaf9c55` while preserving Hermes runtime model binding receipts, child-construction binding tests, and fail-fast validation for explicit per-agent model overrides. Hermes keeps the downstream default of avoiding silent model fallback: configured model bindings must resolve as configured or fail with actionable diagnostics. This sync preserves workstream-aware config/model resolution, expanded upstream runtime profile aliases, the `inherit` profile selector, and structured `parallelization` object parity across SDK/CJS config paths.
+`gsd-hermes@1.9.0` carries upstream config and SDK query changes through `upstream/main@de25400b` while preserving the downstream strict-provider contract. For Hermes projects, `model_overrides` are the source of model intent; `workflow.agent_execution_router: "provider-cli"` binds OpenAI/GPT overrides to Codex CLI, Anthropic/Claude overrides to Claude CLI, and rejects unsupported routes instead of silently falling back to another provider.
 
 ---
 
@@ -198,6 +198,7 @@ All workflow toggles follow the **absent = enabled** pattern. If a key is missin
 | `workflow.skip_discuss` | boolean | `false` | When `true`, `/gsd-autonomous` bypasses the discuss-phase entirely, writing minimal CONTEXT.md from the ROADMAP phase goal. Useful for projects where developer preferences are fully captured in PROJECT.md/REQUIREMENTS.md. Added in v1.28 |
 | `workflow.text_mode` | boolean | `false` | Replaces AskUserQuestion TUI menus with plain-text numbered lists. Required for Claude Code remote sessions (`/rc` mode) where TUI menus don't render. Can also be set per-session with `--text` flag on discuss-phase. Added in v1.28 |
 | `workflow.use_worktrees` | boolean | `true` | When `false`, disables git worktree isolation for parallel execution. Users who prefer sequential execution or whose environment does not support worktrees can disable this. Added in v1.31 |
+| `workflow.worktree_skip_hooks` | boolean | `false` | When `true`, executor agents in worktree mode pass `--no-verify` (skipping pre-commit hooks) and post-wave hook validation runs against the merged result instead. Opt-in escape hatch for projects whose hooks cannot run in agent worktrees. Default `false` runs hooks on every commit (#2924). |
 | `workflow.code_review` | boolean | `true` | Enable `/gsd-code-review` and `/gsd-code-review-fix` commands. When `false`, the commands exit with a configuration gate message. Added in v1.34 |
 | `workflow.code_review_depth` | string | `standard` | Default review depth for `/gsd-code-review`: `quick` (pattern-matching only), `standard` (per-file analysis), or `deep` (cross-file with import graphs). Can be overridden per-run with `--depth=`. Added in v1.34 |
 | `workflow.plan_bounce` | boolean | `false` | Run external validation script against generated plans. When enabled, the plan-phase orchestrator pipes each PLAN.md through the script specified by `plan_bounce_script` and blocks on non-zero exit. Added in v1.36 |
@@ -654,7 +655,7 @@ If an explicit Hermes override cannot be honored by the selected runtime channel
 
 Proof boundary: current tests prove GSD resolver behavior, workflow receipt serialization, fail-fast validation, and Hermes child `AIAgent(model=...)` construction. They do not claim live provider wire-level `model=...` enforcement unless future provider instrumentation records sanitized request metadata.
 
-#### Provider-routed agent execution (gsd-hermes v1.8 draft)
+#### Provider-routed agent execution (gsd-hermes strict mode)
 
 Set `workflow.agent_execution_router` to `"provider-cli"` when you want `model_overrides` to select the matching external provider CLI per GSD agent instead of relying on one global runtime default. This is the strict mode for mixed-provider Hermes workflows.
 

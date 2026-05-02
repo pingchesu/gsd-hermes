@@ -1,3 +1,4 @@
+// allow-test-rule: Hermes downstream regression tests intentionally assert installer/docs/CLI text contracts where no typed IR exists yet.
 /**
  * GSD Tools Tests - Hermes Install Plumbing
  *
@@ -46,11 +47,36 @@ describe('Hermes runtime directory mapping', () => {
   });
 
   test('maps Hermes to ~/.hermes for global installs', () => {
-    assert.strictEqual(getGlobalDir('hermes'), path.join(os.homedir(), '.hermes'));
+    const originalHermesHome = process.env.HERMES_HOME;
+    delete process.env.HERMES_HOME;
+    try {
+      assert.strictEqual(getGlobalDir('hermes'), path.join(os.homedir(), '.hermes'));
+    } finally {
+      if (originalHermesHome === undefined) delete process.env.HERMES_HOME;
+      else process.env.HERMES_HOME = originalHermesHome;
+    }
+  });
+
+  test('respects HERMES_HOME for Hermes global installs', () => {
+    const originalHermesHome = process.env.HERMES_HOME;
+    process.env.HERMES_HOME = '~/custom-hermes';
+    try {
+      assert.strictEqual(getGlobalDir('hermes'), path.join(os.homedir(), 'custom-hermes'));
+    } finally {
+      if (originalHermesHome === undefined) delete process.env.HERMES_HOME;
+      else process.env.HERMES_HOME = originalHermesHome;
+    }
   });
 
   test('returns explicit config dir for Hermes global installs', () => {
-    assert.strictEqual(getGlobalDir('hermes', '/custom/hermes'), '/custom/hermes');
+    const originalHermesHome = process.env.HERMES_HOME;
+    process.env.HERMES_HOME = '~/ignored-hermes';
+    try {
+      assert.strictEqual(getGlobalDir('hermes', '/custom/hermes'), '/custom/hermes');
+    } finally {
+      if (originalHermesHome === undefined) delete process.env.HERMES_HOME;
+      else process.env.HERMES_HOME = originalHermesHome;
+    }
   });
 
   test('returns .hermes config fragments for local and global helper calls', () => {

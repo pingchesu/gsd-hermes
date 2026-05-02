@@ -117,7 +117,7 @@ User-facing entry points. Each file contains YAML frontmatter (name, description
 - **Copilot:** Slash commands (`/gsd-command-name`)
 - **Antigravity:** Skills
 
-**Total commands:** 86 (see [`docs/INVENTORY.md`](INVENTORY.md#commands) for the full roster).
+**Total commands:** 65 (see [`docs/INVENTORY.md`](INVENTORY.md#commands) for the full roster).
 
 ### Workflows (`get-shit-done/workflows/*.md`)
 
@@ -129,12 +129,12 @@ Orchestration logic that commands reference. Contains the step-by-step process i
 - State update patterns
 - Error handling and recovery
 
-**Total workflows:** 84 (see [`docs/INVENTORY.md`](INVENTORY.md#workflows) for the full roster).
+**Total workflows:** 85 (see [`docs/INVENTORY.md`](INVENTORY.md#workflows) for the full roster).
 
 #### Progressive disclosure for workflows
 
 Workflow files are loaded verbatim into Claude's context every time the
-corresponding `/gsd:*` command is invoked. To keep that cost bounded, the
+corresponding `/gsd-*` command is invoked. To keep that cost bounded, the
 workflow size budget enforced by `tests/workflow-size-budget.test.cjs`
 mirrors the agent budget from #2361:
 
@@ -257,12 +257,13 @@ See [`docs/INVENTORY.md`](INVENTORY.md#hooks-11-shipped) for the authoritative 1
 
 ### CLI Tools (`get-shit-done/bin/`)
 
-Node.js CLI utility (`gsd-tools.cjs`) with domain modules split across `get-shit-done/bin/lib/` (see [`docs/INVENTORY.md`](INVENTORY.md#cli-modules-24-shipped) for the authoritative roster):
+Node.js CLI utility (`gsd-tools.cjs`) with domain modules split across `get-shit-done/bin/lib/` (see [`docs/INVENTORY.md`](INVENTORY.md#cli-modules-33-shipped) for the authoritative roster):
 
 
 | Module                 | Responsibility                                                                                      |
 | ---------------------- | --------------------------------------------------------------------------------------------------- |
-| `core.cjs`             | Error handling, output formatting, shared utilities                                                 |
+| `core.cjs`             | Error handling, output formatting, shared utilities; compatibility re-exports for planning helpers |
+| `planning-workspace.cjs` | Planning seam (`planningDir`, `planningPaths`, active workstream routing, `.planning/.lock`)      |
 | `state.cjs`            | STATE.md parsing, updating, progression, metrics                                                    |
 | `phase.cjs`            | Phase directory operations, decimal numbering, plan indexing                                        |
 | `roadmap.cjs`          | ROADMAP.md parsing, phase extraction, plan progress                                                 |
@@ -457,7 +458,7 @@ UI-SPEC.md (per phase) ───────────────────
 
 ```
 ~/.claude/                          # Claude Code (global install)
-├── commands/gsd/*.md               # 86 slash commands (authoritative roster: docs/INVENTORY.md)
+├── commands/gsd/*.md               # 65 slash commands (authoritative roster: docs/INVENTORY.md)
 ├── get-shit-done/
 │   ├── bin/gsd-tools.cjs           # CLI utility
 │   ├── bin/lib/*.cjs               # Domain modules (authoritative roster: docs/INVENTORY.md)
@@ -534,7 +535,7 @@ Equivalent paths for other runtimes:
 
 ### Post-Execute Codebase Drift Gate (#2003)
 
-After the last wave of `/gsd:execute-phase` commits, the workflow runs a
+After the last wave of `/gsd-execute-phase` commits, the workflow runs a
 non-blocking `codebase_drift_gate` step (between `schema_drift_gate` and
 `verify_phase_goal`). It compares the diff `last_mapped_commit..HEAD`
 against `.planning/codebase/STRUCTURE.md` and counts four kinds of
@@ -546,7 +547,7 @@ structural elements:
 4. New route modules under `routes/` or `api/`
 
 If the count meets `workflow.drift_threshold` (default 3), the gate either
-**warns** (default) with the suggested `/gsd:map-codebase --paths …` command,
+**warns** (default) with the suggested `/gsd-map-codebase --paths …` command,
 or **auto-remaps** (`workflow.drift_action = auto-remap`) by spawning
 `gsd-codebase-mapper` scoped to the affected paths. Any error in detection
 or remap is logged and the phase continues — drift detection cannot fail

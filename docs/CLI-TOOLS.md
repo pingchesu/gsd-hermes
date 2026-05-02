@@ -452,9 +452,10 @@ User-facing entry point: `/gsd-graphify` (see [Command Reference](COMMANDS.md#gs
 
 | Module | File | Exports |
 |--------|------|---------|
-| Core | `lib/core.cjs` | `error()`, `output()`, `parseArgs()`, shared utilities |
+| Core | `lib/core.cjs` | `error()`, `output()`, `parseArgs()`, shared utilities, compatibility re-exports |
 | State | `lib/state.cjs` | All `state` subcommands, `state-snapshot` |
 | Phase | `lib/phase.cjs` | Phase CRUD, `find-phase`, `phase-plan-index`, `phases list` |
+| Planning Workspace | `lib/planning-workspace.cjs` | Planning seam: `planningDir`, `planningPaths`, active workstream routing, `.planning/.lock` |
 | Roadmap | `lib/roadmap.cjs` | Roadmap parsing, phase extraction, progress updates |
 | Config | `lib/config.cjs` | Config read/write, section initialization |
 | Verify | `lib/verify.cjs` | All verification and validation commands |
@@ -498,4 +499,4 @@ API keys configured via `/gsd-settings-integrations` (`brave_search`, `firecrawl
 
 - [sdk/src/query/QUERY-HANDLERS.md](../sdk/src/query/QUERY-HANDLERS.md) — registry matrix, routing, golden parity, intentional CJS differences
 - [Architecture](ARCHITECTURE.md) — where `gsd-sdk query` fits in orchestration
-- [Command Reference](COMMANDS.md) — user-facing `/gsd:` commands
+- [Command Reference](COMMANDS.md) — user-facing `/gsd-` commands

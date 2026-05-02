@@ -1,3 +1,8 @@
+// allow-test-rule: pending-migration-to-typed-ir [#2974]
+// Tracked in #2974 for migration to typed-IR assertions per CONTRIBUTING.md
+// "Prohibited: Raw Text Matching on Test Outputs". Per-file review may
+// reclassify some entries as source-text-is-the-product during migration.
+
 /**
  * Extract-Learnings Command & Workflow Tests
  *
@@ -11,12 +16,12 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 
-const COMMAND_PATH = path.join(__dirname, '..', 'commands', 'gsd', 'extract_learnings.md');
+const COMMAND_PATH = path.join(__dirname, '..', 'commands', 'gsd', 'extract-learnings.md');
 const WORKFLOW_PATH = path.join(__dirname, '..', 'get-shit-done', 'workflows', 'extract_learnings.md');
 
 describe('extract-learnings command', () => {
   test('command file exists', () => {
-    assert.ok(fs.existsSync(COMMAND_PATH), 'commands/gsd/extract_learnings.md should exist');
+    assert.ok(fs.existsSync(COMMAND_PATH), 'commands/gsd/extract-learnings.md should exist');
   });
 
   test('command file has correct name frontmatter', () => {

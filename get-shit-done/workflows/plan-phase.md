@@ -1013,7 +1013,7 @@ rest become a follow-up phase
 
 Use AskUserQuestion with these 3 options.
 
-**If "Split":** Use `/gsd-insert-phase` to create the sub-phases, then replan each.
+**If "Split":** Use `/gsd-phase --insert` to create the sub-phases, then replan each.
 **If "Proceed":** Return to planner with instruction to attempt all items at full fidelity, accepting more plans/tasks.
 **If "Prioritize":** Use AskUserQuestion (multiSelect) to let user pick which items are "now" vs "later". Create CONTEXT.md for each sub-phase with the selected items.
 
@@ -1042,7 +1042,7 @@ Options:
 Use AskUserQuestion for each gap (or batch if multiple gaps).
 
 **If "Add plan":** Return to planner (step 8) with instruction to add plans covering the missing items, preserving existing plans.
-**If "Split":** Use `/gsd-insert-phase` for overflow items, then replan.
+**If "Split":** Use `/gsd-phase --insert` for overflow items, then replan.
 **If "Defer":** Record in CONTEXT.md `## Deferred Ideas` with developer's confirmation. Proceed to step 10.
 
 ## 10. Spawn gsd-plan-checker Agent
@@ -1455,11 +1455,11 @@ one place before execution begins.
 ```bash
 POST_PLANNING_GAPS=$(gsd-sdk query config-get workflow.post_planning_gaps --default true 2>/dev/null || echo true)
 if [ "$POST_PLANNING_GAPS" = "true" ]; then
-  gsd-tools gap-analysis --phase-dir "${PHASE_DIR}"
+  node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" gap-analysis --phase-dir "${PHASE_DIR}"
 fi
 ```
 
-(`gsd-tools gap-analysis` reads `.planning/REQUIREMENTS.md`, `${PHASE_DIR}/CONTEXT.md`,
+(`gsd-tools.cjs gap-analysis` reads `.planning/REQUIREMENTS.md`, `${PHASE_DIR}/CONTEXT.md`,
 and `${PHASE_DIR}/*-PLAN.md`, then prints a markdown table with one row per
 REQ-ID and D-ID. Word-boundary matching prevents `REQ-1` from being mistaken for
 `REQ-10`.)

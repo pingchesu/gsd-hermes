@@ -1,4 +1,5 @@
 'use strict';
+// allow-test-rule: Hermes downstream regression tests intentionally assert installer/docs/CLI text contracts where no typed IR exists yet.
 
 /**
  * Guards ARCHITECTURE.md component counts against drift.
