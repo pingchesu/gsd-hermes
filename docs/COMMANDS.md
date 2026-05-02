@@ -211,19 +211,26 @@ Execute all plans in a phase with wave-based parallelization, or run a specific 
 
 **Hermes runtime model receipts:** On Hermes, execute-phase init payloads include `model_binding_receipts` for executor and verifier agents. These receipts show the configured model, resolved model token, binding source, Hermes binding channel, and proof boundary before dispatch. Explicit per-agent `model_overrides` must either bind through the Hermes child construction path or fail before spawn; execute-phase must not silently fall back to the parent/default model.
 
-**Provider-routed CLI execution:** When `workflow.agent_execution_router` is `"provider-cli"`, execute-phase also reads `agent_execution_bindings` and uses the matching provider CLI per agent before legacy fallback paths:
+**Provider-routed execution:** When `workflow.agent_execution_router` is `"provider-cli"`, execute-phase also reads `agent_execution_bindings` and uses the matching strict execution route per agent before legacy fallback paths:
 
 ```text
 model_overrides.gsd-executor = "openai/gpt-5.5"
+workflow.agent_execution_driver = "provider-cli" (default)
 → codex-cli
 → codex exec --model gpt-5.5
 
 model_overrides.gsd-verifier = "anthropic/claude-opus-4-7"
+workflow.agent_execution_driver = "provider-cli" (default)
 → claude-cli
 → claude -p --model claude-opus-4-7
+
+model_overrides.gsd-executor = "openai/gpt-5.5"
+workflow.agent_execution_driver = "hermes-terminal-tool"
+→ hermes-terminal-tool
+→ hermes chat --toolsets terminal,file --model openai/gpt-5.5 --provider openai
 ```
 
-The guarantee is matching driver or fail-fast. OpenAI/GPT bindings must not silently run through `claude -p`, Anthropic/Claude bindings must not silently run through `codex exec`, and `workflow.cross_ai_execution` remains a lower-priority whole-plan fallback.
+The guarantee is matching driver or fail-fast. OpenAI/GPT bindings must not silently run through `claude -p`, Anthropic/Claude bindings must not silently run through `codex exec`, Hermes-native driver preferences must not silently fall back to provider CLIs, and `workflow.cross_ai_execution` remains a lower-priority whole-plan fallback.
 
 ---
 

@@ -64,6 +64,28 @@ function renderProviderCliReceipt(binding) {
   };
 }
 
+function providerNameForHermes(providerFamily) {
+  if (providerFamily === 'openai') return 'openai';
+  if (providerFamily === 'anthropic') return 'anthropic';
+  if (providerFamily === 'google') return 'google';
+  return null;
+}
+
+function renderHermesDisplay(argv, promptPath, workdir) {
+  const prefix = `cd ${shellQuote(workdir)} && `;
+  const queryIndex = argv.indexOf('--query');
+  const printable = queryIndex === -1
+    ? argv
+    : [
+        ...argv.slice(0, queryIndex + 1),
+        `$(cat ${shellQuote(promptPath)})`,
+        ...argv.slice(queryIndex + 2),
+      ];
+  return `${prefix}${printable.map((value, index) => (
+    index === queryIndex + 1 && queryIndex !== -1 ? value : shellQuote(value)
+  )).join(' ')}`;
+}
+
 function renderProviderCliCommand(binding, options = {}) {
   const normalized = normalizeBinding(binding);
   const driver = normalized.execution_driver;
@@ -80,6 +102,7 @@ function renderProviderCliCommand(binding, options = {}) {
   }
 
   let argv;
+  let display;
   if (driver === 'claude-cli') {
     if (typeof agentName !== 'string' || !agentName.trim()) {
       throw bindingError(normalized, 'Claude CLI command rendering requires agent name.');
@@ -99,6 +122,24 @@ function renderProviderCliCommand(binding, options = {}) {
       '--full-auto',
       '-C', workdir,
     ];
+  } else if (driver === 'hermes-chat' || driver === 'hermes-terminal-tool') {
+    const provider = providerNameForHermes(normalized.provider_family);
+    if (!provider) {
+      throw bindingError(normalized, 'Hermes-native command rendering requires a supported provider_family.');
+    }
+    argv = [
+      'hermes',
+      'chat',
+      '--quiet',
+      '--source', 'gsd-provider-cli',
+      '--model', cliModel,
+      '--provider', provider,
+    ];
+    if (driver === 'hermes-terminal-tool') {
+      argv.push('--toolsets', 'terminal,file');
+    }
+    argv.push('--query', '<prompt from stdin_path>');
+    display = renderHermesDisplay(argv, promptPath, workdir);
   } else {
     throw bindingError(normalized, 'Unsupported provider CLI execution_driver.');
   }
@@ -107,7 +148,8 @@ function renderProviderCliCommand(binding, options = {}) {
     driver,
     argv,
     stdin_path: promptPath,
-    display: `${argv.map(shellQuote).join(' ')} < ${shellQuote(promptPath)}`,
+    workdir,
+    display: display || `${argv.map(shellQuote).join(' ')} < ${shellQuote(promptPath)}`,
     receipt: renderProviderCliReceipt(normalized),
   };
 }
@@ -115,6 +157,7 @@ function renderProviderCliCommand(binding, options = {}) {
 function commandNameForDriver(driver) {
   if (driver === 'claude-cli') return 'claude';
   if (driver === 'codex-cli') return 'codex';
+  if (driver === 'hermes-chat' || driver === 'hermes-terminal-tool') return 'hermes';
   return null;
 }
 
@@ -160,7 +203,9 @@ function preflightProviderCliDriver(binding, env = process.env) {
       message: `Cannot execute ${normalized.agent || 'agent'}: '${command}' CLI was not found on PATH.`,
       suggested_fix: driver === 'claude-cli'
         ? 'Install/login Claude Code CLI or change this agent model_overrides entry to a provider routed to an available driver.'
-        : 'Install/login Codex CLI or change this agent model_overrides entry to a provider routed to an available driver.',
+        : driver === 'codex-cli'
+          ? 'Install/login Codex CLI or change this agent model_overrides entry to a provider routed to an available driver.'
+          : 'Install/login Hermes Agent CLI and configure the requested provider credentials, or set workflow.agent_execution_driver to provider-cli.',
       path_entries: pathEntriesFromEnv(env),
     };
   }

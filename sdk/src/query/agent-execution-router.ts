@@ -9,7 +9,8 @@ import type { GSDConfig } from '../config.js';
 import { detectModelFamily, MODEL_ALIAS_MAP, type ModelFamily, type RuntimeModelReceipt } from './runtime-model-contract.js';
 
 export type AgentExecutionRouterMode = 'provider-cli';
-export type AgentExecutionDriver = 'claude-cli' | 'codex-cli' | 'unsupported';
+export type AgentExecutionDriverPreference = 'provider-cli' | 'hermes-chat' | 'hermes-terminal-tool';
+export type AgentExecutionDriver = 'claude-cli' | 'codex-cli' | 'hermes-chat' | 'hermes-terminal-tool' | 'unsupported';
 export type AgentExecutionBindingStatus = 'resolved' | 'unsupported';
 
 export interface AgentExecutionBinding {
@@ -29,6 +30,7 @@ export interface AgentExecutionBinding {
 export interface AgentExecutionBindings {
   router: AgentExecutionRouterMode;
   strict: true;
+  driver_preference: AgentExecutionDriverPreference;
   agents: Record<string, AgentExecutionBinding>;
 }
 
@@ -38,6 +40,13 @@ export function resolveAgentExecutionRouterMode(config: Pick<GSDConfig, 'workflo
   return (workflow as { agent_execution_router?: unknown }).agent_execution_router === 'provider-cli'
     ? 'provider-cli'
     : null;
+}
+
+export function resolveAgentExecutionDriverPreference(config: Pick<GSDConfig, 'workflow'> | Record<string, unknown>): AgentExecutionDriverPreference {
+  const workflow = config.workflow;
+  if (!workflow || typeof workflow !== 'object' || Array.isArray(workflow)) return 'provider-cli';
+  const raw = (workflow as { agent_execution_driver?: unknown }).agent_execution_driver;
+  return raw === 'hermes-chat' || raw === 'hermes-terminal-tool' ? raw : 'provider-cli';
 }
 
 function stripProviderPrefix(model: string, provider: 'anthropic' | 'openai'): string {
@@ -62,12 +71,28 @@ export function normalizeCliModel(model: string | null | undefined, providerFami
   return trimmed;
 }
 
-export function resolveAgentExecutionBinding(receipt: RuntimeModelReceipt): AgentExecutionBinding {
+function normalizeHermesModel(model: string | null | undefined): string | null {
+  if (!model) return null;
+  const trimmed = model.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
+function providerFamilySupportedByHermes(providerFamily: ModelFamily): boolean {
+  return providerFamily === 'anthropic' || providerFamily === 'openai' || providerFamily === 'google';
+}
+
+export function resolveAgentExecutionBinding(
+  receipt: RuntimeModelReceipt,
+  options: { driverPreference?: AgentExecutionDriverPreference } = {},
+): AgentExecutionBinding {
   const providerModel = receipt.model_token ?? receipt.resolved_model ?? receipt.configured_model;
   const providerFamily = receipt.provider_family === 'unknown'
     ? detectModelFamily(providerModel)
     : receipt.provider_family;
-  const cliModel = normalizeCliModel(providerModel, providerFamily);
+  const driverPreference = options.driverPreference ?? 'provider-cli';
+  const cliModel = driverPreference === 'provider-cli'
+    ? normalizeCliModel(providerModel, providerFamily)
+    : normalizeHermesModel(providerModel);
 
   if (receipt.status !== 'resolved' || receipt.binding_kind !== 'explicit' || !providerModel) {
     return {
@@ -82,6 +107,39 @@ export function resolveAgentExecutionBinding(receipt: RuntimeModelReceipt): Agen
       strict: true,
       diagnostic: `Provider-routed execution requires an explicit model_overrides binding for ${receipt.agent}.`,
       suggested_fix: `Set model_overrides.${receipt.agent} to an Anthropic/Claude or OpenAI/GPT model, or disable workflow.agent_execution_router.`,
+    };
+  }
+
+  if (driverPreference === 'hermes-chat' || driverPreference === 'hermes-terminal-tool') {
+    if (providerFamilySupportedByHermes(providerFamily) && cliModel) {
+      const label = driverPreference === 'hermes-chat' ? 'Hermes chat' : 'Hermes terminal tool';
+      return {
+        agent: receipt.agent,
+        role: receipt.role,
+        status: 'resolved',
+        configured_model: receipt.configured_model,
+        provider_family: providerFamily,
+        execution_driver: driverPreference,
+        cli_model: cliModel,
+        source: receipt.source,
+        strict: true,
+        diagnostic: `${receipt.agent} routes through ${label} with explicit model '${providerModel}'. Hermes is the execution surface; provider selection remains model-driven and must not fall back to Claude/Codex CLI.`,
+        suggested_fix: null,
+      };
+    }
+
+    return {
+      agent: receipt.agent,
+      role: receipt.role,
+      status: 'unsupported',
+      configured_model: receipt.configured_model,
+      provider_family: providerFamily,
+      execution_driver: 'unsupported',
+      cli_model: null,
+      source: receipt.source,
+      strict: true,
+      diagnostic: `Hermes-native provider-routed execution does not support provider family '${providerFamily}' for ${receipt.agent}.`,
+      suggested_fix: `Use an Anthropic/Claude, OpenAI/GPT, or Google/Gemini model override for ${receipt.agent}; set workflow.agent_execution_driver to provider-cli; or disable workflow.agent_execution_router.`,
     };
   }
 
@@ -139,14 +197,16 @@ export function buildAgentExecutionBindings(
   const router = resolveAgentExecutionRouterMode(config);
   if (router !== 'provider-cli') return null;
 
+  const driverPreference = resolveAgentExecutionDriverPreference(config);
   const agents: Record<string, AgentExecutionBinding> = {};
   for (const [role, receipt] of Object.entries(modelBindingReceipts.agents)) {
-    agents[role] = resolveAgentExecutionBinding(receipt);
+    agents[role] = resolveAgentExecutionBinding(receipt, { driverPreference });
   }
 
   return {
     router,
     strict: true,
+    driver_preference: driverPreference,
     agents,
   };
 }
