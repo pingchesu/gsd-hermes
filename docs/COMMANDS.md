@@ -4,9 +4,9 @@
 
 ---
 
-## GSD Hermes v1.9 Release Note
+## GSD Hermes v1.9.1 Release Note
 
-`gsd-hermes@1.9.0` syncs the command surface with `upstream/main@de25400b` while keeping the downstream Hermes-first guarantees: project-linked Hermes installs, `gsd-<command>` skill discovery, strict runtime model receipts, and provider-routed execution. Upstream basic Hermes support is preserved where useful, but `gsd-hermes` keeps the stricter rule that configured `model_overrides` either route through the matching provider driver or fail fast.
+`gsd-hermes@1.9.1` syncs the command surface with `upstream/main@f2decefe` while keeping the downstream Hermes-first guarantees: project-linked Hermes installs, `gsd-<command>` skill discovery, strict runtime model receipts, and provider-routed execution. This patch release also carries upstream `/gsd-update --reapply` recovery guidance so local-patch users no longer see stale reapply command names.
 
 ---
 

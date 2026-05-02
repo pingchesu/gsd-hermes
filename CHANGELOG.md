@@ -10,6 +10,26 @@ syncs from.
 
 ## [Unreleased]
 
+## 1.9.1 — 2026-05-02
+
+GSD Hermes package version: `1.9.1`
+Upstream GSD base: `upstream/main@f2decefe` / upstream `get-shit-done-cc@1.40.0-rc.1` development line
+Previous downstream package version: `1.9.0`
+Previous upstream base: `upstream/main@de25400b`
+
+### Synced
+- **Upstream sync to `upstream/main@f2decefe`** — imports upstream maintenance fixes for SDK diagnostics, typed-IR test coverage, and `/gsd-update --reapply` recovery messaging while preserving downstream `gsd-hermes` package identity.
+
+### Fixed
+- Kept SDK fail-fast repair hints pointed at `gsd-hermes`, not upstream package names.
+- Preserved strict Hermes/provider-routing invariants and dash-form command discovery while accepting upstream-owned `/gsd:` regression tests.
+
+### Documentation
+- Added release notes: [`docs/releases/v1.9.1-upstream-f2decefe-sync.md`](docs/releases/v1.9.1-upstream-f2decefe-sync.md).
+
+### Verification
+- Local and PR validation passed: `npm run test:hermes`, `npm test`, `npm run lint:tests`, and `npm pack --dry-run --json`.
+
 ## 1.9.0 — 2026-05-02
 
 GSD Hermes package version: `1.9.0`

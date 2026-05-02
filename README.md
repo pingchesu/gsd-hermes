@@ -164,6 +164,7 @@ See [docs/COMMANDS.md](docs/COMMANDS.md) for the full command reference.
 - [docs/hermes-compatibility.md](docs/hermes-compatibility.md) — Hermes compatibility contract and regression gate.
 - [docs/releases/v1.8.0-provider-routed-agent-execution.md](docs/releases/v1.8.0-provider-routed-agent-execution.md) — provider-routing release notes.
 - [docs/releases/v1.9.0-hermes-first-upstream-sync.md](docs/releases/v1.9.0-hermes-first-upstream-sync.md) — v1.9 sync/repositioning notes.
+- [docs/releases/v1.9.1-upstream-f2decefe-sync.md](docs/releases/v1.9.1-upstream-f2decefe-sync.md) — v1.9.1 upstream maintenance sync notes.
 - [CHANGELOG.md](CHANGELOG.md) — downstream release history.
 
 ---
@@ -201,7 +202,7 @@ npm pack --dry-run --json
 
 ## Upstream base
 
-`gsd-hermes@1.9.0` syncs to upstream `gsd-build/get-shit-done@de25400b` while preserving downstream package identity and Hermes/provider-routing invariants.
+`gsd-hermes@1.9.1` syncs to upstream `gsd-build/get-shit-done@f2decefe` while preserving downstream package identity and Hermes/provider-routing invariants.
 
 Public package identity remains:
 
