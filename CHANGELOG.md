@@ -10,6 +10,9 @@ syncs from.
 
 ## [Unreleased]
 
+### Synced
+- Routine upstream sync to `upstream/main@42ed7cee`, importing 24 upstream commits since `f2decefe` while preserving downstream `gsd-hermes` package identity and Hermes model-routing semantics.
+
 ## 1.11.1 — 2026-05-03
 
 GSD Hermes package version: `1.11.1`

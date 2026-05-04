@@ -35,11 +35,10 @@ Para detalhes completos de flags avançadas e mudanças recentes, consulte tamb�
 
 | Comando | Finalidade |
 |---------|------------|
-| `/gsd-add-phase` | Adiciona fase no roadmap |
-| `/gsd-insert-phase [N]` | Insere trabalho urgente entre fases |
-| `/gsd-remove-phase [N]` | Remove fase futura e reenumera |
+| `/gsd-phase` | Adiciona fase no roadmap |
+| `/gsd-phase --insert [N]` | Insere trabalho urgente entre fases |
+| `/gsd-phase --remove [N]` | Remove fase futura e reenumera |
 | `/gsd-list-phase-assumptions [N]` | Mostra abordagem assumida pelo Claude |
-| `/gsd-plan-milestone-gaps` | Cria fases para fechar lacunas de auditoria |
 
 ## Brownfield e Utilidades
 
@@ -51,7 +50,7 @@ Para detalhes completos de flags avançadas e mudanças recentes, consulte tamb�
 | `/gsd-analyze-dependencies` | Detecta dependências entre fases e sugere `Depends on` no ROADMAP.md (v1.32) |
 | `/gsd-forensics` | Diagnóstico de falhas no workflow |
 | `/gsd-settings` | Configuração de agentes, perfil e toggles |
-| `/gsd-set-profile <perfil>` | Troca rápida de perfil de modelo |
+| `/gsd-config --profile <perfil>` | Troca rápida de perfil de modelo |
 
 ## Qualidade de Código
 
@@ -65,9 +64,9 @@ Para detalhes completos de flags avançadas e mudanças recentes, consulte tamb�
 
 | Comando | Finalidade |
 |---------|------------|
-| `/gsd-add-backlog <desc>` | Adiciona item no backlog (999.x) |
+| `/gsd-capture --backlog <desc>` | Adiciona item no backlog (999.x) |
 | `/gsd-review-backlog` | Promove, mantém ou remove itens |
-| `/gsd-plant-seed <ideia>` | Registra ideia com gatilho futuro |
+| `/gsd-capture --seed <ideia>` | Registra ideia com gatilho futuro |
 | `/gsd-thread [nome]` | Gerencia threads persistentes |
 
 ## Gerenciamento de Estado

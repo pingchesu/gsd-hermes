@@ -702,6 +702,7 @@ function rewriteLegacyManagedNodeHookCommands(settings, absoluteRunner) {
     'gsd-prompt-guard.js',
     'gsd-read-guard.js',
     'gsd-read-injection-scanner.js',
+    'gsd-update-banner.js',
     'gsd-workflow-guard.js',
   ]);
   let changed = false;
@@ -732,6 +733,100 @@ function rewriteLegacyManagedNodeHookCommands(settings, absoluteRunner) {
     }
   }
   return changed;
+}
+
+/**
+ * Codex managed-hook filenames eligible for legacy-bare-node migration.
+ * Mirrors the settings.json allowlist in rewriteLegacyManagedNodeHookCommands.
+ * Centralized so the codex toml branch and the settings.json branch can't drift.
+ */
+const CODEX_MANAGED_HOOK_BASENAMES = new Set([
+  'gsd-check-update.js',
+]);
+
+/**
+ * Build the GSD-managed Codex SessionStart hook block for config.toml.
+ *
+ * Issue #3017: the previous shape inlined `command = "node ${path}"` which
+ * fails under GUI/minimal-PATH runtimes where bare `node` doesn't resolve
+ * (same failure mode as #2979 → fixed for settings.json by #3002, this
+ * helper closes the gap for Codex's TOML hook surface).
+ *
+ * Returns null when `absoluteRunner` is null so callers can warn-and-skip
+ * registration — emitting a broken bare-node hook is strictly worse than
+ * not registering one (the user can re-run install once node is on PATH).
+ *
+ * @param {string} targetDir - Resolved absolute Codex config dir (e.g. ~/.codex).
+ * @param {{ absoluteRunner: string|null, eol?: string }} opts
+ *   absoluteRunner: result of resolveNodeRunner() — a JSON-stringified
+ *   absolute node path with forward slashes (e.g. `"/usr/local/bin/node"`),
+ *   or null when process.execPath was unavailable.
+ *   eol: line ending to emit ('\n' or '\r\n') — caller passes
+ *   detectLineEnding(configContent) so existing CRLF files stay CRLF.
+ *   Defaults to '\n'.
+ * @returns {string|null} The toml block to append, or null on missing runner.
+ */
+function buildCodexHookBlock(targetDir, opts) {
+  const absoluteRunner = opts && opts.absoluteRunner;
+  if (!absoluteRunner) return null;
+  const eol = (opts && opts.eol) || '\n';
+  const updateCheckScript = path.resolve(targetDir, 'hooks', 'gsd-check-update.js').replace(/\\/g, '/');
+  // toml requires escaped interior quotes (\"). The runner is already a
+  // JSON-stringified token (with literal " around the absolute path); we
+  // need to escape those quotes so the toml parser sees them as part of
+  // the string value, not as the closing quote of the command field.
+  const runnerEscaped = absoluteRunner.replace(/"/g, '\\"');
+  const hookPathEscaped = updateCheckScript.replace(/"/g, '\\"');
+  return `${eol}# GSD Hooks${eol}` +
+    `[[hooks.SessionStart]]${eol}` +
+    `${eol}` +
+    `[[hooks.SessionStart.hooks]]${eol}` +
+    `type = "command"${eol}` +
+    `command = "${runnerEscaped} \\"${hookPathEscaped}\\""${eol}`;
+}
+
+/**
+ * Rewrite legacy bare-`node` managed-hook command lines in a Codex
+ * config.toml string to use the absolute Node runner. Mirror of
+ * rewriteLegacyManagedNodeHookCommands but for the toml surface (#3017).
+ *
+ * Only rewrites entries whose script basename matches CODEX_MANAGED_HOOK_BASENAMES
+ * (basename equality, not substring containment) — user-authored bare-node
+ * hooks pointing at scripts outside the managed allowlist are left alone.
+ *
+ * @param {string} content - Current config.toml contents.
+ * @param {string|null} absoluteRunner - Result of resolveNodeRunner().
+ * @returns {{ content: string, changed: boolean }}
+ */
+function rewriteLegacyCodexHookBlock(content, absoluteRunner) {
+  if (!content || !absoluteRunner) return { content, changed: false };
+  let changed = false;
+  // Match `command = "node <scriptToken>"` lines where scriptToken is
+  // either an unquoted path (no spaces) or a toml-escaped quoted path.
+  // The whole RHS is a toml-double-quoted string; interior quotes are \".
+  // Examples we want to migrate:
+  //   command = "node /Users/x/.codex/hooks/gsd-check-update.js"
+  //   command = "node \"/Users/x/.codex/hooks/gsd-check-update.js\""
+  // Examples we must leave alone:
+  //   command = "\"/usr/local/bin/node\" \"/path/to/gsd-check-update.js\""  ← already absolute
+  //   command = "node /home/me/my-custom.js"                                ← user-owned filename
+  const updated = content.replace(
+    /^(command\s*=\s*")node\s+((?:\\"[^"]+\\"|\S+))("\s*)$/gm,
+    (full, prefix, scriptToken, suffix) => {
+      // Extract the underlying script path from the captured token —
+      // either the bare token or the inner content of \"...\".
+      const quoted = scriptToken.match(/^\\"(.+)\\"$/);
+      const scriptPath = quoted ? quoted[1] : scriptToken;
+      const base = scriptPath.split(/[\\/]/).pop() || '';
+      if (!CODEX_MANAGED_HOOK_BASENAMES.has(base)) return full;
+      changed = true;
+      const runnerEscaped = absoluteRunner.replace(/"/g, '\\"');
+      // Always re-quote the path on output for consistency with the new
+      // builder's shape.
+      return `${prefix}${runnerEscaped} \\"${scriptPath}\\"${suffix}`;
+    },
+  );
+  return { content: updated, changed };
 }
 
 /**
@@ -2234,7 +2329,12 @@ Multi-select workaround:
 - Codex has no \`multiSelect\`. Use sequential single-selects, or present a numbered freeform list asking the user to enter comma-separated numbers.
 
 Execute mode fallback:
-- When \`request_user_input\` is rejected (Execute mode), present a plain-text numbered list and pick a reasonable default.
+- When \`request_user_input\` is rejected or unavailable, you MUST stop and present the questions as a plain-text numbered list, then wait for the user's reply. Do NOT pick a default and continue (#3018).
+- You may only proceed without a user answer when one of these is true:
+  (a) the invocation included an explicit non-interactive flag (\`--auto\` or \`--all\`),
+  (b) the user has explicitly approved a specific default for this question, or
+  (c) the workflow's documented contract says defaults are safe (e.g. autonomous lifecycle paths).
+- Do NOT write workflow artifacts (CONTEXT.md, DISCUSSION-LOG.md, PLAN.md, checkpoint files) until the user has answered the plain-text questions or one of (a)-(c) above applies. Surfacing the questions and waiting is the correct response — silently defaulting and writing artifacts is the #3018 failure mode.
 
 ## C. Task() → spawn_agent Mapping
 GSD workflows use \`Task(...)\` (Claude Code syntax). Translate to Codex collaboration tools:
@@ -6918,7 +7018,7 @@ function uninstall(isGlobal, runtime = 'claude') {
   // 4. Remove GSD hooks
   const hooksDir = path.join(targetDir, 'hooks');
   if (fs.existsSync(hooksDir)) {
-    const gsdHooks = ['gsd-statusline.js', 'gsd-check-update.js', 'gsd-context-monitor.js', 'gsd-prompt-guard.js', 'gsd-read-guard.js', 'gsd-read-injection-scanner.js', 'gsd-workflow-guard.js', 'gsd-session-state.sh', 'gsd-validate-commit.sh', 'gsd-phase-boundary.sh'];
+    const gsdHooks = ['gsd-statusline.js', 'gsd-check-update.js', 'gsd-context-monitor.js', 'gsd-prompt-guard.js', 'gsd-read-guard.js', 'gsd-read-injection-scanner.js', 'gsd-update-banner.js', 'gsd-workflow-guard.js', 'gsd-session-state.sh', 'gsd-validate-commit.sh', 'gsd-phase-boundary.sh'];
     let hookCount = 0;
     for (const hook of gsdHooks) {
       const hookPath = path.join(hooksDir, hook);
@@ -6974,6 +7074,7 @@ function uninstall(isGlobal, runtime = 'claude') {
         cmd.includes('gsd-session-state') || cmd.includes('gsd-context-monitor') ||
         cmd.includes('gsd-phase-boundary') || cmd.includes('gsd-prompt-guard') ||
         cmd.includes('gsd-read-guard') || cmd.includes('gsd-read-injection-scanner') ||
+        cmd.includes('gsd-update-banner') ||
         cmd.includes('gsd-validate-commit') || cmd.includes('gsd-workflow-guard'));
 
     for (const eventName of ['SessionStart', 'PostToolUse', 'AfterTool', 'PreToolUse', 'BeforeTool']) {
@@ -8032,15 +8133,55 @@ function install(isGlobal, runtime = 'claude') {
     // No skills/commands directory needed. Engine is installed via copyWithPathReplacement.
     console.log(`  ${green}✓${reset} Cline: commands will be available via .clinerules`);
   } else if (isGemini) {
-    const commandsDir = path.join(targetDir, 'commands');
-    fs.mkdirSync(commandsDir, { recursive: true });
-    const gsdSrc = stageSkillsForMode(path.join(src, 'commands', 'gsd'), installMode);
-    const gsdDest = path.join(commandsDir, 'gsd');
-    copyWithPathReplacement(gsdSrc, gsdDest, pathPrefix, runtime, true, isGlobal);
-    if (verifyInstalled(gsdDest, 'commands/gsd')) {
-      console.log(`  ${green}✓${reset} Installed commands/gsd`);
+    // #3037: when running --local --gemini and a GSD-managed user-scope
+    // command directory already exists at ~/.gemini/commands/gsd/, skip
+    // the local copy. Gemini conflict-detects by command name across
+    // scopes and renames every overlapping /gsd:* command to
+    // /workspace.gsd:* and /user.gsd:*, breaking the documented namespace.
+    // The user-scope install already provides the same commands, so the
+    // local copy adds zero value at the cost of namespace conflicts.
+    //
+    // CR #3041 (Major): the detection must be specific to PACKAGE-MANAGED
+    // GSD content, not just "directory is non-empty". A user who hand-
+    // dropped a single override (e.g. ~/.gemini/commands/gsd/my-override
+    // .toml) would otherwise be unable to run a local install at all.
+    // Detection rule: at least 3 of the canonical GSD command files
+    // ('help.toml', 'progress.toml', 'new-project.toml') must be present.
+    // These three ship in every GSD Gemini install (minimal mode included
+    // — they're in the core skill set per #2790's consolidation), and 3-of-
+    // 3 with that specific basename set is structurally impossible to
+    // produce by accident.
+    const homeGeminiGsd = path.join(os.homedir(), '.gemini', 'commands', 'gsd');
+    const GSD_MANAGED_CANARIES = ['help.toml', 'progress.toml', 'new-project.toml'];
+    const userScopeHasGsd =
+      !isGlobal &&
+      path.resolve(targetDir) !== path.resolve(path.join(os.homedir(), '.gemini')) &&
+      fs.existsSync(homeGeminiGsd) &&
+      GSD_MANAGED_CANARIES.every((f) =>
+        fs.existsSync(path.join(homeGeminiGsd, f))
+      );
+
+    if (userScopeHasGsd) {
+      console.log(
+        `  ${yellow}⚠${reset}  Skipping commands/gsd/ for local install — GSD is already installed at user scope (${homeGeminiGsd}).`
+      );
+      console.log(
+        `      Gemini conflict-detects across scopes and would rename every /gsd:* command to /workspace.gsd:* and /user.gsd:*.`
+      );
+      console.log(
+        `      The user-scope install already provides /gsd:* commands in this project; no local copy is needed.`
+      );
     } else {
-      failures.push('commands/gsd');
+      const commandsDir = path.join(targetDir, 'commands');
+      fs.mkdirSync(commandsDir, { recursive: true });
+      const gsdSrc = stageSkillsForMode(path.join(src, 'commands', 'gsd'), installMode);
+      const gsdDest = path.join(commandsDir, 'gsd');
+      copyWithPathReplacement(gsdSrc, gsdDest, pathPrefix, runtime, true, isGlobal);
+      if (verifyInstalled(gsdDest, 'commands/gsd')) {
+        console.log(`  ${green}✓${reset} Installed commands/gsd`);
+      } else {
+        failures.push('commands/gsd');
+      }
     }
   } else if (isGlobal) {
     // Claude Code global: skills/ format (2.1.88+ compatibility)
@@ -8503,16 +8644,32 @@ function install(isGlobal, runtime = 'claude') {
       // two-level nested AoT schema: [[hooks.SessionStart]] for the event entry
       // (holds optional matcher) and [[hooks.SessionStart.hooks]] for the handler
       // (holds type, command, statusMessage, timeout). (#2637, #2760, #2773)
-      const updateCheckScript = path.resolve(targetDir, 'hooks', 'gsd-check-update.js').replace(/\\/g, '/');
-      const hookBlock = `${eol}# GSD Hooks${eol}` +
-        `[[hooks.SessionStart]]${eol}` +
-        `${eol}` +
-        `[[hooks.SessionStart.hooks]]${eol}` +
-        `type = "command"${eol}` +
-        `command = "node ${updateCheckScript}"${eol}`;
+      //
+      // #3017: route through buildCodexHookBlock() so the absolute Node binary
+      // path is emitted (matching the settings.json branch via #3002), so the
+      // hook resolves under GUI/minimal-PATH runtimes where bare `node` doesn't.
+      const codexNodeRunner = resolveNodeRunner();
+      const hookBlock = buildCodexHookBlock(targetDir, { absoluteRunner: codexNodeRunner, eol });
 
-      if (hasEnabledCodexHooksFeature(configContent) && !configContent.includes('gsd-check-update')) {
-        configContent += hookBlock;
+      if (hasEnabledCodexHooksFeature(configContent)) {
+        // Reinstall path: rewrite a legacy bare-node managed-hook entry to the
+        // absolute runner. Mirrors rewriteLegacyManagedNodeHookCommands for the
+        // settings.json surface (#3002 CR).
+        const rewrite = rewriteLegacyCodexHookBlock(configContent, codexNodeRunner);
+        if (rewrite.changed) {
+          configContent = rewrite.content;
+          console.log(`  ${green}✓${reset} Migrated legacy bare-node Codex hook to absolute runner (#3017)`);
+        }
+        if (!configContent.includes('gsd-check-update')) {
+          if (hookBlock !== null) {
+            configContent += hookBlock;
+          } else {
+            // resolveNodeRunner() returned null — process.execPath unavailable.
+            // Match the settings.json branch's warn-and-skip behavior rather
+            // than emit a broken bare-node hook (the #2979 / #3017 failure mode).
+            console.warn(`  ${yellow}⚠${reset}  Skipping Codex SessionStart hook registration — Node executable path unavailable (process.execPath is empty). See #2979 / #3002 / #3017.`);
+          }
+        }
       }
 
       // #2760 fix 3 — post-write schema validation. Parse the bytes we are
@@ -8578,7 +8735,7 @@ function install(isGlobal, runtime = 'claude') {
       throw wrapped;
     }
 
-    return { settingsPath: null, settings: null, statuslineCommand: null, runtime, configDir: targetDir };
+    return { settingsPath: null, settings: null, statuslineCommand: null, updateBannerCommand: null, runtime, configDir: targetDir };
   }
 
   if (isCopilot) {
@@ -8591,22 +8748,22 @@ function install(isGlobal, runtime = 'claude') {
       console.log(`  ${green}✓${reset} Generated copilot-instructions.md`);
     }
     // Copilot: no settings.json, no hooks, no statusline (like Codex)
-    return { settingsPath: null, settings: null, statuslineCommand: null, runtime, configDir: targetDir };
+    return { settingsPath: null, settings: null, statuslineCommand: null, updateBannerCommand: null, runtime, configDir: targetDir };
   }
 
   if (isCursor) {
     // Cursor uses skills — no config.toml, no settings.json hooks needed
-    return { settingsPath: null, settings: null, statuslineCommand: null, runtime, configDir: targetDir };
+    return { settingsPath: null, settings: null, statuslineCommand: null, updateBannerCommand: null, runtime, configDir: targetDir };
   }
 
   if (isWindsurf) {
     // Windsurf uses skills — no config.toml, no settings.json hooks needed
-    return { settingsPath: null, settings: null, statuslineCommand: null, runtime, configDir: targetDir };
+    return { settingsPath: null, settings: null, statuslineCommand: null, updateBannerCommand: null, runtime, configDir: targetDir };
   }
 
   if (isTrae) {
     // Trae uses skills — no settings.json hooks needed
-    return { settingsPath: null, settings: null, statuslineCommand: null, runtime, configDir: targetDir };
+    return { settingsPath: null, settings: null, statuslineCommand: null, updateBannerCommand: null, runtime, configDir: targetDir };
   }
 
   if (isCline) {
@@ -8626,7 +8783,7 @@ function install(isGlobal, runtime = 'claude') {
     ].join('\n') + '\n';
     fs.writeFileSync(clinerulesDest, clinerules);
     console.log(`  ${green}✓${reset} Wrote .clinerules`);
-    return { settingsPath: null, settings: null, statuslineCommand: null, runtime, configDir: targetDir };
+    return { settingsPath: null, settings: null, statuslineCommand: null, updateBannerCommand: null, runtime, configDir: targetDir };
   }
 
   if (isHermes) {
@@ -8976,13 +9133,30 @@ function install(isGlobal, runtime = 'claude') {
     }
   }
 
-  return { settingsPath, settings, statuslineCommand, runtime, configDir: targetDir };
+  // Compute the update-banner hook command alongside the others so
+  // installAllRuntimes can register it at finalize time when the user opts
+  // in (#2795). Computed here (not in finishInstall) so the same buildHookCommand
+  // / localCmd resolution logic is shared with the other JS hooks.
+  const updateBannerCommand = isOpencode || isKilo
+    ? null
+    : (isGlobal
+      ? buildHookCommand(targetDir, 'gsd-update-banner.js', hookOpts)
+      : localCmd('gsd-update-banner.js'));
+
+  return {
+    settingsPath,
+    settings,
+    statuslineCommand,
+    updateBannerCommand,
+    runtime,
+    configDir: targetDir,
+  };
 }
 
 /**
  * Apply statusline config, then print completion message
  */
-function finishInstall(settingsPath, settings, statuslineCommand, shouldInstallStatusline, runtime = 'claude', isGlobal = true, configDir = null) {
+function finishInstall(settingsPath, settings, statuslineCommand, shouldInstallStatusline, runtime = 'claude', isGlobal = true, configDir = null, bannerOpts = {}) {
   const isOpencode = runtime === 'opencode';
   const isKilo = runtime === 'kilo';
   const isCodex = runtime === 'codex';
@@ -9011,6 +9185,36 @@ function finishInstall(settingsPath, settings, statuslineCommand, shouldInstallS
         command: statuslineCommand
       };
       console.log(`  ${green}✓${reset} Configured statusline`);
+    }
+  }
+
+  // Register the opt-in update banner (#2795) when the user accepted the
+  // banner offer at install time. Only applies to runtimes that own a
+  // settings.json hooks block — opencode/kilo/codex/cursor/windsurf/trae/
+  // cline either lack the surface or use a different config schema.
+  const { shouldInstallBanner, bannerCommand } = bannerOpts;
+  if (shouldInstallBanner && settings && !isOpencode && !isKilo && !isCodex && !isCopilot && !isCursor && !isWindsurf && !isTrae && !isCline) {
+    if (!bannerCommand) {
+      console.warn(`  ${yellow}⚠${reset}  Skipped update banner registration — Node executable path unavailable. See #2979 / #3002.`);
+    } else {
+      if (!settings.hooks) settings.hooks = {};
+      if (!settings.hooks.SessionStart) settings.hooks.SessionStart = [];
+      const alreadyRegistered = settings.hooks.SessionStart.some(entry =>
+        entry && entry.hooks && entry.hooks.some(h => h && h.command && h.command.includes('gsd-update-banner'))
+      );
+      const bannerHookFile = configDir ? path.join(configDir, 'hooks', 'gsd-update-banner.js') : null;
+      const bannerInstalled = bannerHookFile ? fs.existsSync(bannerHookFile) : false;
+      if (alreadyRegistered) {
+        // Idempotent re-install: don't double-register.
+      } else if (!bannerInstalled) {
+        console.warn(`  ${yellow}⚠${reset}  Skipped update banner — gsd-update-banner.js not found at target`);
+      } else {
+        const entry = buildUpdateBannerHookEntry(bannerCommand);
+        if (entry) {
+          settings.hooks.SessionStart.push(entry);
+          console.log(`  ${green}✓${reset} Configured update banner hook (opt-in)`);
+        }
+      }
     }
   }
 
@@ -9290,6 +9494,90 @@ function promptRuntime(callback) {
     answered = true;
     rl.close();
     callback(parseRuntimeInput(answer));
+  });
+}
+
+// ─── Update banner (#2795) ──────────────────────────────────────────────────
+
+/**
+ * Build the prompt text shown when offering the opt-in update banner.
+ * Pure function — no I/O. Exported for tests so they can assert against the
+ * rendered prompt structurally instead of grepping bin/install.js source.
+ */
+function buildUpdateBannerPromptText() {
+  return `
+  ${yellow}Optional: GSD update banner${reset}
+  Without GSD's statusline, update notifications won't be visible. You can
+  install a SessionStart banner that surfaces a one-line message when a new
+  GSD release is available. The banner appears only at session start and
+  only when an update exists.
+
+  ${cyan}1${reset}) ${dim}No banner (default)${reset}
+  ${cyan}2${reset}) Install update banner
+`;
+}
+
+/**
+ * Parse user input from the banner prompt. Returns true when the user opted
+ * in. Pure function — exported for direct unit testing.
+ *
+ *  - Empty input or "1" → false (default: no banner).
+ *  - "2" → true.
+ *  - "y" / "yes" (case-insensitive) → true. Affirmative shortcuts.
+ */
+function parseUpdateBannerInput(answer) {
+  const input = (answer == null ? '' : String(answer)).trim().toLowerCase();
+  if (input === '2' || input === 'y' || input === 'yes') return true;
+  return false;
+}
+
+/**
+ * Build a SessionStart hook entry (settings.json shape) that runs the
+ * update-banner script. Returns null when the input command is empty so
+ * callers can warn-and-skip rather than writing { command: null } and
+ * tripping the runtime's hook schema (#3002).
+ *
+ * @param {string|null} bannerCommand - Result of buildHookCommand() / localCmd().
+ * @returns {{hooks: Array<{type: 'command', command: string}>}|null}
+ */
+function buildUpdateBannerHookEntry(bannerCommand) {
+  if (!bannerCommand) return null;
+  return {
+    hooks: [
+      {
+        type: 'command',
+        command: bannerCommand,
+      },
+    ],
+  };
+}
+
+/**
+ * Interactive prompt that asks the user whether to install the opt-in
+ * update banner. Used by `installAllRuntimes` only when GSD's statusline
+ * was declined or skipped.
+ *
+ * @param {boolean} isInteractive
+ * @param {(shouldInstallBanner: boolean) => void} callback
+ */
+function handleUpdateBanner(isInteractive, callback) {
+  if (!isInteractive) {
+    // Never auto-install in non-interactive mode — user can re-run install
+    // interactively or hand-edit settings.json to opt in later.
+    callback(false);
+    return;
+  }
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  console.log(buildUpdateBannerPromptText());
+
+  rl.question(`  Choice ${dim}[1]${reset}: `, (answer) => {
+    rl.close();
+    callback(parseUpdateBannerInput(answer));
   });
 }
 
@@ -9715,6 +10003,22 @@ function installSdkIfNeeded() {
     }
   }
 
+  // #3020: cross-shell PATH verification. Even when the install-time
+  // process.env.PATH walk found the shim, the user's later interactive
+  // shells may have a different PATH — Windows cross-shell .cmd/no-ext
+  // mismatch, POSIX ~/.local/bin missing from login shell, or node-
+  // version-manager PATH shims. Probe the user's login shell PATH and
+  // require the shim to be reachable there too before claiming ✓.
+  // POSIX-only probe; on Windows getUserShellPath() returns null and
+  // we trust the existing check (Windows-specific fix is separate).
+  const userShellPath = getUserShellPath();
+  if (onPath && userShellPath !== null) {
+    const userSees = isGsdSdkOnPath(userShellPath);
+    if (!userSees) {
+      onPath = false;
+    }
+  }
+
   if (onPath) {
     console.log(`  ${green}✓${reset} GSD SDK ready (sdk/dist/cli.js)`);
   } else {
@@ -9755,17 +10059,27 @@ function installSdkIfNeeded() {
 }
 
 /**
- * #2775 helper: check whether a callable `gsd-sdk` exists on the current PATH.
+ * #2775 helper: check whether a callable `gsd-sdk` exists on a PATH.
  *
  * Pure PATH walk (no spawn) — we look for a regular file or symlink named
  * `gsd-sdk` (or `gsd-sdk.cmd`/`.exe` on Windows) in any directory on PATH and
  * verify it carries the execute bit on POSIX. Avoids paying spawn cost and
  * avoids the chicken-and-egg of needing to run the not-yet-installed binary.
+ *
+ * #3020: accepts an optional explicit PATH string. The install subprocess's
+ * process.env.PATH is not the same set the user's later interactive shells
+ * see (Windows cross-shell, POSIX ~/.local/bin, node-version-manager
+ * shims). Callers can pass the user-shell PATH from getUserShellPath() to
+ * verify the shim is reachable from the runtime shell, not just the
+ * install context. Zero-arg form preserves existing behavior.
  */
-function isGsdSdkOnPath() {
+function isGsdSdkOnPath(pathString) {
   const path = require('path');
   const fs = require('fs');
-  const pathEnv = process.env.PATH || '';
+  // Type-guard the explicit input (#3028 CR): callers may pass null
+  // (getUserShellPath() can return null), and `null.split()` throws.
+  // Only honor pathString when it's a string; fall back otherwise.
+  const pathEnv = typeof pathString === 'string' ? pathString : (process.env.PATH || '');
   const exts = process.platform === 'win32' ? ['.cmd', '.exe', '.bat', ''] : [''];
   for (const seg of pathEnv.split(path.delimiter)) {
     if (!seg) continue;
@@ -9783,6 +10097,54 @@ function isGsdSdkOnPath() {
     }
   }
   return false;
+}
+
+/**
+ * #3020: probe the user's login shell to learn the PATH that will be
+ * visible at workflow runtime.
+ *
+ * The install subprocess inherits process.env.PATH from npm/npx, which
+ * may include directories the user's interactive shells do not (e.g.
+ * ~/.local/bin auto-injected by npm-prefix tooling, or nvm-shimmed
+ * paths). Asserting `gsd-sdk` is on the install-subprocess PATH is a
+ * weaker invariant than the runtime contract — workflows shell out via
+ * `bash -c "gsd-sdk …"`, and that bash inherits PATH from the user's
+ * login shell.
+ *
+ * Uses `$SHELL -lc 'printf %s "$PATH"'` on POSIX. Returns null on Windows
+ * (cross-shell PATH probing requires a different strategy — Git Bash
+ * vs PowerShell vs cmd.exe each read PATH from different sources, and
+ * a future revision can build a Windows-aware probe). Returns null
+ * when $SHELL is unset, when the spawn fails, or when the result is
+ * empty — callers must fall back to process.env.PATH in those cases.
+ *
+ * Synchronous so it can be called from the existing post-install check
+ * without restructuring the whole flow as async.
+ */
+function getUserShellPath() {
+  if (process.platform === 'win32') return null;
+  const shellEnv = typeof process.env.SHELL === 'string' ? process.env.SHELL : '';
+  if (!shellEnv) return null;
+  const cp = require('child_process');
+  try {
+    const out = cp.execFileSync(shellEnv, ['-lc', 'printf %s "$PATH"'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      // 2-second cap so a misconfigured rc file (e.g. interactive prompt)
+      // can't hang the install. The probe is best-effort — null on timeout
+      // is the safe fallback.
+      timeout: 2000,
+    });
+    // #3028 CR: login startup scripts can print banners / motd / stale
+    // log lines BEFORE the printf, polluting stdout. Take the LAST
+    // non-empty line as the PATH candidate so noise doesn't flip the
+    // cross-shell check to false. PATH itself is single-line.
+    const lines = String(out || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    const candidate = lines.length > 0 ? lines[lines.length - 1] : '';
+    return candidate.length > 0 ? candidate : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -10055,7 +10417,7 @@ function installAllRuntimes(runtimes, isGlobal, isInteractive) {
   const statuslineRuntimes = ['claude', 'gemini'];
   const primaryStatuslineResult = results.find(r => statuslineRuntimes.includes(r.runtime));
 
-  const finalize = (shouldInstallStatusline) => {
+  const finalize = (shouldInstallStatusline, shouldInstallBanner) => {
     // Verify sdk/dist/cli.js is present and executable. The dist is shipped
     // prebuilt in the tarball; gsd-sdk reaches users via the parent package's
     // bin/gsd-sdk.js shim, so no nested SDK install is needed.
@@ -10072,7 +10434,8 @@ function installAllRuntimes(runtimes, isGlobal, isInteractive) {
           useStatusline,
           result.runtime,
           isGlobal,
-          result.configDir
+          result.configDir,
+          { shouldInstallBanner: !!shouldInstallBanner, bannerCommand: result.updateBannerCommand }
         );
       }
     };
@@ -10080,10 +10443,49 @@ function installAllRuntimes(runtimes, isGlobal, isInteractive) {
     printSummaries();
   };
 
+  // Statusline first; if it won't actually be installed (declined, or local
+  // install without --force-statusline silently skips it per #2248), offer
+  // the opt-in update banner (#2795) as the secondary surface for update
+  // notifications. Skip the banner prompt entirely when no runtime in this
+  // install set can host the banner (e.g. Codex/Copilot/Cursor/Windsurf/
+  // Trae/Cline-only installs whose updateBannerCommand is null).
+  //
+  // CR #3035: gate on actual installability — `shouldInstallStatusline`
+  // returned by handleStatusline is the raw user choice, but
+  // `finishInstall` later skips the statusline write on local installs
+  // unless --force-statusline is set. Passing the raw flag to
+  // continueAfterStatusline previously caused two bugs: (1) interactive
+  // local installs got neither a statusline nor a banner offer, and (2)
+  // banner-incapable runtimes got prompted even though every
+  // updateBannerCommand was null.
+  const canInstallBanner = results.some((r) => r && r.updateBannerCommand);
+  const continueAfterStatusline = (shouldInstallStatusline) => {
+    const willInstallStatusline =
+      shouldInstallStatusline && (isGlobal || forceStatusline);
+    if (willInstallStatusline) {
+      finalize(true, false);
+      return;
+    }
+    if (!canInstallBanner) {
+      finalize(shouldInstallStatusline, false);
+      return;
+    }
+    handleUpdateBanner(isInteractive, (shouldInstallBanner) => {
+      finalize(shouldInstallStatusline, shouldInstallBanner);
+    });
+  };
+
   if (primaryStatuslineResult) {
-    handleStatusline(primaryStatuslineResult.settings, isInteractive, finalize);
+    handleStatusline(primaryStatuslineResult.settings, isInteractive, continueAfterStatusline);
+  } else if (canInstallBanner) {
+    // No statusline-capable runtime, but at least one runtime can host the
+    // banner — still offer it.
+    handleUpdateBanner(isInteractive, (shouldInstallBanner) => {
+      finalize(false, shouldInstallBanner);
+    });
   } else {
-    finalize(false);
+    // Nothing to prompt about — no statusline, no banner-capable runtime.
+    finalize(false, false);
   }
 }
 
@@ -10184,15 +10586,21 @@ if (process.env.GSD_TEST_MODE) {
     buildWindowsShimTriple,
     formatSdkPathDiagnostic,
     isGsdSdkOnPath,
+    getUserShellPath,
     homePathCoveredByRc,
     maybeSuggestPathExport,
     runtimeMap,
     allRuntimes,
     parseRuntimeInput,
     buildRuntimePromptText,
+    buildUpdateBannerPromptText,
+    parseUpdateBannerInput,
+    buildUpdateBannerHookEntry,
     buildHookCommand,
     resolveNodeRunner,
     rewriteLegacyManagedNodeHookCommands,
+    buildCodexHookBlock,
+    rewriteLegacyCodexHookBlock,
   };
 } else {
 

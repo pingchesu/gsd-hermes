@@ -256,8 +256,8 @@ React/Next.js/Vite 프로젝트에서 `components.json`이 없으면 UI 조사�
 활성 계획에 아직 준비되지 않은 아이디어는 999.x 번호 체계를 사용하여 백로그에 보관하며 활성 페이즈 순서 밖에 유지됩니다.
 
 ```
-/gsd-add-backlog "GraphQL API layer"     # Creates 999.1-graphql-api-layer/
-/gsd-add-backlog "Mobile responsive"     # Creates 999.2-mobile-responsive/
+/gsd-capture --backlog "GraphQL API layer"     # Creates 999.1-graphql-api-layer/
+/gsd-capture --backlog "Mobile responsive"     # Creates 999.2-mobile-responsive/
 ```
 
 백로그 항목은 전체 페이즈 디렉터리를 얻으므로 `/gsd-discuss-phase 999.1`로 아이디어를 더 탐구하거나 준비가 되면 `/gsd-plan-phase 999.1`을 사용할 수 있습니다.
@@ -269,7 +269,7 @@ React/Next.js/Vite 프로젝트에서 `components.json`이 없으면 UI 조사�
 시드는 트리거 조건이 있는 미래 지향적인 아이디어입니다. 백로그 항목과 달리 시드는 적절한 마일스톤 시점에 자동으로 표면화됩니다.
 
 ```
-/gsd-plant-seed "Add real-time collab when WebSocket infra is in place"
+/gsd-capture --seed "Add real-time collab when WebSocket infra is in place"
 ```
 
 시드는 전체 WHY와 언제 표면화할지를 보존합니다. `/gsd-new-milestone`은 모든 시드를 스캔하여 일치 항목을 제시합니다.
@@ -288,7 +288,7 @@ React/Next.js/Vite 프로젝트에서 `components.json`이 없으면 UI 조사�
 
 스레드는 `/gsd-pause-work`보다 가볍습니다. 페이즈 상태나 계획 컨텍스트가 없습니다. 각 스레드 파일에는 목표, 컨텍스트, 참조, 다음 단계 섹션이 포함됩니다.
 
-스레드가 성숙해지면 페이즈(`/gsd-add-phase`)나 백로그 항목(`/gsd-add-backlog`)으로 승격할 수 있습니다.
+스레드가 성숙해지면 페이즈(`/gsd-phase`)나 백로그 항목(`/gsd-capture --backlog`)으로 승격할 수 있습니다.
 
 **저장 위치:** `.planning/threads/{slug}.md`
 
@@ -313,7 +313,7 @@ React/Next.js/Vite 프로젝트에서 `components.json`이 없으면 UI 조사�
 
 각 워크스트림은 자체 `.planning/` 디렉터리 하위 트리를 유지합니다. 워크스트림을 전환하면 GSD가 활성 계획 컨텍스트를 교체하여 `/gsd-progress`, `/gsd-discuss-phase`, `/gsd-plan-phase` 및 기타 명령어가 해당 워크스트림의 상태로 동작합니다.
 
-이는 `/gsd-new-workspace`(별도 저장소 worktree를 생성)보다 가볍습니다. 워크스트림은 동일한 코드베이스와 git 히스토리를 공유하지만 계획 아티팩트를 격리합니다.
+이는 `/gsd-workspace --new`(별도 저장소 worktree를 생성)보다 가볍습니다. 워크스트림은 동일한 코드베이스와 git 히스토리를 공유하지만 계획 아티팩트를 격리합니다.
 
 ---
 
@@ -413,12 +413,11 @@ GSD는 LLM 시스템 프롬프트가 되는 마크다운 파일을 생성합니�
 
 | 명령어 | 목적 | 사용 시점 |
 |--------|------|----------|
-| `/gsd-add-phase` | 로드맵에 새 페이즈 추가 | 초기 계획 후 범위가 늘어날 때 |
-| `/gsd-insert-phase [N]` | 긴급 작업 삽입 (소수점 번호 체계) | 마일스톤 중간의 긴급 수정 시 |
-| `/gsd-remove-phase [N]` | 미래 페이즈 제거 및 재번호 | 기능 범위 축소 시 |
+| `/gsd-phase` | 로드맵에 새 페이즈 추가 | 초기 계획 후 범위가 늘어날 때 |
+| `/gsd-phase --insert [N]` | 긴급 작업 삽입 (소수점 번호 체계) | 마일스톤 중간의 긴급 수정 시 |
+| `/gsd-phase --remove [N]` | 미래 페이즈 제거 및 재번호 | 기능 범위 축소 시 |
 | `/gsd-list-phase-assumptions [N]` | Claude의 예상 접근 방식 미리 확인 | 계획 전 방향 검증 시 |
-| `/gsd-plan-milestone-gaps` | 감사 갭을 위한 페이즈 생성 | 감사에서 누락 항목이 발견된 후 |
-| `/gsd-research-phase [N]` | 심층 에코시스템 조사만 수행 | 복잡하거나 익숙하지 않은 도메인 |
+| `/gsd-plan-phase --research-phase [N]` | 심층 에코시스템 조사만 수행 | 복잡하거나 익숙하지 않은 도메인 |
 
 ### 브라운필드 및 유틸리티
 
@@ -428,10 +427,10 @@ GSD는 LLM 시스템 프롬프트가 되는 마크다운 파일을 생성합니�
 | `/gsd-quick` | GSD 보증을 갖춘 임시 작업 | 버그 수정, 소규모 기능, 설정 변경 |
 | `/gsd-debug [desc]` | 지속적인 상태를 유지하는 체계적인 디버깅 | 문제가 발생했을 때 |
 | `/gsd-forensics` | 워크플로우 실패에 대한 진단 보고서 | 상태, 아티팩트, git 히스토리가 손상된 것 같을 때 |
-| `/gsd-add-todo [desc]` | 나중을 위한 아이디어 캡처 | 세션 중에 생각이 날 때 |
-| `/gsd-check-todos` | 보류 중인 할 일 목록 | 캡처된 아이디어 검토 시 |
+| `/gsd-capture [desc]` | 나중을 위한 아이디어 캡처 | 세션 중에 생각이 날 때 |
+| `/gsd-capture --list` | 보류 중인 할 일 목록 | 캡처된 아이디어 검토 시 |
 | `/gsd-settings` | 워크플로우 토글 및 모델 프로필 설정 | 모델 변경, 에이전트 토글 시 |
-| `/gsd-set-profile <profile>` | 빠른 프로필 전환 | 비용/품질 트레이드오프 변경 시 |
+| `/gsd-config --profile <profile>` | 빠른 프로필 전환 | 비용/품질 트레이드오프 변경 시 |
 | `/gsd-update --reapply` | 업데이트 후 로컬 수정사항 복원 | 로컬 편집이 있는 상태에서 `/gsd-update` 이후 |
 
 ### 코드 품질 및 리뷰
@@ -446,9 +445,9 @@ GSD는 LLM 시스템 프롬프트가 되는 마크다운 파일을 생성합니�
 
 | 명령어 | 목적 | 사용 시점 |
 |--------|------|----------|
-| `/gsd-add-backlog <desc>` | 백로그 파킹 롯에 아이디어 추가 (999.x) | 활성 계획에 준비되지 않은 아이디어 |
+| `/gsd-capture --backlog <desc>` | 백로그 파킹 롯에 아이디어 추가 (999.x) | 활성 계획에 준비되지 않은 아이디어 |
 | `/gsd-review-backlog` | 백로그 항목 승격/유지/제거 | 새 마일스톤 전 우선순위 결정 시 |
-| `/gsd-plant-seed <idea>` | 트리거 조건이 있는 미래 지향적인 아이디어 | 미래 마일스톤에서 표면화되어야 할 아이디어 |
+| `/gsd-capture --seed <idea>` | 트리거 조건이 있는 미래 지향적인 아이디어 | 미래 마일스톤에서 표면화되어야 할 아이디어 |
 | `/gsd-thread [name]` | 지속적인 컨텍스트 스레드 | 페이즈 구조 밖의 교차 세션 작업 |
 
 ---
@@ -642,7 +641,6 @@ claude --dangerously-skip-permissions
 
 ```bash
 /gsd-audit-milestone        # Check requirements coverage, detect stubs
-/gsd-plan-milestone-gaps    # If audit found gaps, create phases to close them
 /gsd-complete-milestone     # Archive, tag, done
 ```
 
@@ -659,11 +657,11 @@ claude --dangerously-skip-permissions
 ### 마일스톤 중간 범위 변경
 
 ```bash
-/gsd-add-phase              # Append a new phase to the roadmap
+/gsd-phase              # Append a new phase to the roadmap
 # or
-/gsd-insert-phase 3         # Insert urgent work between phases 3 and 4
+/gsd-phase --insert 3         # Insert urgent work between phases 3 and 4
 # or
-/gsd-remove-phase 7         # Descope phase 7 and renumber
+/gsd-phase --remove 7         # Descope phase 7 and renumber
 ```
 
 ### 멀티 프로젝트 워크스페이스
@@ -672,18 +670,18 @@ claude --dangerously-skip-permissions
 
 ```bash
 # Create a workspace with repos from your monorepo
-/gsd-new-workspace --name feature-b --repos hr-ui,ZeymoAPI
+/gsd-workspace --new --name feature-b --repos hr-ui,ZeymoAPI
 
 # Feature branch isolation — worktree of current repo with its own .planning/
-/gsd-new-workspace --name feature-b --repos .
+/gsd-workspace --new --name feature-b --repos .
 
 # Then cd into the workspace and initialize GSD
 cd ~/gsd-workspaces/feature-b
 /gsd-new-project
 
 # List and manage workspaces
-/gsd-list-workspaces
-/gsd-remove-workspace feature-b
+/gsd-workspace --list
+/gsd-workspace --remove feature-b
 ```
 
 각 워크스페이스는 다음을 포함합니다.
@@ -721,7 +719,7 @@ cd ~/gsd-workspaces/feature-b
 
 ### 모델 비용이 너무 높은 경우
 
-예산 프로필로 전환하세요: `/gsd-set-profile budget`. 도메인이 익숙하다면 (또는 Claude에게 익숙하다면) `/gsd-settings`에서 조사 및 plan-check 에이전트를 비활성화하세요.
+예산 프로필로 전환하세요: `/gsd-config --profile budget`. 도메인이 익숙하다면 (또는 Claude에게 익숙하다면) `/gsd-settings`에서 조사 및 plan-check 에이전트를 비활성화하세요.
 
 ### 비Claude 런타임 사용 (Codex, OpenCode, Gemini CLI, Kilo)
 
@@ -746,7 +744,7 @@ cd ~/gsd-workspaces/feature-b
 
 ### 비Anthropic 공급자와 함께 Claude Code 사용 (OpenRouter, 로컬)
 
-GSD 서브에이전트가 Anthropic 모델을 호출하는데 OpenRouter나 로컬 공급자를 통해 비용을 지불하고 있다면 `inherit` 프로필로 전환하세요: `/gsd-set-profile inherit`. 이렇게 하면 모든 에이전트가 특정 Anthropic 모델 대신 현재 세션 모델을 사용합니다. `/gsd-settings` → Model Profile → Inherit도 참고하세요.
+GSD 서브에이전트가 Anthropic 모델을 호출하는데 OpenRouter나 로컬 공급자를 통해 비용을 지불하고 있다면 `inherit` 프로필로 전환하세요: `/gsd-config --profile inherit`. 이렇게 하면 모든 에이전트가 특정 Anthropic 모델 대신 현재 세션 모델을 사용합니다. `/gsd-settings` → Model Profile → Inherit도 참고하세요.
 
 ### 민감하거나 비공개 프로젝트에서 작업하는 경우
 
@@ -794,13 +792,12 @@ Windows에서 설치 프로그램이 `EPERM: operation not permitted, scandir`�
 |------|----------|
 | 컨텍스트 손실 / 새 세션 | `/gsd-resume-work` 또는 `/gsd-progress` |
 | 페이즈가 잘못됨 | 페이즈 커밋에 `git revert` 후 재계획 |
-| 범위 변경 필요 | `/gsd-add-phase`, `/gsd-insert-phase`, 또는 `/gsd-remove-phase` |
-| 마일스톤 감사에서 갭 발견 | `/gsd-plan-milestone-gaps` |
+| 범위 변경 필요 | `/gsd-phase`, `/gsd-phase --insert`, 또는 `/gsd-phase --remove` |
 | 무언가 고장남 | `/gsd-debug "description"` |
 | 워크플로우 상태 손상 의심 | `/gsd-forensics` |
 | 빠른 목표 수정 | `/gsd-quick` |
 | 계획이 비전과 맞지 않음 | `/gsd-discuss-phase [N]` 후 재계획 |
-| 비용이 높아짐 | `/gsd-set-profile budget` 및 `/gsd-settings`에서 에이전트 비활성화 |
+| 비용이 높아짐 | `/gsd-config --profile budget` 및 `/gsd-settings`에서 에이전트 비활성화 |
 | 업데이트가 로컬 변경사항 파괴 | `/gsd-update --reapply` |
 | 이해관계자를 위한 세션 요약 필요 | `/gsd-session-report` |
 | 다음 단계를 모르겠음 | `/gsd-next` |

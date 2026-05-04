@@ -155,6 +155,72 @@ Most commands match upstream GSD. Common entry points:
 
 See [docs/COMMANDS.md](docs/COMMANDS.md) for the full command reference.
 
+### Workstreams
+
+| Command | What it does |
+|---------|--------------|
+| `/gsd-workstreams list` | Show all workstreams and their status |
+| `/gsd-workstreams create <name>` | Create a namespaced workstream for parallel milestone work |
+| `/gsd-workstreams switch <name>` | Switch active workstream |
+| `/gsd-workstreams complete <name>` | Complete and merge a workstream |
+
+### Multi-Project Workspaces
+
+| Command | What it does |
+|---------|--------------|
+| `/gsd-workspace --new` | Create isolated workspace with repo copies (worktrees or clones) |
+| `/gsd-list-workspaces` | Show all GSD workspaces and their status |
+| `/gsd-remove-workspace` | Remove workspace and clean up worktrees |
+
+### Spiking & Sketching
+
+| Command | What it does |
+|---------|--------------|
+| `/gsd-spike [idea] [--quick]` | Throwaway experiments to validate feasibility before planning — no project init required |
+| `/gsd-sketch [idea] [--quick]` | Throwaway HTML mockups with multi-variant exploration — no project init required |
+
+### UI Design
+
+| Command | What it does |
+|---------|--------------|
+| `/gsd-ui-phase [N]` | Generate UI design contract (UI-SPEC.md) for frontend phases |
+| `/gsd-ui-review [N]` | Retroactive 6-pillar visual audit of implemented frontend code |
+
+### Navigation
+
+| Command | What it does |
+|---------|--------------|
+| `/gsd-progress` | Where am I? What's next? |
+| `/gsd-help` | Show all commands and usage guide |
+| `/gsd-update` | Update GSD with changelog preview |
+| `/gsd-manager` | Interactive command center for managing multiple phases |
+
+### Brownfield
+
+| Command | What it does |
+|---------|--------------|
+| `/gsd-map-codebase [area]` | Analyze existing codebase before new-project |
+| `/gsd-ingest-docs [dir]` | Scan a repo of mixed ADRs, PRDs, SPECs, and DOCs and bootstrap or merge the full `.planning/` setup in one pass |
+
+### Phase Management
+
+| Command | What it does |
+|---------|--------------|
+| `/gsd-add-phase` | Append phase to roadmap |
+| `/gsd-insert-phase [N]` | Insert urgent work between phases |
+| `/gsd-remove-phase [N]` | Remove future phase and renumber |
+
+### Code Quality
+
+| Command | What it does |
+|---------|--------------|
+| `/gsd-review` | Cross-AI peer review of current phase or branch |
+| `/gsd-secure-phase [N]` | Security enforcement with threat-model-anchored verification |
+| `/gsd-pr-branch` | Create clean PR branch filtering `.planning/` commits |
+| `/gsd-audit-uat` | Audit verification debt — find phases missing UAT |
+
+
+
 ---
 
 ## Documentation

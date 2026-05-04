@@ -511,11 +511,10 @@ lmn012o feat(08-02): 创建注册端点
 
 | 命令 | 作用 |
 |---------|--------------|
-| `/gsd-add-phase` | 向路线图追加阶段 |
-| `/gsd-insert-phase [N]` | 在阶段之间插入紧急工作 |
-| `/gsd-remove-phase [N]` | 删除未来阶段，重新编号 |
+| `/gsd-phase` | 向路线图追加阶段 |
+| `/gsd-phase --insert [N]` | 在阶段之间插入紧急工作 |
+| `/gsd-phase --remove [N]` | 删除未来阶段，重新编号 |
 | `/gsd-list-phase-assumptions [N]` | 规划前查看 Claude 的预期方法 |
-| `/gsd-plan-milestone-gaps` | 创建阶段以填补审计发现的差距 |
 | `/gsd-autonomous [--from N] [--to N] [--only N]` | 自主执行所有剩余阶段（`--to N` 执行到阶段 N 停止，`--only N` 只执行单个阶段） |
 | `/gsd-analyze-dependencies` | 检测阶段间依赖关系并建议 ROADMAP.md 的 `Depends on` 条目 |
 
@@ -531,9 +530,9 @@ lmn012o feat(08-02): 创建注册端点
 | 命令 | 作用 |
 |---------|--------------|
 | `/gsd-settings` | 配置模型配置文件和工作流代理 |
-| `/gsd-set-profile <profile>` | 切换模型配置文件（quality/balanced/budget） |
-| `/gsd-add-todo [desc]` | 捕获想法留待后用 |
-| `/gsd-check-todos` | 列出待处理事项 |
+| `/gsd-config --profile <profile>` | 切换模型配置文件（quality/balanced/budget/inherit） |
+| `/gsd-capture [desc]` | 捕获想法留待后用 |
+| `/gsd-capture --list` | 列出待处理事项 |
 | `/gsd-debug [desc] [--diagnose]` | 带持久状态的系统化调试（`--diagnose` 仅诊断不修复） |
 | `/gsd-quick [--full] [--discuss] [--research]` | 用 GSD 保证执行临时任务（`--full` 启用全部阶段，`--discuss` 先收集上下文，`--research` 规划前调查方法） |
 | `/gsd-health [--repair]` | 验证 `.planning/` 目录完整性，用 `--repair` 自动修复 |
@@ -565,7 +564,7 @@ GSD 在 `.planning/config.json` 中存储项目设置。在 `/gsd-new-project` �
 
 切换配置：
 ```
-/gsd-set-profile budget
+/gsd-config --profile budget
 ```
 
 或通过 `/gsd-settings` 配置。

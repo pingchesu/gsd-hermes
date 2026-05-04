@@ -32,7 +32,7 @@
 
 ---
 
-### `/gsd-new-workspace`
+### `/gsd-workspace --new`
 
 リポジトリのコピーと独立した `.planning/` ディレクトリを持つ分離されたワークスペースを作成します。
 
@@ -52,14 +52,14 @@
 **生成物:** `WORKSPACE.md`、`.planning/`、リポジトリコピー（worktreeまたはclone）
 
 ```bash
-/gsd-new-workspace --name feature-b --repos hr-ui,ZeymoAPI
-/gsd-new-workspace --name feature-b --repos . --strategy worktree  # 同一リポジトリの分離
-/gsd-new-workspace --name spike --repos api,web --strategy clone   # フルクローン
+/gsd-workspace --new --name feature-b --repos hr-ui,ZeymoAPI
+/gsd-workspace --new --name feature-b --repos . --strategy worktree  # 同一リポジトリの分離
+/gsd-workspace --new --name spike --repos api,web --strategy clone   # フルクローン
 ```
 
 ---
 
-### `/gsd-list-workspaces`
+### `/gsd-workspace --list`
 
 アクティブなGSDワークスペースとそのステータスを一覧表示します。
 
@@ -67,12 +67,12 @@
 **表示内容:** 名前、リポジトリ数、戦略、GSDプロジェクトのステータス
 
 ```bash
-/gsd-list-workspaces
+/gsd-workspace --list
 ```
 
 ---
 
-### `/gsd-remove-workspace`
+### `/gsd-workspace --remove`
 
 ワークスペースを削除し、git worktreeをクリーンアップします。
 
@@ -83,7 +83,7 @@
 **安全性:** コミットされていない変更があるリポジトリの削除を拒否します。名前の確認が必要です。
 
 ```bash
-/gsd-remove-workspace feature-b
+/gsd-workspace --remove feature-b
 ```
 
 ---
@@ -368,15 +368,15 @@
 
 ## フェーズ管理コマンド
 
-### `/gsd-add-phase`
+### `/gsd-phase`
 
 ロードマップに新しいフェーズを追加します。
 
 ```bash
-/gsd-add-phase                      # 対話型 — フェーズの説明を入力
+/gsd-phase                      # 対話型 — フェーズの説明を入力
 ```
 
-### `/gsd-insert-phase`
+### `/gsd-phase --insert`
 
 小数番号を使用して、フェーズ間に緊急の作業を挿入します。
 
@@ -385,10 +385,10 @@
 | `N` | いいえ | このフェーズ番号の後に挿入 |
 
 ```bash
-/gsd-insert-phase 3                 # フェーズ3と4の間に挿入 → 3.1を作成
+/gsd-phase --insert 3                 # フェーズ3と4の間に挿入 → 3.1を作成
 ```
 
-### `/gsd-remove-phase`
+### `/gsd-phase --remove`
 
 将来のフェーズを削除し、後続のフェーズの番号を振り直します。
 
@@ -397,7 +397,7 @@
 | `N` | いいえ | 削除するフェーズ番号 |
 
 ```bash
-/gsd-remove-phase 7                 # フェーズ7を削除、8→7、9→8等に番号振り直し
+/gsd-phase --remove 7                 # フェーズ7を削除、8→7、9→8等に番号振り直し
 ```
 
 ### `/gsd-list-phase-assumptions`
@@ -412,15 +412,8 @@
 /gsd-list-phase-assumptions 2       # フェーズ2の前提を確認
 ```
 
-### `/gsd-plan-milestone-gaps`
 
-マイルストーン監査のギャップを解消するフェーズを作成します。
-
-```bash
-/gsd-plan-milestone-gaps             # 各監査ギャップに対してフェーズを作成
-```
-
-### `/gsd-research-phase`
+### `/gsd-plan-phase --research-phase`
 
 詳細なエコシステム調査のみを実行します（単体機能 — 通常は `/gsd-plan-phase` を使用してください）。
 
@@ -429,7 +422,7 @@
 | `N` | いいえ | フェーズ番号 |
 
 ```bash
-/gsd-research-phase 4               # フェーズ4のドメインを調査
+/gsd-plan-phase --research-phase 4               # フェーズ4のドメインを調査
 ```
 
 ### `/gsd-validate-phase`
@@ -598,7 +591,7 @@ GSDの保証付きでアドホックタスクを実行します。
 /gsd-debug --diagnose "API returning 500 on /users endpoint"
 ```
 
-### `/gsd-add-todo`
+### `/gsd-capture`
 
 後で取り組むアイデアやタスクをキャプチャします。
 
@@ -607,15 +600,15 @@ GSDの保証付きでアドホックタスクを実行します。
 | `description` | いいえ | Todoの説明 |
 
 ```bash
-/gsd-add-todo "Consider adding dark mode support"
+/gsd-capture "Consider adding dark mode support"
 ```
 
-### `/gsd-check-todos`
+### `/gsd-capture --list`
 
 保留中のTodoを一覧表示し、取り組むものを選択します。
 
 ```bash
-/gsd-check-todos
+/gsd-capture --list
 ```
 
 ### `/gsd-add-tests`
@@ -752,7 +745,7 @@ Claude Codeのセッション分析から8つの次元（コミュニケーシ�
 /gsd-settings                       # 対話型設定
 ```
 
-### `/gsd-set-profile`
+### `/gsd-config --profile`
 
 クイックプロファイル切り替え。
 
@@ -761,8 +754,8 @@ Claude Codeのセッション分析から8つの次元（コミュニケーシ�
 | `profile` | **はい** | `quality`、`balanced`、`budget`、または `inherit` |
 
 ```bash
-/gsd-set-profile budget             # budgetプロファイルに切り替え
-/gsd-set-profile quality            # qualityプロファイルに切り替え
+/gsd-config --profile budget             # budgetプロファイルに切り替え
+/gsd-config --profile quality            # qualityプロファイルに切り替え
 ```
 
 ---
@@ -885,7 +878,7 @@ GSDアップデート後にローカルの変更を復元します。
 
 ## バックログ＆スレッドコマンド
 
-### `/gsd-add-backlog`
+### `/gsd-capture --backlog`
 
 999.x番号付けを使用して、バックログのパーキングロットにアイデアを追加します。
 
@@ -896,8 +889,8 @@ GSDアップデート後にローカルの変更を復元します。
 **999.x番号付け**により、バックログ項目はアクティブなフェーズシーケンスの外に保持されます。フェーズディレクトリは即座に作成されるため、`/gsd-discuss-phase` や `/gsd-plan-phase` がそれらに対して動作します。
 
 ```bash
-/gsd-add-backlog "GraphQL API layer"
-/gsd-add-backlog "Mobile responsive redesign"
+/gsd-capture --backlog "GraphQL API layer"
+/gsd-capture --backlog "Mobile responsive redesign"
 ```
 
 ---
@@ -914,7 +907,7 @@ GSDアップデート後にローカルの変更を復元します。
 
 ---
 
-### `/gsd-plant-seed`
+### `/gsd-capture --seed`
 
 トリガー条件付きの将来のアイデアをキャプチャ — 適切なマイルストーンで自動的に表面化します。
 
@@ -928,7 +921,7 @@ GSDアップデート後にローカルの変更を復元します。
 **利用先:** `/gsd-new-milestone`（シードをスキャンしてマッチするものを提示）
 
 ```bash
-/gsd-plant-seed "Add real-time collaboration when WebSocket infra is in place"
+/gsd-capture --seed "Add real-time collaboration when WebSocket infra is in place"
 ```
 
 ---
