@@ -155,6 +155,72 @@ Most commands match upstream GSD. Common entry points:
 
 See [docs/COMMANDS.md](docs/COMMANDS.md) for the full command reference.
 
+### Workstreams
+
+| Command | What it does |
+|---------|--------------|
+| `/gsd-workstreams list` | Show all workstreams and their status |
+| `/gsd-workstreams create <name>` | Create a namespaced workstream for parallel milestone work |
+| `/gsd-workstreams switch <name>` | Switch active workstream |
+| `/gsd-workstreams complete <name>` | Complete and merge a workstream |
+
+### Multi-Project Workspaces
+
+| Command | What it does |
+|---------|--------------|
+| `/gsd-workspace --new` | Create isolated workspace with repo copies (worktrees or clones) |
+| `/gsd-list-workspaces` | Show all GSD workspaces and their status |
+| `/gsd-remove-workspace` | Remove workspace and clean up worktrees |
+
+### Spiking & Sketching
+
+| Command | What it does |
+|---------|--------------|
+| `/gsd-spike [idea] [--quick]` | Throwaway experiments to validate feasibility before planning — no project init required |
+| `/gsd-sketch [idea] [--quick]` | Throwaway HTML mockups with multi-variant exploration — no project init required |
+
+### UI Design
+
+| Command | What it does |
+|---------|--------------|
+| `/gsd-ui-phase [N]` | Generate UI design contract (UI-SPEC.md) for frontend phases |
+| `/gsd-ui-review [N]` | Retroactive 6-pillar visual audit of implemented frontend code |
+
+### Navigation
+
+| Command | What it does |
+|---------|--------------|
+| `/gsd-progress` | Where am I? What's next? |
+| `/gsd-help` | Show all commands and usage guide |
+| `/gsd-update` | Update GSD with changelog preview |
+| `/gsd-manager` | Interactive command center for managing multiple phases |
+
+### Brownfield
+
+| Command | What it does |
+|---------|--------------|
+| `/gsd-map-codebase [area]` | Analyze existing codebase before new-project |
+| `/gsd-ingest-docs [dir]` | Scan a repo of mixed ADRs, PRDs, SPECs, and DOCs and bootstrap or merge the full `.planning/` setup in one pass |
+
+### Phase Management
+
+| Command | What it does |
+|---------|--------------|
+| `/gsd-add-phase` | Append phase to roadmap |
+| `/gsd-insert-phase [N]` | Insert urgent work between phases |
+| `/gsd-remove-phase [N]` | Remove future phase and renumber |
+
+### Code Quality
+
+| Command | What it does |
+|---------|--------------|
+| `/gsd-review` | Cross-AI peer review of current phase or branch |
+| `/gsd-secure-phase [N]` | Security enforcement with threat-model-anchored verification |
+| `/gsd-pr-branch` | Create clean PR branch filtering `.planning/` commits |
+| `/gsd-audit-uat` | Audit verification debt — find phases missing UAT |
+
+
+
 ---
 
 ## Documentation
@@ -169,6 +235,7 @@ See [docs/COMMANDS.md](docs/COMMANDS.md) for the full command reference.
 - [docs/releases/v1.10.0-hermes-native-provider-routing.md](docs/releases/v1.10.0-hermes-native-provider-routing.md) — Hermes-native execution driver release notes.
 - [docs/releases/v1.11.0-hermes-model-prefix-routing.md](docs/releases/v1.11.0-hermes-model-prefix-routing.md) — simplified `hermes/<model>` routing release notes.
 - [docs/releases/v1.11.1-canonical-hermes-gpt-provider.md](docs/releases/v1.11.1-canonical-hermes-gpt-provider.md) — canonical `hermes/gpt-5.5` examples and Hermes configured-provider delegation notes.
+- [docs/releases/v1.12.0-upstream-42ed7cee-sync.md](docs/releases/v1.12.0-upstream-42ed7cee-sync.md) — routine upstream sync to `upstream/main@42ed7cee`.
 - [CHANGELOG.md](CHANGELOG.md) — downstream release history.
 
 ---
@@ -206,7 +273,7 @@ npm pack --dry-run --json
 
 ## Upstream base
 
-`gsd-hermes@1.11.1` keeps the upstream `gsd-build/get-shit-done@f2decefe` base while simplifying Hermes-native routing to `hermes/<model>` model overrides and preserving downstream package identity.
+`gsd-hermes@1.12.0` syncs to `gsd-build/get-shit-done@42ed7cee` while preserving the Hermes-first package identity, simplified `hermes/<model>` routing, and strict provider/model execution boundaries.
 
 Public package identity remains:
 

@@ -386,7 +386,6 @@
 - REQ-MILE-08: 새 마일스톤은 new-project와 동일한 흐름을 따라야 합니다(질문 → 연구 → 요구사항 → 로드맵).
 - REQ-MILE-09: 새 마일스톤은 기존 워크플로우 구성을 초기화해서는 안 됩니다.
 
-**갭 해소.** `/gsd-plan-milestone-gaps`는 감사에서 식별된 갭을 해소하는 페이즈를 생성합니다.
 
 ---
 
@@ -394,7 +393,7 @@
 
 ### 9. Phase Management
 
-**명령어:** `/gsd-add-phase`, `/gsd-insert-phase [N]`, `/gsd-remove-phase [N]`
+**명령어:** `/gsd-phase`, `/gsd-phase --insert [N]`, `/gsd-phase --remove [N]`
 
 **목적:** 개발 중 동적 로드맵 수정.
 
@@ -681,7 +680,7 @@
 
 ### 26. Model Profiles
 
-**명령어:** `/gsd-set-profile <quality|balanced|budget|inherit>`
+**명령어:** `/gsd-config --profile <quality|balanced|budget|inherit>`
 
 **목적:** 각 에이전트가 사용하는 AI 모델을 제어하여 품질과 비용의 균형을 맞춥니다.
 
@@ -763,7 +762,7 @@
 
 ### 29. Todo Management
 
-**명령어:** `/gsd-add-todo [desc]`, `/gsd-check-todos`
+**명령어:** `/gsd-capture [desc]`, `/gsd-capture --list`
 
 **목적:** 세션 중 나중에 처리할 아이디어와 작업을 캡처합니다.
 
@@ -1066,7 +1065,7 @@ fix(03-01): correct auth token expiry
 
 ### 43. Backlog Parking Lot
 
-**명령어:** `/gsd-add-backlog <description>`, `/gsd-review-backlog`, `/gsd-plant-seed <idea>`
+**명령어:** `/gsd-capture --backlog <description>`, `/gsd-review-backlog`, `/gsd-capture --seed <idea>`
 
 **목적:** 아직 적극적인 계획에 준비되지 않은 아이디어를 캡처합니다. 백로그 항목은 활성 페이즈 순서 밖에 있기 위해 999.x 번호를 사용합니다. 시드는 올바른 마일스톤에서 자동으로 표시되는 트리거 조건이 있는 미래 지향적 아이디어입니다.
 
@@ -1516,7 +1515,7 @@ Claude가 GSD 워크플로우 컨텍스트 밖에서 파일 편집을 시도하�
 
 ### 65. 주장 출처 태깅
 
-**대상:** `/gsd-research-phase`
+**대상:** `/gsd-plan-phase --research-phase`
 
 **목적:** 연구 주장에 출처 증거를 태깅하고 가정을 별도로 기록합니다.
 

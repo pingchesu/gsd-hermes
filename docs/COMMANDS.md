@@ -4,17 +4,36 @@
 
 ---
 
-## GSD Hermes v1.9.1 Release Note
+## GSD Hermes v1.12.0 Release Note
 
-`gsd-hermes@1.9.1` syncs the command surface with `upstream/main@f2decefe` while keeping the downstream Hermes-first guarantees: project-linked Hermes installs, `gsd-<command>` skill discovery, strict runtime model receipts, and provider-routed execution. This patch release also carries upstream `/gsd-update --reapply` recovery guidance so local-patch users no longer see stale reapply command names.
+`gsd-hermes@1.12.0` syncs the command surface with `upstream/main@42ed7cee` while keeping the downstream Hermes-first guarantees: project-linked Hermes installs, `gsd-<command>` skill discovery, strict runtime model receipts, and provider-routed execution. This release also carries upstream command/dispatch seam refactors, per-phase-type model mapping support, dynamic routing escalation, and updated orchestration guidance.
 
 ---
 
 ## Command Syntax
 
-- **Claude Code / Gemini / Copilot:** `/gsd-command-name [args]`
-- **OpenCode / Kilo:** `/gsd-command-name [args]`
+- **Claude Code / Copilot / OpenCode / Kilo:** `/gsd-command-name [args]` (hyphen form)
+- **Gemini CLI:** `gsd:command-name [args]` in Gemini command menus (colon form — Gemini namespaces commands under `gsd:`)
 - **Codex:** `$gsd-command-name [args]`
+
+The hyphen and colon forms are *runtime-specific spellings of the same command*. Whichever runtime you're on, the installer writes the correct form into your runtime's command directory.
+
+---
+
+## Namespace Meta-Skills
+
+Six namespace routers ship as the first-stage entry points in v1.40. They keep the eager skill-listing token cost low (~120 tokens for 6 routers vs ~2,150 for a flat 86-skill listing) while the full surface remains directly invocable. The model selects a namespace, then routes to the concrete sub-skill. See [#2792](https://github.com/gsd-build/get-shit-done/issues/2792).
+
+| Command | Routes to |
+|---------|-----------|
+| `/gsd-ns-workflow` | Phase pipeline — discuss / plan / execute / verify / phase / progress |
+| `/gsd-ns-project` | Project lifecycle — milestones, audits, summary |
+| `/gsd-ns-review` | Quality gates — code review, debug, audit, security, eval, ui |
+| `/gsd-ns-context` | Codebase intelligence — map, graphify, docs, learnings |
+| `/gsd-ns-manage` | Management — config, workspace, workstreams, thread, update, ship, inbox |
+| `/gsd-ns-ideate` | Exploration & capture — explore, sketch, spike, spec, capture |
+
+The namespace skills are **additive** — every existing concrete command (e.g. `/gsd-plan-phase`, `/gsd-code-review --fix`) is still invocable directly.
 
 ---
 
@@ -129,6 +148,8 @@ Research, plan, and verify a phase.
 | `--auto` | Skip interactive confirmations |
 | `--research` | Force re-research even if RESEARCH.md exists |
 | `--skip-research` | Skip domain research step |
+| `--research-phase <N>` | Research-only mode: spawn researcher for phase `<N>`, write RESEARCH.md, exit before planner. Replaces the deleted `gsd-research-phase` standalone command (#3042). |
+| `--view` | Research-only modifier: when used with `--research-phase`, print existing RESEARCH.md to stdout and exit (no spawn). |
 | `--gaps` | Gap closure mode (reads VERIFICATION.md, skips research) |
 | `--skip-verify` | Skip plan checker verification loop |
 | `--prd <file>` | Use a PRD file instead of discuss-phase for context |
@@ -140,12 +161,20 @@ Research, plan, and verify a phase.
 **Prerequisites:** `.planning/ROADMAP.md` exists
 **Produces:** `{phase}-RESEARCH.md`, `{phase}-{N}-PLAN.md`, `{phase}-VALIDATION.md`
 
+**Research-only mode (`--research-phase <N>`):**
+- No modifier: prompts `update / view / skip` if RESEARCH.md already exists.
+- With `--research`: force-refresh — re-spawn researcher unconditionally, no prompt.
+- With `--view`: print existing RESEARCH.md to stdout, no spawn. Errors if RESEARCH.md missing.
+
 ```bash
-/gsd-plan-phase 1                   # Research + plan + verify phase 1
-/gsd-plan-phase 3 --skip-research   # Plan without research (familiar domain)
-/gsd-plan-phase --auto              # Non-interactive planning
-/gsd-plan-phase 2 --validate        # Validate state before planning
-/gsd-plan-phase 1 --bounce          # Plan + external bounce validation
+/gsd-plan-phase 1                              # Research + plan + verify phase 1
+/gsd-plan-phase 3 --skip-research              # Plan without research (familiar domain)
+/gsd-plan-phase --auto                         # Non-interactive planning
+/gsd-plan-phase 2 --validate                   # Validate state before planning
+/gsd-plan-phase 1 --bounce                     # Plan + external bounce validation
+/gsd-plan-phase --research-phase 4             # Research only on phase 4 (prompts if RESEARCH.md exists)
+/gsd-plan-phase --research-phase 4 --view      # Print existing RESEARCH.md, no spawn
+/gsd-plan-phase --research-phase 4 --research  # Force-refresh research, no prompt
 ```
 
 ---
@@ -719,15 +748,19 @@ Generate a developer behavioral profile from Claude Code session analysis across
 
 ### `/gsd-health`
 
-Validate `.planning/` directory integrity.
+Validate `.planning/` directory integrity. With `--context`, probes the
+context-window utilization guard against the 60 % / 70 % thresholds (added
+v1.40.0, [#2792](https://github.com/gsd-build/get-shit-done/issues/2792)).
 
 | Flag | Description |
 |------|-------------|
 | `--repair` | Auto-fix recoverable issues |
+| `--context` | Probe context-window utilization; warns at 60 %, critical at 70 % |
 
 ```bash
 /gsd-health                         # Check integrity
 /gsd-health --repair                # Check and fix
+/gsd-health --context               # Context-utilization triage
 ```
 
 ### `/gsd-cleanup`

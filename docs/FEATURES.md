@@ -144,6 +144,11 @@
   - [Agent Size-Budget Enforcement](#119-agent-size-budget-enforcement)
   - [Shared Boilerplate Extraction](#120-shared-boilerplate-extraction)
   - [Knowledge Graph Integration](#121-knowledge-graph-integration)
+- [v1.40.0 Features](#v1400-features)
+  - [Skill Surface Consolidation](#122-skill-surface-consolidation)
+  - [Namespace Meta-Skills (Two-Stage Routing)](#123-namespace-meta-skills-two-stage-routing)
+  - [Context-Window Utilization Guard](#124-context-window-utilization-guard)
+  - [Phase-Lifecycle Status-Line Read-Side](#125-phase-lifecycle-status-line-read-side)
 - [v1.32 Features](#v132-features)
   - [STATE.md Consistency Gates](#69-statemd-consistency-gates)
   - [Autonomous `--to N` Flag](#70-autonomous---to-n-flag)
@@ -449,7 +454,6 @@
 - REQ-MILE-08: New milestone MUST follow same flow as new-project (questions → research → requirements → roadmap)
 - REQ-MILE-09: New milestone MUST NOT reset existing workflow configuration
 
-**Gap Closure:** `/gsd-plan-milestone-gaps` creates phases to close gaps identified by audit.
 
 ---
 
@@ -865,7 +869,7 @@ continues. Drift detection cannot fail verification.
 
 ### 29. Todo Management
 
-**Commands:** `/gsd-add-todo [desc]`, `/gsd-check-todos`
+**Commands:** `/gsd-add-todo [desc]`, `/gsd-capture --list`
 
 **Purpose:** Capture ideas and tasks during sessions for later work.
 
@@ -923,6 +927,8 @@ continues. Drift detection cannot fail verification.
 | `mode` | enum | `interactive` | `interactive` or `yolo` (auto-approve) |
 | `granularity` | enum | `standard` | `coarse`, `standard`, or `fine` |
 | `model_profile` | enum | `balanced` | `quality`, `balanced`, `budget`, or `inherit` |
+| `models.<phase_type>` | enum | (none) | Per-phase-type tier override (`planning`, `discuss`, `research`, `execution`, `verification`, `completion`). Values: `opus`, `sonnet`, `haiku`, `inherit`. Coarse phase-level tuning that wins over `model_profile` but loses to per-agent `model_overrides`. See [CONFIGURATION.md](CONFIGURATION.md#per-phase-type-models-models--added-in-v140). Added in v1.40 |
+| `dynamic_routing.enabled` | boolean | `false` | Master switch for failure-tier escalation. When `true`, agents resolve to `tier_models[default_tier]` and escalate one tier on orchestrator-detected soft failure. Capped by `max_escalations`. See [CONFIGURATION.md](CONFIGURATION.md#dynamic-routing-with-failure-tier-escalation-dynamic_routing--added-in-v140). Added in v1.40 |
 | `workflow.research` | boolean | `true` | Domain research before planning |
 | `workflow.plan_check` | boolean | `true` | Plan verification loop |
 | `workflow.verifier` | boolean | `true` | Post-execution verification |
@@ -1030,13 +1036,24 @@ fix(03-01): correct auth token expiry
 - REQ-HOOK-05: All hooks MUST include 3-second stdin timeout guard
 - REQ-HOOK-06: All hooks MUST fail silently on any error
 - REQ-HOOK-07: Context usage MUST normalize for autocompact buffer (16.5% reserved)
+- REQ-HOOK-08: Update banner MUST be opt-in and silent unless an update is available (PR #2795)
 
 **Statusline Display:**
-```
+```text
 [⬆ /gsd-update │] model │ [current task │] directory [█████░░░░░ 50%]
 ```
 
 Color coding: <50% green, <65% yellow, <80% orange, ≥80% red with skull emoji
+
+**Update Banner (opt-in, when GSD statusline isn't used):**
+
+When the user declines (or keeps a non-GSD) statusline, the installer offers a SessionStart banner that surfaces update availability without occupying statusline real estate. The banner reads `~/.cache/gsd/gsd-update-check.json` (written by `gsd-check-update-worker.js`) and emits one line only when an update is available:
+
+```text
+GSD update available: 1.39.0 → 1.40.0. Run /gsd-update.
+```
+
+The banner is silent when up-to-date and rate-limits "check failed" diagnostics to once per 24 hours. Removed cleanly by `npx get-shit-done-cc --uninstall` or by deleting the SessionStart entry that references `gsd-update-banner.js`.
 
 ### 38. Developer Profiling
 
@@ -1617,7 +1634,7 @@ Test suite that scans all agent, workflow, and command files for embedded inject
 
 ### 65. Claim Provenance Tagging
 
-**Part of:** `/gsd-research-phase`
+**Part of:** `/gsd-plan-phase --research-phase <N>`
 
 **Purpose:** Ensure research claims are tagged with source evidence and assumptions are logged separately.
 
@@ -2108,7 +2125,7 @@ Test suite that scans all agent, workflow, and command files for embedded inject
 
 ### 93. Code Review Pipeline
 
-**Commands:** `/gsd-code-review`, `/gsd-code-review-fix`
+**Commands:** `/gsd-code-review`, `/gsd-code-review --fix`
 
 **Purpose:** Structured review of source files changed during a phase, with a separate auto-fix pass that commits each fix atomically.
 
@@ -2116,7 +2133,7 @@ Test suite that scans all agent, workflow, and command files for embedded inject
 - REQ-REVIEW-01: `gsd-code-review` MUST scope files to the phase using SUMMARY.md and git diff fallback
 - REQ-REVIEW-02: Review MUST support three depth levels: `quick`, `standard`, `deep`
 - REQ-REVIEW-03: Findings MUST be severity-classified: Critical, Warning, Info
-- REQ-REVIEW-04: `gsd-code-review-fix` MUST read REVIEW.md and fix Critical + Warning findings by default
+- REQ-REVIEW-04: `gsd-code-review --fix` MUST read REVIEW.md and fix Critical + Warning findings by default
 - REQ-REVIEW-05: Each fix MUST be committed atomically with a descriptive message
 - REQ-REVIEW-06: `--auto` flag MUST enable fix + re-review iteration loop, capped at 3 iterations
 - REQ-REVIEW-07: Feature MUST be gated by `workflow.code_review` config flag
@@ -2600,3 +2617,83 @@ Users who run a memory / knowledge-base MCP server (for example, ExoCortex-style
 
 **Configuration:** `graphify.enabled`, `graphify.build_timeout`
 **Reference files:** `commands/gsd/graphify.md`, `bin/lib/graphify.cjs`
+
+---
+
+## v1.40.0 Features
+
+### 122. Skill Surface Consolidation
+
+**Purpose:** Cut the eager skill-listing overhead by folding 31 micro-skills into 4 new grouped parents and 6 existing parents that absorb sub-operations as flags. Zero functional loss — every removed micro-skill's behavior survives via a flag on a consolidated parent. After consolidation, `commands/gsd/*.md` ships 59 sub-skills (plus 6 namespace meta-skills, see #123).
+
+**Requirements:**
+- REQ-CONSOLIDATE-01: Four new grouped skills replace clusters of micro-skills:
+  - `/gsd-capture` — folds add-todo (default), note (`--note`), add-backlog (`--backlog`), plant-seed (`--seed`), check-todos (`--list`)
+  - `/gsd-phase` — folds add-phase (default), insert-phase (`--insert`), remove-phase (`--remove`), edit-phase (`--edit`)
+  - `/gsd-config` — folds settings-advanced (`--advanced`), settings-integrations (`--integrations`), set-profile (`--profile`)
+  - `/gsd-workspace` — folds new-workspace (`--new`), list-workspaces (`--list`), remove-workspace (`--remove`)
+- REQ-CONSOLIDATE-02: Six existing parents absorb wrap-up / sub-operations as flags: `/gsd-update --sync`, `/gsd-update --reapply`, `/gsd-sketch --wrap-up`, `/gsd-spike --wrap-up`, `/gsd-map-codebase --fast`, `/gsd-map-codebase --query`, `/gsd-code-review --fix`, `/gsd-progress --do`, `/gsd-progress --next`.
+- REQ-CONSOLIDATE-03: Deleted micro-skill slash forms (the bare `gsd-add-todo`, `gsd-add-backlog`, `gsd-plant-seed`, `gsd-check-todos`, `gsd-add-phase`, `gsd-insert-phase`, `gsd-remove-phase`, `gsd-edit-phase`, `gsd-new-workspace`, `gsd-list-workspaces`, `gsd-remove-workspace`, `gsd-settings-advanced`, `gsd-settings-integrations`, `gsd-set-profile`, `gsd-sketch-wrap-up`, `gsd-spike-wrap-up`, `gsd-reapply-patches`, `gsd-code-review-fix`, …) MUST resolve to "Unknown command" — no shadow stubs.
+- REQ-CONSOLIDATE-04: `autonomous.md` invokes `/gsd-code-review --fix` (was previously calling the deleted `gsd-code-review-fix`).
+
+**Reference issue:** [#2790](https://github.com/gsd-build/get-shit-done/issues/2790)
+
+---
+
+### 123. Namespace Meta-Skills (Two-Stage Routing)
+
+**Purpose:** Replace the flat eager skill listing with a two-stage hierarchical routing layer. The model sees 6 namespace routers instead of 86 entries, selects a namespace, then routes to the sub-skill. Descriptions use pipe-separated keyword tags (≤ 60 chars) for routing density.
+
+**Commands:**
+- `/gsd-ns-workflow` — phase pipeline router (discuss / plan / execute / verify / phase / progress)
+- `/gsd-ns-project` — project lifecycle (milestones, audits, summary)
+- `/gsd-ns-review` — quality gates (code review, debug, audit, security, eval, ui)
+- `/gsd-ns-context` — codebase intelligence (map, graphify, docs, learnings)
+- `/gsd-ns-manage` — config / workspace / workstreams / thread / update / ship / inbox
+- `/gsd-ns-ideate` — exploration & capture (explore, sketch, spike, spec, capture)
+
+**Token cost:**
+
+| | Entries | Approx tokens |
+|---|---|---|
+| Pre-1.40 full install | 86 | ~2,150 |
+| Namespace meta-skills | 6 | ~120 |
+
+**Requirements:**
+- REQ-NS-01: Six `commands/gsd/ns-*.md` namespace routers ship with pipe-separated keyword-tag descriptions (≤ 60 chars).
+- REQ-NS-02: Existing sub-skills are unchanged and still invocable directly — namespace skills are additive, not a replacement for direct slash forms.
+- REQ-NS-03: The body of each namespace router contains a routing table that maps user intent to the correct concrete sub-skill on the post-#2790 consolidated surface.
+
+**Reference issue:** [#2792](https://github.com/gsd-build/get-shit-done/issues/2792)
+
+---
+
+### 124. Context-Window Utilization Guard
+
+**Command:** `/gsd-health --context`
+
+**Purpose:** Quality guard against context-window saturation. Two thresholds: 60 % utilization warns ("consider `/gsd-thread`"), 70 % is critical ("reasoning quality may degrade"; matches the fracture-point per recent context-attention research).
+
+**Requirements:**
+- REQ-CTX-GUARD-01: `/gsd-health --context` prints a structured status line with current utilization, threshold tier (`ok` / `warn` / `critical`), and a remediation suggestion.
+- REQ-CTX-GUARD-02: The same triage is exposed as `gsd-sdk query validate.context --tokens-used <int> --context-window <int>` — a structured envelope for status-line and hook callers (#125). Both flags are required; the handler returns the same `{ percent, state }` envelope as the pure classifier in REQ-CTX-GUARD-03.
+- REQ-CTX-GUARD-03: The classifier (`bin/lib/context-utilization.cjs`) is pure: input `(tokensUsed, contextWindow)`, output `{ percent, state }`. Easy to unit-test, easy to reuse from any caller.
+
+**Reference issue:** [#2792](https://github.com/gsd-build/get-shit-done/issues/2792)
+
+---
+
+### 125. Phase-Lifecycle Status-Line Read-Side
+
+**Purpose:** Surface phase orchestration state on the status-line. `parseStateMd()` reads four new STATE.md frontmatter fields and `formatGsdState()` renders in-flight, idle, and progress scenes. Write-side wiring follows in a later RC.
+
+**Requirements:**
+- REQ-LIFECYCLE-01: `parseStateMd()` reads four optional fields:
+  - `active_phase` — phase number when an orchestrator is in flight
+  - `next_action` — recommended next command when idle
+  - `next_phases` — YAML flow array of next phase numbers
+  - `progress` — nested `total_phases` / `completed_phases` / `percent` block
+- REQ-LIFECYCLE-02: `formatGsdState()` checks the lifecycle fields in priority order and emits the first matching scene (Phase active → Idle next-recommended → Milestone complete → Default fallback).
+- REQ-LIFECYCLE-03: All four fields default to undefined; existing STATE.md files render byte-for-byte identically.
+
+**Reference issue:** [#2833](https://github.com/gsd-build/get-shit-done/issues/2833) — see [`docs/STATE-MD-LIFECYCLE.md`](STATE-MD-LIFECYCLE.md) for the full field reference and rendering rules.

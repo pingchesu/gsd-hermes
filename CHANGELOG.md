@@ -10,6 +10,27 @@ syncs from.
 
 ## [Unreleased]
 
+## 1.12.0 — 2026-05-04
+
+GSD Hermes package version: `1.12.0`
+Upstream GSD base: `upstream/main@42ed7cee` / upstream `get-shit-done-cc@1.40.0` release line
+Previous downstream package version: `1.11.1`
+Previous upstream base: `upstream/main@f2decefe`
+
+### Synced
+- **Routine upstream sync to `upstream/main@42ed7cee`** — imports 24 upstream commits since `f2decefe`, including per-phase-type model mappings, dynamic routing escalation, install shell PATH probing, help passthrough fixes, Codex hook hardening, Gemini duplicate-command avoidance, and query/dispatch seam refactors.
+
+### Preserved
+- Kept downstream package identity as `gsd-hermes` and release workflows targeting `gsd-hermes`.
+- Preserved Hermes-first install semantics plus strict `model_overrides` routing: `hermes/*` remains Hermes-native, direct `openai/*`/`anthropic/*` remain provider-CLI routed, and `cross_ai_execution` stays lower-priority fallback.
+
+### Documentation
+- Added release notes: [`docs/releases/v1.12.0-upstream-42ed7cee-sync.md`](docs/releases/v1.12.0-upstream-42ed7cee-sync.md).
+
+### Verification
+- `npm run build:sdk`
+- `node --test tests/hermes-provider-routing-regression.test.cjs tests/provider-cli-dispatch.test.cjs tests/agent-execution-router.test.cjs tests/runtime-model-parity.test.cjs tests/feat-3023-phase-type-models.test.cjs tests/feat-3024-dynamic-routing.test.cjs`
+
 ## 1.11.1 — 2026-05-03
 
 GSD Hermes package version: `1.11.1`
