@@ -1,5 +1,5 @@
 {
-  "generated": "2026-05-03",
+  "generated": "2026-05-04",
   "families": {
     "agents": [
       "gsd-advisor-researcher",
@@ -271,6 +271,7 @@
       "planning-workspace.cjs",
       "profile-output.cjs",
       "profile-pipeline.cjs",
+      "provider-cli-dispatch.cjs",
       "roadmap-command-router.cjs",
       "roadmap.cjs",
       "schema-detect.cjs",

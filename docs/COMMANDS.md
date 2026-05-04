@@ -4,16 +4,16 @@
 
 ---
 
-## GSD Hermes v1.9.1 Release Note
+## GSD Hermes v1.12.0 Release Note
 
-`gsd-hermes@1.9.1` syncs the command surface with `upstream/main@f2decefe` while keeping the downstream Hermes-first guarantees: project-linked Hermes installs, `gsd-<command>` skill discovery, strict runtime model receipts, and provider-routed execution. This patch release also carries upstream `/gsd-update --reapply` recovery guidance so local-patch users no longer see stale reapply command names.
+`gsd-hermes@1.12.0` syncs the command surface with `upstream/main@42ed7cee` while keeping the downstream Hermes-first guarantees: project-linked Hermes installs, `gsd-<command>` skill discovery, strict runtime model receipts, and provider-routed execution. This release also carries upstream command/dispatch seam refactors, per-phase-type model mapping support, dynamic routing escalation, and updated orchestration guidance.
 
 ---
 
 ## Command Syntax
 
 - **Claude Code / Copilot / OpenCode / Kilo:** `/gsd-command-name [args]` (hyphen form)
-- **Gemini CLI:** `/gsd:command-name [args]` (colon form — Gemini namespaces commands under `gsd:`)
+- **Gemini CLI:** `gsd:command-name [args]` in Gemini command menus (colon form — Gemini namespaces commands under `gsd:`)
 - **Codex:** `$gsd-command-name [args]`
 
 The hyphen and colon forms are *runtime-specific spellings of the same command*. Whichever runtime you're on, the installer writes the correct form into your runtime's command directory.

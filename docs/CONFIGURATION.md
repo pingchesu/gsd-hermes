@@ -4,9 +4,9 @@
 
 ---
 
-## GSD Hermes v1.11.1 Release Note
+## GSD Hermes v1.12.0 Release Note
 
-`gsd-hermes@1.11.1` keeps the upstream base at `upstream/main@f2decefe`, uses `hermes/gpt-5.5` as the canonical Hermes-native GPT example, and ensures Hermes-native provider routing delegates provider selection to Hermes itself. For Hermes projects, `model_overrides` remain the source of model intent: `hermes/gpt-5.5` and `hermes/claude-opus-4-7` automatically route through Hermes chat/tool execution without requiring `workflow.agent_execution_router` or `workflow.agent_execution_driver`. Hermes-native routes do not pass `--provider`; they use the provider currently configured in Hermes. Plain `openai/*` and `anthropic/*` overrides continue to route directly to Codex CLI and Claude CLI respectively. See [`docs/releases/v1.11.1-canonical-hermes-gpt-provider.md`](releases/v1.11.1-canonical-hermes-gpt-provider.md).
+`gsd-hermes@1.12.0` syncs to `upstream/main@42ed7cee` while preserving the Hermes routing contract from v1.11. For Hermes projects, `model_overrides` remain the source of model intent: `hermes/gpt-5.5` and `hermes/claude-opus-4-7` automatically route through Hermes chat/tool execution without requiring `workflow.agent_execution_router` or `workflow.agent_execution_driver`. Hermes-native routes do not pass `--provider`; they use the provider currently configured in Hermes. Plain `openai/*` and `anthropic/*` overrides continue to route directly to Codex CLI and Claude CLI respectively. See [`docs/releases/v1.12.0-upstream-42ed7cee-sync.md`](releases/v1.12.0-upstream-42ed7cee-sync.md).
 
 ---
 
