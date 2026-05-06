@@ -140,7 +140,7 @@ Orchestration logic that commands reference. Contains the step-by-step process i
 - State update patterns
 - Error handling and recovery
 
-**Total workflows:** 84 (see [`docs/INVENTORY.md`](INVENTORY.md#workflows) for the full roster).
+**Total workflows:** 87 (see [`docs/INVENTORY.md`](INVENTORY.md#workflows) for the full roster).
 
 #### Progressive disclosure for workflows
 

@@ -4,9 +4,9 @@
 
 ---
 
-## GSD Hermes v1.12.0 Release Note
+## GSD Hermes v1.13.0 Release Note
 
-`gsd-hermes@1.12.0` syncs to `upstream/main@42ed7cee` while preserving the Hermes routing contract from v1.11. For Hermes projects, `model_overrides` remain the source of model intent: `hermes/gpt-5.5` and `hermes/claude-opus-4-7` automatically route through Hermes chat/tool execution without requiring `workflow.agent_execution_router` or `workflow.agent_execution_driver`. Hermes-native routes do not pass `--provider`; they use the provider currently configured in Hermes. Plain `openai/*` and `anthropic/*` overrides continue to route directly to Codex CLI and Claude CLI respectively. See [`docs/releases/v1.12.0-upstream-42ed7cee-sync.md`](releases/v1.12.0-upstream-42ed7cee-sync.md).
+`gsd-hermes@1.13.0` syncs to `upstream/main@3579a48d` while preserving the Hermes routing contract from v1.11/v1.12. For Hermes projects, `model_overrides` remain the source of model intent: `hermes/gpt-5.5` and `hermes/claude-opus-4-7` automatically route through Hermes chat/tool execution without requiring `workflow.agent_execution_router` or `workflow.agent_execution_driver`. Hermes-native routes do not pass `--provider`; they use the provider currently configured in Hermes. Plain `openai/*` and `anthropic/*` overrides continue to route directly to Codex CLI and Claude CLI respectively. See [`docs/releases/v1.13.0-upstream-3579a48d-sync.md`](releases/v1.13.0-upstream-3579a48d-sync.md).
 
 ---
 

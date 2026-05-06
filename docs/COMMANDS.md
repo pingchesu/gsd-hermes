@@ -4,9 +4,9 @@
 
 ---
 
-## GSD Hermes v1.12.0 Release Note
+## GSD Hermes v1.13.0 Release Note
 
-`gsd-hermes@1.12.0` syncs the command surface with `upstream/main@42ed7cee` while keeping the downstream Hermes-first guarantees: project-linked Hermes installs, `gsd-<command>` skill discovery, strict runtime model receipts, and provider-routed execution. This release also carries upstream command/dispatch seam refactors, per-phase-type model mapping support, dynamic routing escalation, and updated orchestration guidance.
+`gsd-hermes@1.13.0` syncs the command surface with `upstream/main@3579a48d` while keeping the downstream Hermes-first guarantees: project-linked Hermes installs, `gsd-<command>` skill discovery, strict runtime model receipts, and provider-routed execution. This release also carries upstream command contract validation, executor worktree path safety, state/milestone hardening, SDK runtime bridge seams, and updated orchestration guidance.
 
 ---
 

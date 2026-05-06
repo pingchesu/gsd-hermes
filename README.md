@@ -236,6 +236,7 @@ See [docs/COMMANDS.md](docs/COMMANDS.md) for the full command reference.
 - [docs/releases/v1.11.0-hermes-model-prefix-routing.md](docs/releases/v1.11.0-hermes-model-prefix-routing.md) — simplified `hermes/<model>` routing release notes.
 - [docs/releases/v1.11.1-canonical-hermes-gpt-provider.md](docs/releases/v1.11.1-canonical-hermes-gpt-provider.md) — canonical `hermes/gpt-5.5` examples and Hermes configured-provider delegation notes.
 - [docs/releases/v1.12.0-upstream-42ed7cee-sync.md](docs/releases/v1.12.0-upstream-42ed7cee-sync.md) — routine upstream sync to `upstream/main@42ed7cee`.
+- [docs/releases/v1.13.0-upstream-3579a48d-sync.md](docs/releases/v1.13.0-upstream-3579a48d-sync.md) — routine upstream sync to `upstream/main@3579a48d`.
 - [CHANGELOG.md](CHANGELOG.md) — downstream release history.
 
 ---
@@ -273,7 +274,7 @@ npm pack --dry-run --json
 
 ## Upstream base
 
-`gsd-hermes@1.12.0` syncs to `gsd-build/get-shit-done@42ed7cee` while preserving the Hermes-first package identity, simplified `hermes/<model>` routing, and strict provider/model execution boundaries.
+`gsd-hermes@1.13.0` syncs to `gsd-build/get-shit-done@3579a48d` while preserving the Hermes-first package identity, simplified `hermes/<model>` routing, and strict provider/model execution boundaries.
 
 Public package identity remains:
 

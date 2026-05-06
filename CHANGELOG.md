@@ -10,6 +10,27 @@ syncs from.
 
 ## [Unreleased]
 
+## 1.13.0 — 2026-05-06
+
+GSD Hermes package version: `1.13.0`
+Upstream GSD base: `upstream/main@3579a48d` / upstream `get-shit-done-cc@1.39.0-rc.4` development line
+Previous downstream package version: `1.12.0`
+Previous upstream base: `upstream/main@42ed7cee`
+
+### Synced
+- **Routine upstream sync to `upstream/main@3579a48d`** — imports 135 upstream commits since `42ed7cee`, including SDK runtime bridge seams, command contract validation, executor worktree path safety, state/milestone hardening, restored backlog routing, update/install guidance, and expanded regression coverage.
+
+### Preserved
+- Kept downstream package identity as `gsd-hermes` and release workflows targeting `gsd-hermes`.
+- Preserved strict `model_overrides` routing: `hermes/*` remains Hermes-native with no `--provider` flag, direct `openai/*`/`anthropic/*` remain provider-CLI routed, and unavailable direct bindings fail fast instead of falling back to the wrong CLI.
+
+### Documentation
+- Added release notes: [`docs/releases/v1.13.0-upstream-3579a48d-sync.md`](docs/releases/v1.13.0-upstream-3579a48d-sync.md).
+
+### Verification
+- `npm run build:sdk`
+- `node --test tests/hermes-provider-routing-regression.test.cjs tests/provider-cli-dispatch.test.cjs tests/agent-execution-router.test.cjs tests/runtime-model-parity.test.cjs tests/feat-3023-phase-type-models.test.cjs tests/feat-3024-dynamic-routing.test.cjs`
+
 ## 1.12.0 — 2026-05-04
 
 GSD Hermes package version: `1.12.0`
