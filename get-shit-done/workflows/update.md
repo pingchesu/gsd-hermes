@@ -320,7 +320,7 @@ fi
 ```text
 Couldn't check for updates (reason: {LATEST_REASON}, exit: {LATEST_STATUS}).
 
-To update manually: `npx get-shit-done-cc --global`
+To update manually: `npx -y --package=get-shit-done-cc@latest -- get-shit-done-cc --global`
 ```
 
 Exit.
@@ -486,10 +486,15 @@ const path = require('path');
 for (const relPath of custom_files) {
   const src = path.join(runtimeDir, relPath);
   const dst = path.join(backupDir, relPath);
-  if (fs.existsSync(src)) {
+  if (!fs.existsSync(src)) continue;
+
+  try {
     fs.mkdirSync(path.dirname(dst), { recursive: true });
     fs.copyFileSync(src, dst);
     console.log('  Backed up: ' + relPath);
+  } catch (err) {
+    const code = err && err.code ? String(err.code) : 'ERROR';
+    console.log('  Skipped (non-fatal): ' + relPath + ' [' + code + ']');
   }
 }
 JSEOF
@@ -516,17 +521,17 @@ RUNTIME_FLAG="--$TARGET_RUNTIME"
 
 **If LOCAL install:**
 ```bash
-npx -y get-shit-done-cc@latest "$RUNTIME_FLAG" --local
+npx -y --package=get-shit-done-cc@latest -- get-shit-done-cc "$RUNTIME_FLAG" --local
 ```
 
 **If GLOBAL install:**
 ```bash
-npx -y get-shit-done-cc@latest "$RUNTIME_FLAG" --global
+npx -y --package=get-shit-done-cc@latest -- get-shit-done-cc "$RUNTIME_FLAG" --global
 ```
 
 **If UNKNOWN install:**
 ```bash
-npx -y get-shit-done-cc@latest --claude --global
+npx -y --package=get-shit-done-cc@latest -- get-shit-done-cc --claude --global
 ```
 
 Capture output. If install fails, show error and exit.

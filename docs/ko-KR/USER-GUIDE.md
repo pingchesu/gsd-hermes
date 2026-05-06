@@ -391,7 +391,7 @@ GSD는 LLM 시스템 프롬프트가 되는 마크다운 파일을 생성합니�
 | `/gsd-verify-work [N]` | 자동 진단을 포함한 수동 UAT | 실행 완료 후 |
 | `/gsd-ship [N]` | 검증된 작업으로 PR 생성 | 검증 통과 후 |
 | `/gsd-fast <text>` | 계획을 완전히 건너뛰는 인라인 간단 작업 | 오타 수정, 설정 변경, 소규모 리팩터링 |
-| `/gsd-next` | 상태 자동 감지 및 다음 단계 실행 | 언제든 — "다음에 무엇을 해야 하나?" |
+| `/gsd-progress --next` | 상태 자동 감지 및 다음 단계 실행 | 언제든 — "다음에 무엇을 해야 하나?" |
 | `/gsd-ui-review [N]` | 6개 기둥 기반 시각적 감사 소급 수행 | 실행 또는 verify-work 이후 (프론트엔드 프로젝트) |
 | `/gsd-audit-milestone` | 마일스톤이 완료 정의를 충족했는지 검증 | 마일스톤 완료 전 |
 | `/gsd-complete-milestone` | 마일스톤 아카이브 및 릴리스 태그 생성 | 모든 페이즈 검증 완료 시 |
@@ -404,10 +404,9 @@ GSD는 LLM 시스템 프롬프트가 되는 마크다운 파일을 생성합니�
 | `/gsd-progress` | 상태 및 다음 단계 표시 | 언제든 -- "지금 어디 있나?" |
 | `/gsd-resume-work` | 마지막 세션의 전체 컨텍스트 복원 | 새 세션 시작 시 |
 | `/gsd-pause-work` | 구조화된 핸드오프 저장 (HANDOFF.json + continue-here.md) | 페이즈 중간에 중단할 때 |
-| `/gsd-session-report` | 작업 및 결과가 포함된 세션 요약 생성 | 세션 종료 시, 이해관계자 공유 시 |
+| `/gsd-pause-work --report` | 작업 및 결과가 포함된 세션 요약 생성 | 세션 종료 시, 이해관계자 공유 시 |
 | `/gsd-help` | 모든 명령어 표시 | 빠른 레퍼런스 |
 | `/gsd-update` | 변경 로그 미리보기와 함께 GSD 업데이트 | 새 버전 확인 시 |
-| `/gsd-join-discord` | Discord 커뮤니티 초대 링크 열기 | 질문이나 커뮤니티 참여 시 |
 
 ### 페이즈 관리
 
@@ -416,7 +415,7 @@ GSD는 LLM 시스템 프롬프트가 되는 마크다운 파일을 생성합니�
 | `/gsd-phase` | 로드맵에 새 페이즈 추가 | 초기 계획 후 범위가 늘어날 때 |
 | `/gsd-phase --insert [N]` | 긴급 작업 삽입 (소수점 번호 체계) | 마일스톤 중간의 긴급 수정 시 |
 | `/gsd-phase --remove [N]` | 미래 페이즈 제거 및 재번호 | 기능 범위 축소 시 |
-| `/gsd-list-phase-assumptions [N]` | Claude의 예상 접근 방식 미리 확인 | 계획 전 방향 검증 시 |
+| `/gsd-discuss-phase --assumptions [N]` | Claude의 예상 접근 방식 미리 확인 | 계획 전 방향 검증 시 |
 | `/gsd-plan-phase --research-phase [N]` | 심층 에코시스템 조사만 수행 | 복잡하거나 익숙하지 않은 도메인 |
 
 ### 브라운필드 및 유틸리티
@@ -599,11 +598,11 @@ claude --dangerously-skip-permissions
 /gsd-ship 1                 # Create PR from verified work
 /gsd-ui-review 1            # Visual audit (frontend phases)
 /clear
-/gsd-next                   # Auto-detect and run next step
+/gsd-progress --next                   # Auto-detect and run next step
 ...
 /gsd-audit-milestone        # Check everything shipped
 /gsd-complete-milestone     # Archive, tag, done
-/gsd-session-report         # Generate session summary
+/gsd-pause-work --report         # Generate session summary
 ```
 
 ### 기존 문서로 새 프로젝트 시작
@@ -703,7 +702,7 @@ cd ~/gsd-workspaces/feature-b
 
 ### 계획이 잘못되거나 맞지 않는 경우
 
-계획 전에 `/gsd-discuss-phase [N]`을 실행하세요. 대부분의 계획 품질 문제는 `CONTEXT.md`가 있었다면 방지할 수 있었던 가정을 Claude가 세우기 때문에 발생합니다. `/gsd-list-phase-assumptions [N]`을 실행하여 계획에 동의하기 전에 Claude가 무엇을 하려는지 확인할 수도 있습니다.
+계획 전에 `/gsd-discuss-phase [N]`을 실행하세요. 대부분의 계획 품질 문제는 `CONTEXT.md`가 있었다면 방지할 수 있었던 가정을 Claude가 세우기 때문에 발생합니다. `/gsd-discuss-phase --assumptions [N]`을 실행하여 계획에 동의하기 전에 Claude가 무엇을 하려는지 확인할 수도 있습니다.
 
 ### 실행이 실패하거나 스텁을 생성하는 경우
 
@@ -799,8 +798,8 @@ Windows에서 설치 프로그램이 `EPERM: operation not permitted, scandir`�
 | 계획이 비전과 맞지 않음 | `/gsd-discuss-phase [N]` 후 재계획 |
 | 비용이 높아짐 | `/gsd-config --profile budget` 및 `/gsd-settings`에서 에이전트 비활성화 |
 | 업데이트가 로컬 변경사항 파괴 | `/gsd-update --reapply` |
-| 이해관계자를 위한 세션 요약 필요 | `/gsd-session-report` |
-| 다음 단계를 모르겠음 | `/gsd-next` |
+| 이해관계자를 위한 세션 요약 필요 | `/gsd-pause-work --report` |
+| 다음 단계를 모르겠음 | `/gsd-progress --next` |
 | 병렬 실행 빌드 오류 | GSD 업데이트 또는 `parallelization.enabled: false` 설정 |
 
 ---
@@ -819,7 +818,7 @@ Windows에서 설치 프로그램이 `EPERM: operation not permitted, scandir`�
   MILESTONES.md           # Completed milestone archive
   HANDOFF.json            # Structured session handoff (from /gsd-pause-work)
   research/               # Domain research from /gsd-new-project
-  reports/                # Session reports (from /gsd-session-report)
+  reports/                # Session reports (from /gsd-pause-work --report)
   todos/
     pending/              # Captured ideas awaiting work
     done/                 # Completed todos

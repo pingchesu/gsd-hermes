@@ -4,9 +4,9 @@
 
 ---
 
-## GSD Hermes v1.12.0 Release Note
+## GSD Hermes v1.13.0 Release Note
 
-`gsd-hermes@1.12.0` syncs the command surface with `upstream/main@42ed7cee` while keeping the downstream Hermes-first guarantees: project-linked Hermes installs, `gsd-<command>` skill discovery, strict runtime model receipts, and provider-routed execution. This release also carries upstream command/dispatch seam refactors, per-phase-type model mapping support, dynamic routing escalation, and updated orchestration guidance.
+`gsd-hermes@1.13.0` syncs the command surface with `upstream/main@3579a48d` while keeping the downstream Hermes-first guarantees: project-linked Hermes installs, `gsd-<command>` skill discovery, strict runtime model receipts, and provider-routed execution. This release also carries upstream command contract validation, executor worktree path safety, state/milestone hardening, SDK runtime bridge seams, and updated orchestration guidance.
 
 ---
 
@@ -103,6 +103,7 @@ Gather phase context through adaptive questioning before planning.
 | `--batch` | Group questions for batch intake instead of one-by-one |
 | `--analyze` | Add trade-off analysis during discussion |
 | `--power` | File-based bulk question answering from a prepared answers file |
+| `--assumptions` | Surface Claude's implementation assumptions about the phase without an interactive session |
 
 **Prerequisites:** `.planning/ROADMAP.md` exists
 **Produces:** `{phase}-CONTEXT.md`, `{phase}-DISCUSSION-LOG.md` (audit trail)
@@ -114,6 +115,7 @@ Gather phase context through adaptive questioning before planning.
 /gsd-discuss-phase --batch          # Batch mode for current phase
 /gsd-discuss-phase 2 --analyze      # Discussion with trade-off analysis
 /gsd-discuss-phase 1 --power        # Bulk answers from file
+/gsd-discuss-phase 3 --assumptions  # Surface Claude's assumptions before planning
 ```
 
 ---
@@ -465,7 +467,7 @@ Show status, next steps, and automatically advance to the next logical workflow 
 | `--do "task description"` | Analyze freeform intent and dispatch to the most appropriate GSD command |
 | `--forensic` | Append a 6-check integrity audit after the standard report (STATE consistency, orphaned handoffs, deferred scope drift, memory-flagged pending work, blocking todos, uncommitted code) |
 
-**Auto-routing behavior (absorbed from `/gsd-next`):**
+**Auto-routing behavior (`--next`):**
 - No project → suggests `/gsd-new-project`
 - Phase needs discussion → runs `/gsd-discuss-phase`
 - Phase needs planning → runs `/gsd-plan-phase`
@@ -492,8 +494,13 @@ Restore full context from last session.
 
 Save context handoff when stopping mid-phase.
 
+| Flag | Description |
+|------|-------------|
+| `--report` | Generate a post-session summary in `.planning/reports/` capturing commits, file changes, and phase progress |
+
 ```bash
 /gsd-pause-work                     # Creates continue-here.md
+/gsd-pause-work --report            # Creates continue-here.md + session report
 ```
 
 ### `/gsd-manager`
@@ -510,6 +517,7 @@ Interactive command center for managing multiple phases from one terminal.
 
 ```bash
 /gsd-manager                        # Open command center dashboard
+/gsd-manager --analyze-deps         # Scan ROADMAP phases for dependency relationships before parallel execution
 ```
 
 **Checkpoint Heartbeats (#2410):**
@@ -600,13 +608,17 @@ Safe git revert — roll back GSD phase or plan commits using the phase manifest
 Ingest an external plan file into the GSD planning system with conflict detection against `PROJECT.md` decisions before writing anything.
 
 | Flag | Required | Description |
-|------|----------|-------------|
-| `--from <filepath>` | **Yes** | Path to the external plan file to import |
+|------|----------|--------------|
+| `--from <filepath>` | Yes (or `--from-gsd2`) | Path to the external plan file to import |
+| `--from-gsd2` | Yes (or `--from`) | Reverse-migrate a GSD-2 (`.gsd/`) project back to GSD v1 (`.planning/`) format |
+| `--path <dir>` | No | With `--from-gsd2`: path to the GSD-2 project directory (defaults to current directory) |
 
 **Process:** Detects conflicts → prompts for resolution → writes as GSD PLAN.md → validates via `gsd-plan-checker`
 
 ```bash
-/gsd-import --from /tmp/team-plan.md  # Import and validate an external plan
+/gsd-import --from /tmp/team-plan.md    # Import and validate an external plan
+/gsd-import --from-gsd2                # Migrate from GSD-2 back to v1 (current dir)
+/gsd-import --from-gsd2 --path ~/old-project  # Migrate from a different path
 ```
 
 ---

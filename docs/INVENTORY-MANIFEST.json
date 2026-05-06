@@ -1,5 +1,5 @@
 {
-  "generated": "2026-05-04",
+  "generated": "2026-05-06",
   "families": {
     "agents": [
       "gsd-advisor-researcher",
@@ -104,6 +104,7 @@
       "/gsd-workstreams"
     ],
     "workflows": [
+      "add-backlog.md",
       "add-phase.md",
       "add-tests.md",
       "add-todo.md",
@@ -118,6 +119,7 @@
       "code-review-fix.md",
       "code-review.md",
       "complete-milestone.md",
+      "debug.md",
       "diagnose-issues.md",
       "discovery-phase.md",
       "discuss-phase-assumptions.md",
@@ -130,7 +132,7 @@
       "execute-phase.md",
       "execute-plan.md",
       "explore.md",
-      "extract_learnings.md",
+      "extract-learnings.md",
       "fast.md",
       "forensics.md",
       "graduation.md",
@@ -179,6 +181,7 @@
       "spike.md",
       "stats.md",
       "sync-skills.md",
+      "thread.md",
       "transition.md",
       "ui-phase.md",
       "ui-review.md",
@@ -240,7 +243,8 @@
       "user-profiling.md",
       "verification-overrides.md",
       "verification-patterns.md",
-      "workstream-flag.md"
+      "workstream-flag.md",
+      "worktree-path-safety.md"
     ],
     "cli_modules": [
       "artifacts.cjs",
@@ -274,6 +278,7 @@
       "provider-cli-dispatch.cjs",
       "roadmap-command-router.cjs",
       "roadmap.cjs",
+      "runtime-homes.cjs",
       "schema-detect.cjs",
       "secrets.cjs",
       "security.cjs",

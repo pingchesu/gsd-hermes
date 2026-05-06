@@ -120,7 +120,7 @@
   - [Autonomous Audit-to-Fix](#98-autonomous-audit-to-fix)
   - [Improved Prompt Injection Scanner](#99-improved-prompt-injection-scanner)
   - [Stall Detection in Plan-Phase](#100-stall-detection-in-plan-phase)
-  - [Hard Stop Safety Gates in /gsd-next](#101-hard-stop-safety-gates-in-gsd-next)
+  - [Hard Stop Safety Gates in /gsd-progress --next](#101-hard-stop-safety-gates-in-gsd-progress---next)
   - [Adaptive Model Preset](#102-adaptive-model-preset)
   - [Post-Merge Hunk Verification](#103-post-merge-hunk-verification)
 - [v1.35.0 Features](#v1350-features)
@@ -461,7 +461,7 @@
 
 ### 9. Phase Management
 
-**Commands:** `/gsd-add-phase`, `/gsd-insert-phase [N]`, `/gsd-remove-phase [N]`
+**Commands:** `/gsd-phase`, `/gsd-phase --insert [N]`, `/gsd-phase --remove [N]`
 
 **Purpose:** Dynamic roadmap modification during development.
 
@@ -539,7 +539,7 @@
 
 ### 14. Auto-Advance (Next)
 
-**Command:** `/gsd-next`
+**Command:** `/gsd-progress --next`
 
 **Purpose:** Automatically detect current project state and advance to the next logical workflow step, eliminating the need to remember which phase/step you're on.
 
@@ -709,7 +709,7 @@
 
 ### 24. Session Reporting
 
-**Command:** `/gsd-session-report`
+**Command:** `/gsd-pause-work --report`
 
 **Purpose:** Generate a structured post-session summary document capturing work performed, outcomes achieved, and estimated resource usage.
 
@@ -748,7 +748,7 @@
 
 ### 26. Model Profiles
 
-**Command:** `/gsd-set-profile <quality|balanced|budget|inherit>`
+**Command:** `/gsd-config --profile <quality|balanced|budget|adaptive|inherit>`
 
 **Purpose:** Control which AI model each agent uses, balancing quality vs cost.
 
@@ -869,7 +869,7 @@ continues. Drift detection cannot fail verification.
 
 ### 29. Todo Management
 
-**Commands:** `/gsd-add-todo [desc]`, `/gsd-capture --list`
+**Commands:** `/gsd-capture [desc]`, `/gsd-capture --list`
 
 **Purpose:** Capture ideas and tasks during sessions for later work.
 
@@ -1185,7 +1185,7 @@ When verification returns `human_needed`, items are persisted as a trackable HUM
 
 ### 43. Backlog Parking Lot
 
-**Commands:** `/gsd-add-backlog <description>`, `/gsd-review-backlog`, `/gsd-plant-seed <idea>`
+**Commands:** `/gsd-capture --backlog <description>`, `/gsd-review-backlog`, `/gsd-capture --seed <idea>`
 
 **Purpose:** Capture ideas that aren't ready for active planning. Backlog items use 999.x numbering to stay outside the active phase sequence. Seeds are forward-looking ideas with trigger conditions that surface automatically at the right milestone.
 
@@ -1845,7 +1845,7 @@ Test suite that scans all agent, workflow, and command files for embedded inject
 
 ### 77. Phase Dependency Analysis
 
-**Command:** `/gsd-analyze-dependencies`
+**Command:** `/gsd-manager --analyze-deps`
 
 **Purpose:** Detect phase dependencies and suggest `Depends on` entries for ROADMAP.md before running `/gsd-manager`.
 
@@ -2028,7 +2028,7 @@ Test suite that scans all agent, workflow, and command files for embedded inject
   - [Autonomous Audit-to-Fix](#98-autonomous-audit-to-fix)
   - [Improved Prompt Injection Scanner](#99-improved-prompt-injection-scanner)
   - [Stall Detection in Plan-Phase](#100-stall-detection-in-plan-phase)
-  - [Hard Stop Safety Gates in /gsd-next](#101-hard-stop-safety-gates-in-gsd-next)
+  - [Hard Stop Safety Gates in /gsd-progress --next](#101-hard-stop-safety-gates-in-gsd-progress---next)
   - [Adaptive Model Preset](#102-adaptive-model-preset)
   - [Post-Merge Hunk Verification](#103-post-merge-hunk-verification)
 
@@ -2245,14 +2245,14 @@ Test suite that scans all agent, workflow, and command files for embedded inject
 
 ---
 
-### 101. Hard Stop Safety Gates in /gsd-next
+### 101. Hard Stop Safety Gates in /gsd-progress --next
 
-**Command:** `/gsd-next`
+**Command:** `/gsd-progress --next`
 
-**Purpose:** Prevent `/gsd-next` from entering runaway loops by adding hard stop safety gates and a consecutive-call guard that interrupts autonomous chaining when repeated identical steps are detected.
+**Purpose:** Prevent `/gsd-progress --next` from entering runaway loops by adding hard stop safety gates and a consecutive-call guard that interrupts autonomous chaining when repeated identical steps are detected.
 
 **Requirements:**
-- REQ-NEXT-GATE-01: `/gsd-next` MUST track consecutive same-step calls
+- REQ-NEXT-GATE-01: `/gsd-progress --next` MUST track consecutive same-step calls
 - REQ-NEXT-GATE-02: On repeated same-step, system MUST present a hard stop gate to the user
 - REQ-NEXT-GATE-03: User MUST explicitly confirm to continue past a hard stop gate
 
@@ -2266,7 +2266,7 @@ Test suite that scans all agent, workflow, and command files for embedded inject
 
 **Requirements:**
 - REQ-ADAPTIVE-01: `adaptive` preset MUST assign model tiers based on agent role (planner → quality tier, executor → balanced tier, etc.)
-- REQ-ADAPTIVE-02: `adaptive` MUST be selectable via `/gsd-set-profile adaptive`
+- REQ-ADAPTIVE-02: `adaptive` MUST be selectable via `/gsd-config --profile adaptive`
 
 ---
 
@@ -2531,7 +2531,7 @@ Users who run a memory / knowledge-base MCP server (for example, ExoCortex-style
 
 **Command:** `/gsd-spike [idea] [--quick]`
 
-**Purpose:** Run 2–5 focused feasibility experiments before committing to an implementation approach. Each experiment uses Given/When/Then framing, produces executable code, and returns a VALIDATED / INVALIDATED / PARTIAL verdict. Companion `/gsd-spike-wrap-up` packages findings into a project-local skill.
+**Purpose:** Run 2–5 focused feasibility experiments before committing to an implementation approach. Each experiment uses Given/When/Then framing, produces executable code, and returns a VALIDATED / INVALIDATED / PARTIAL verdict. Companion `/gsd-spike --wrap-up` packages findings into a project-local skill.
 
 **Requirements:**
 - REQ-SPIKE-01: Each experiment MUST produce a Given/When/Then hypothesis before any code is written
@@ -2539,14 +2539,15 @@ Users who run a memory / knowledge-base MCP server (for example, ExoCortex-style
 - REQ-SPIKE-03: Each experiment MUST return one of: VALIDATED, INVALIDATED, or PARTIAL verdict with evidence
 - REQ-SPIKE-04: Results MUST be stored in `.planning/spikes/NNN-experiment-name/` with a README and MANIFEST.md
 - REQ-SPIKE-05: `--quick` flag skips intake conversation and uses the argument text as the experiment direction
-- REQ-SPIKE-06: `/gsd-spike-wrap-up` MUST package findings into `.claude/skills/spike-findings-[project]/`
+- REQ-SPIKE-06: `/gsd-spike --wrap-up` MUST package findings into `.claude/skills/spike-findings-[project]/`
 
 **Produces:**
+
 | Artifact | Description |
 |----------|-------------|
 | `.planning/spikes/NNN-name/README.md` | Hypothesis, experiment code, verdict, and evidence |
 | `.planning/spikes/MANIFEST.md` | Index of all spikes with verdicts |
-| `.claude/skills/spike-findings-[project]/` | Packaged findings (via `/gsd-spike-wrap-up`) |
+| `.claude/skills/spike-findings-[project]/` | Packaged findings (via `/gsd-spike --wrap-up`) |
 
 ---
 
@@ -2554,7 +2555,7 @@ Users who run a memory / knowledge-base MCP server (for example, ExoCortex-style
 
 **Command:** `/gsd-sketch [idea] [--quick] [--text]`
 
-**Purpose:** Explore design directions through throwaway HTML mockups before committing to implementation. Produces 2–3 interactive variants per design question, all viewable directly in a browser with no build step. Companion `/gsd-sketch-wrap-up` packages winning decisions into a project-local skill.
+**Purpose:** Explore design directions through throwaway HTML mockups before committing to implementation. Produces 2–3 interactive variants per design question, all viewable directly in a browser with no build step. Companion `/gsd-sketch --wrap-up` packages winning decisions into a project-local skill.
 
 **Requirements:**
 - REQ-SKETCH-01: Each sketch MUST answer one specific visual design question
@@ -2564,7 +2565,7 @@ Users who run a memory / knowledge-base MCP server (for example, ExoCortex-style
 - REQ-SKETCH-05: A shared `themes/default.css` MUST provide CSS variables adapted to the agreed aesthetic
 - REQ-SKETCH-06: `--quick` flag skips mood intake; `--text` flag replaces `AskUserQuestion` with numbered lists for non-Claude runtimes
 - REQ-SKETCH-07: The winning variant MUST be marked in the README frontmatter and with a ★ in the HTML tab
-- REQ-SKETCH-08: `/gsd-sketch-wrap-up` MUST package winning decisions into `.claude/skills/sketch-findings-[project]/`
+- REQ-SKETCH-08: `/gsd-sketch --wrap-up` MUST package winning decisions into `.claude/skills/sketch-findings-[project]/`
 
 **Produces:**
 | Artifact | Description |
@@ -2573,7 +2574,7 @@ Users who run a memory / knowledge-base MCP server (for example, ExoCortex-style
 | `.planning/sketches/NNN-name/README.md` | Design question, variants, winner, what to look for |
 | `.planning/sketches/themes/default.css` | Shared CSS theme variables |
 | `.planning/sketches/MANIFEST.md` | Index of all sketches with winners |
-| `.claude/skills/sketch-findings-[project]/` | Packaged decisions (via `/gsd-sketch-wrap-up`) |
+| `.claude/skills/sketch-findings-[project]/` | Packaged decisions (via `/gsd-sketch --wrap-up`) |
 
 ---
 

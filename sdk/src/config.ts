@@ -246,11 +246,16 @@ function deepMergeConfig(base: Record<string, unknown>, override: Record<string,
 }
 
 function mergeDefaults(parsed: Record<string, unknown>): GSDConfig {
+  const legacyBranchingStrategy = typeof parsed.branching_strategy === 'string'
+    ? parsed.branching_strategy
+    : undefined;
+
   return {
     ...structuredClone(CONFIG_DEFAULTS),
     ...parsed,
     git: {
       ...CONFIG_DEFAULTS.git,
+      ...(legacyBranchingStrategy ? { branching_strategy: legacyBranchingStrategy } : {}),
       ...(parsed.git as Partial<GitConfig> ?? {}),
     },
     workflow: {
