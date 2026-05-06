@@ -261,7 +261,7 @@ For multi-phase projects, repeat the loop:
 Or let GSD figure out the next step automatically:
 
 ```
-/gsd-next
+/gsd-progress --next
 ```
 
 When all phases are done:
@@ -870,11 +870,11 @@ claude --dangerously-skip-permissions
 /gsd-ship 1                 # Create PR from verified work
 /gsd-ui-review 1            # Visual audit (frontend phases)
 /clear
-/gsd-next                   # Auto-detect and run next step
+/gsd-progress --next                   # Auto-detect and run next step
 ...
 /gsd-audit-milestone        # Check everything shipped
 /gsd-complete-milestone     # Archive, tag, done
-/gsd-session-report         # Generate session summary
+/gsd-pause-work --report         # Generate session summary
 ```
 
 ### New Project from Existing Document
@@ -1020,7 +1020,7 @@ Clear your context window between major commands: `/clear` in Claude Code. GSD i
 
 ### Plans Seem Wrong or Misaligned
 
-Run `/gsd-discuss-phase [N]` before planning. Most plan quality issues come from Claude making assumptions that `CONTEXT.md` would have prevented. You can also run `/gsd-list-phase-assumptions [N]` to see what Claude intends to do before committing to a plan.
+Run `/gsd-discuss-phase [N]` before planning. Most plan quality issues come from Claude making assumptions that `CONTEXT.md` would have prevented. You can also run `/gsd-discuss-phase --assumptions [N]` to see what Claude intends to do before committing to a plan.
 
 ### Discuss-Phase Uses Technical Jargon I Don't Understand
 
@@ -1393,8 +1393,8 @@ If the installer crashes with `EPERM: operation not permitted, scandir` on Windo
 | Plan doesn't match your vision       | `/gsd-discuss-phase [N]` then re-plan                                    |
 | Costs running high                   | `/gsd-config --profile budget` and `/gsd-settings` to toggle agents off  |
 | Update broke local changes           | `/gsd-update --reapply`                                                  |
-| Want session summary for stakeholder | `/gsd-session-report`                                                    |
-| Don't know what step is next         | `/gsd-next`                                                              |
+| Want session summary for stakeholder | `/gsd-pause-work --report`                                                    |
+| Don't know what step is next         | `/gsd-progress --next`                                                              |
 | Parallel execution build errors      | Update GSD or set `parallelization.enabled: false`                       |
 
 
@@ -1414,7 +1414,7 @@ For reference, here is what GSD creates in your project:
   MILESTONES.md           # Completed milestone archive
   HANDOFF.json            # Structured session handoff (from /gsd-pause-work)
   research/               # Domain research from /gsd-new-project
-  reports/                # Session reports (from /gsd-session-report)
+  reports/                # Session reports (from /gsd-pause-work --report)
   todos/
     pending/              # Captured ideas awaiting work
     done/                 # Completed todos

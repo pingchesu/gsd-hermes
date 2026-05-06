@@ -39,7 +39,7 @@ Para iniciar projeto novo:
 Para seguir automaticamente o próximo passo:
 
 ```bash
-/gsd-next
+/gsd-progress --next
 ```
 
 ### Nyquist Validation
@@ -162,7 +162,7 @@ Para arquivos sensíveis, use deny list no Claude Code.
 | `/gsd-execute-phase [N]` | Executar planos em ondas |
 | `/gsd-verify-work [N]` | UAT manual |
 | `/gsd-ship [N]` | Gerar PR da fase |
-| `/gsd-next` | Próximo passo automático |
+| `/gsd-progress --next` | Próximo passo automático |
 
 ### Gestão e utilidades
 
@@ -171,7 +171,7 @@ Para arquivos sensíveis, use deny list no Claude Code.
 | `/gsd-progress` | Ver status atual |
 | `/gsd-resume-work` | Retomar sessão |
 | `/gsd-pause-work` | Pausar com handoff |
-| `/gsd-session-report` | Resumo da sessão |
+| `/gsd-pause-work --report` | Resumo da sessão |
 | `/gsd-quick` | Tarefa ad-hoc com garantias GSD |
 | `/gsd-debug [desc]` | Debug sistemático |
 | `/gsd-forensics` | Diagnóstico de workflow quebrado |
@@ -268,7 +268,7 @@ Use `/clear` entre etapas grandes e retome com `/gsd-resume-work` ou `/gsd-progr
 
 ### Plano desalinhado
 
-Rode `/gsd-discuss-phase [N]` antes do plano e valide suposições com `/gsd-list-phase-assumptions [N]`.
+Rode `/gsd-discuss-phase [N]` antes do plano e valide suposições com `/gsd-discuss-phase --assumptions [N]`.
 
 ### Execução falhou ou saiu com stubs
 
@@ -298,7 +298,7 @@ Use `resolve_model_ids: "omit"` para deixar o runtime resolver modelos padrão.
 | Bug em workflow | `/gsd-forensics` |
 | Correção pontual | `/gsd-quick` |
 | Custo alto | `/gsd-config --profile budget` |
-| Não sabe próximo passo | `/gsd-next` |
+| Não sabe próximo passo | `/gsd-progress --next` |
 
 ---
 

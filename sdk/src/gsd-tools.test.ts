@@ -171,11 +171,33 @@ describe('GSDTools', () => {
         `process.stdout.write(JSON.stringify({ from: 'subprocess-fallback' }));`,
       );
 
-      const tools = new GSDTools({ projectDir: tmpDir, gsdToolsPath: scriptPath });
+      const tools = new GSDTools({
+        projectDir: tmpDir,
+        gsdToolsPath: scriptPath,
+        allowFallbackToSubprocess: true,
+      });
       setTransportPolicy('verify.path-exists', { allowFallbackToSubprocess: true });
 
       const result = await tools.exec('verify.path-exists', []);
       expect(result).toEqual({ from: 'subprocess-fallback' });
+    });
+
+    it('fails fast in strictSdk mode when command has no native adapter', async () => {
+      const scriptPath = await createScript(
+        'strict-should-not-run.cjs',
+        `process.stdout.write(JSON.stringify({ should: 'not-run' }));`,
+      );
+
+      const tools = new GSDTools({
+        projectDir: tmpDir,
+        gsdToolsPath: scriptPath,
+        strictSdk: true,
+        allowFallbackToSubprocess: true,
+      });
+
+      await expect(tools.exec('graphify', [])).rejects.toThrow(
+        "Strict SDK mode: command 'graphify' has no native adapter",
+      );
     });
 
     it('preserves GSDToolsError contract when native handler throws and fallback disabled', async () => {
@@ -184,7 +206,11 @@ describe('GSDTools', () => {
         `process.stdout.write(JSON.stringify({ should: 'not-run' }));`,
       );
 
-      const tools = new GSDTools({ projectDir: tmpDir, gsdToolsPath: scriptPath });
+      const tools = new GSDTools({
+        projectDir: tmpDir,
+        gsdToolsPath: scriptPath,
+        allowFallbackToSubprocess: false,
+      });
       setTransportPolicy('verify.path-exists', { allowFallbackToSubprocess: false });
 
       try {

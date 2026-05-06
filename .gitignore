@@ -67,3 +67,4 @@ vendor/
 tmp/
 .worktrees
 .planning/
+.envrc

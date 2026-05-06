@@ -499,7 +499,6 @@ lmn012o feat(08-02): 创建注册端点
 | `/gsd-progress` | 我在哪？接下来做什么？ |
 | `/gsd-help` | 显示所有命令和使用指南 |
 | `/gsd-update` | 更新 GSD 并预览变更日志 |
-| `/gsd-join-discord` | 加入 GSD Discord 社区 |
 
 ### 现有代码库
 
@@ -514,9 +513,9 @@ lmn012o feat(08-02): 创建注册端点
 | `/gsd-phase` | 向路线图追加阶段 |
 | `/gsd-phase --insert [N]` | 在阶段之间插入紧急工作 |
 | `/gsd-phase --remove [N]` | 删除未来阶段，重新编号 |
-| `/gsd-list-phase-assumptions [N]` | 规划前查看 Claude 的预期方法 |
+| `/gsd-discuss-phase --assumptions [N]` | 规划前查看 Claude 的预期方法 |
 | `/gsd-autonomous [--from N] [--to N] [--only N]` | 自主执行所有剩余阶段（`--to N` 执行到阶段 N 停止，`--only N` 只执行单个阶段） |
-| `/gsd-analyze-dependencies` | 检测阶段间依赖关系并建议 ROADMAP.md 的 `Depends on` 条目 |
+| `/gsd-manager --analyze-deps` | 检测阶段间依赖关系并建议 ROADMAP.md 的 `Depends on` 条目 |
 
 ### 会话
 

@@ -199,7 +199,6 @@
 | `/gsd-pause-work` | 保存上下文交接 | 阶段中途停止 |
 | `/gsd-help` | 显示所有命令 | 快速参考 |
 | `/gsd-update` | 更新 GSD 并预览变更日志 | 检查新版本 |
-| `/gsd-join-discord` | 打开 Discord 社区邀请 | 问题或社区 |
 
 ### 阶段管理
 
@@ -208,10 +207,10 @@
 | `/gsd-phase` | 向路线图追加新阶段 | 初始规划后范围增长 |
 | `/gsd-phase --insert [N]` | 插入紧急工作（小数编号） | 里程碑中途紧急修复 |
 | `/gsd-phase --remove [N]` | 删除未来阶段并重新编号 | 移除某个功能 |
-| `/gsd-list-phase-assumptions [N]` | 预览 Claude 的预期方法 | 规划前，验证方向 |
+| `/gsd-discuss-phase --assumptions [N]` | 预览 Claude 的预期方法 | 规划前，验证方向 |
 | `/gsd-plan-phase --research-phase [N]` | 仅深度生态研究 | 复杂或不熟悉的领域 |
 | `/gsd-autonomous [--from N] [--to N] [--only N]` | 自主执行剩余阶段（`--to N` 到阶段 N 停止） | 批量自动处理 |
-| `/gsd-analyze-dependencies` | 检测阶段间依赖关系 | `/gsd-manager` 前分析 |
+| `/gsd-manager --analyze-deps` | 检测阶段间依赖关系 | `/gsd-manager` 前分析 |
 
 ### 状态管理
 
@@ -424,7 +423,7 @@ claude --dangerously-skip-permissions
 
 ### 计划看起来错误或不一致
 
-在规划前运行 `/gsd-discuss-phase [N]`。大多数计划质量问题来自 Claude 做出了 `CONTEXT.md` 本可以防止的假设。你也可以运行 `/gsd-list-phase-assumptions [N]` 在提交计划前查看 Claude 打算做什么。
+在规划前运行 `/gsd-discuss-phase [N]`。大多数计划质量问题来自 Claude 做出了 `CONTEXT.md` 本可以防止的假设。你也可以运行 `/gsd-discuss-phase --assumptions [N]` 在提交计划前查看 Claude 打算做什么。
 
 ### 执行失败或产生存根
 

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { GSDToolsError } from './gsd-tools-error.js';
 import { QueryRegistry } from './query/registry.js';
 import { GSDTransport } from './gsd-transport.js';
 
@@ -119,6 +120,36 @@ describe('GSDTransport', () => {
     expect(adapters.execSubprocessJson).not.toHaveBeenCalled();
   });
 
+  it('does not fallback after typed timeout native error', async () => {
+    const registry = new QueryRegistry();
+    registry.register('state.load', async () => ({ data: { ok: true } }));
+
+    const timeoutError = GSDToolsError.timeout('native timed out', 'state', ['load'], '', 500);
+    const adapters = {
+      dispatchNative: vi.fn(async () => {
+        throw timeoutError;
+      }),
+      execSubprocessJson: vi.fn(async () => ({ ok: 'fallback' })),
+      execSubprocessRaw: vi.fn(async () => 'fallback-raw'),
+    };
+
+    const transport = new GSDTransport(registry, adapters);
+
+    await expect(transport.run({
+      legacyCommand: 'state',
+      legacyArgs: ['load'],
+      registryCommand: 'state.load',
+      registryArgs: [],
+      mode: 'json',
+      projectDir: '/tmp',
+    }, {
+      preferNative: true,
+      allowFallbackToSubprocess: true,
+    })).rejects.toBe(timeoutError);
+
+    expect(adapters.execSubprocessJson).not.toHaveBeenCalled();
+  });
+
   it('formats native raw output via formatNativeRaw when provided', async () => {
     const registry = new QueryRegistry();
     registry.register('commit', async () => ({ data: { hash: 'abc123' } }));
@@ -201,6 +232,32 @@ describe('GSDTransport', () => {
     expect(result).toEqual({ ok: 'ws-subprocess' });
     expect(adapters.dispatchNative).not.toHaveBeenCalled();
     expect(adapters.execSubprocessJson).toHaveBeenCalledOnce();
+  });
+
+  it('fails when command is unregistered and subprocess fallback is disabled', async () => {
+    const registry = new QueryRegistry();
+
+    const adapters = {
+      dispatchNative: vi.fn(async () => ({ data: { ok: true } })),
+      execSubprocessJson: vi.fn(async () => ({ ok: 'fallback' })),
+      execSubprocessRaw: vi.fn(async () => 'fallback-raw'),
+    };
+
+    const transport = new GSDTransport(registry, adapters);
+
+    await expect(transport.run({
+      legacyCommand: 'unknown',
+      legacyArgs: [],
+      registryCommand: 'unknown',
+      registryArgs: [],
+      mode: 'json',
+      projectDir: '/tmp',
+    }, {
+      preferNative: true,
+      allowFallbackToSubprocess: false,
+    })).rejects.toThrow("Subprocess fallback disabled");
+
+    expect(adapters.execSubprocessJson).not.toHaveBeenCalled();
   });
 
   it('forces raw subprocess path when workstream present and mode is raw', async () => {

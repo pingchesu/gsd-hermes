@@ -55,7 +55,7 @@ GSD is a **meta-prompting framework** that sits between the user and AI coding a
 ┌──────▼──────────────▼─────────────────▼──────────────┐
 │              CLI TOOLS LAYER                          │
 │   gsd-sdk query (sdk/src/query) + gsd-tools.cjs       │
-│   (State, config, phase, roadmap, verify, templates)  │
+│   Programmatic SDK bridge: GSDTools/query-runtime-bridge.ts │
 └──────────────────────┬───────────────────────────────┘
                        │
 ┌──────────────────────▼───────────────────────────────┐
@@ -265,6 +265,17 @@ Runtime hooks that integrate with the host AI agent:
 | `gsd-phase-boundary.sh` | `PostToolUse` | Phase boundary detection for workflow transitions |
 
 See [`docs/INVENTORY.md`](INVENTORY.md#hooks-11-shipped) for the authoritative 11-hook roster.
+
+### SDK Runtime Bridge Module (`sdk/src/query-runtime-bridge.ts`)
+
+Programmatic SDK callers (`GSDTools`) route through one seam that owns query dispatch policy:
+
+- Native registry dispatch preference
+- Explicit subprocess fallback policy (`allowFallbackToSubprocess`)
+- Strict SDK mode (`strictSdk`) for fail-fast native-only enforcement
+- Structured dispatch observability (`onDispatchEvent`) with mode, reason, duration, and outcome
+
+This keeps callers thin adapters and centralizes transport decisions for SDK publishability.
 
 ### CLI Tools (`get-shit-done/bin/`)
 
@@ -535,7 +546,7 @@ Equivalent paths for other runtimes:
 │   ├── pending/            # Captured ideas
 │   └── done/               # Completed todos
 ├── threads/               # Persistent context threads (from /gsd-thread)
-├── seeds/                 # Forward-looking ideas (from /gsd-plant-seed)
+├── seeds/                 # Forward-looking ideas (from /gsd-capture --seed)
 ├── debug/                  # Active debug sessions
 │   ├── *.md                # Active sessions
 │   ├── resolved/           # Archived sessions

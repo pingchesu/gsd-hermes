@@ -391,7 +391,7 @@ GSD はマークダウンファイルを生成し、それが LLM のシステ�
 | `/gsd-verify-work [N]` | 自動診断付き手動 UAT | 実行完了後 |
 | `/gsd-ship [N]` | 検証済みの作業から PR を作成 | 検証合格後 |
 | `/gsd-fast <text>` | インラインの軽微なタスク — プランニングを完全にスキップ | タイプミス修正、設定変更、小規模リファクタリング |
-| `/gsd-next` | 状態を自動検出して次のステップを実行 | いつでも — 「次に何をすべき？」 |
+| `/gsd-progress --next` | 状態を自動検出して次のステップを実行 | いつでも — 「次に何をすべき？」 |
 | `/gsd-ui-review [N]` | 遡及的6ピラービジュアル監査 | 実行後または verify-work 後（フロントエンドプロジェクト） |
 | `/gsd-audit-milestone` | マイルストーンの完了定義を満たしているか検証 | マイルストーン完了前 |
 | `/gsd-complete-milestone` | マイルストーンをアーカイブし、リリースタグを作成 | 全フェーズの検証完了後 |
@@ -404,10 +404,9 @@ GSD はマークダウンファイルを生成し、それが LLM のシステ�
 | `/gsd-progress` | 状態と次のステップを表示 | いつでも -- 「今どこにいる？」 |
 | `/gsd-resume-work` | 前回のセッションからフルコンテキストを復元 | 新しいセッションの開始時 |
 | `/gsd-pause-work` | 構造化されたハンドオフを保存（HANDOFF.json + continue-here.md） | フェーズの途中で作業を中断する時 |
-| `/gsd-session-report` | 作業内容と成果を含むセッションサマリーを生成 | セッション終了時、ステークホルダーへの共有時 |
+| `/gsd-pause-work --report` | 作業内容と成果を含むセッションサマリーを生成 | セッション終了時、ステークホルダーへの共有時 |
 | `/gsd-help` | すべてのコマンドを表示 | クイックリファレンス |
 | `/gsd-update` | 変更履歴プレビュー付きで GSD を更新 | 新バージョンの確認時 |
-| `/gsd-join-discord` | Discord コミュニティの招待リンクを開く | 質問やコミュニティ参加時 |
 
 ### フェーズ管理
 
@@ -416,7 +415,7 @@ GSD はマークダウンファイルを生成し、それが LLM のシステ�
 | `/gsd-phase` | ロードマップに新しいフェーズを追加 | 初期プランニング後にスコープが拡大した場合 |
 | `/gsd-phase --insert [N]` | 緊急作業を挿入（小数番号） | マイルストーン中の緊急修正 |
 | `/gsd-phase --remove [N]` | 将来のフェーズを削除して番号を振り直す | 機能のスコープ縮小 |
-| `/gsd-list-phase-assumptions [N]` | Claude の意図するアプローチをプレビュー | プランニング前に方向性を確認 |
+| `/gsd-discuss-phase --assumptions [N]` | Claude の意図するアプローチをプレビュー | プランニング前に方向性を確認 |
 | `/gsd-plan-phase --research-phase [N]` | エコシステムの深いリサーチのみ | 複雑または不慣れなドメイン |
 
 ### ブラウンフィールドとユーティリティ
@@ -599,11 +598,11 @@ claude --dangerously-skip-permissions
 /gsd-ship 1                 # 検証済み作業から PR を作成
 /gsd-ui-review 1            # ビジュアル監査（フロントエンドフェーズ）
 /clear
-/gsd-next                   # 自動検出して次のステップを実行
+/gsd-progress --next                   # 自動検出して次のステップを実行
 ...
 /gsd-audit-milestone        # すべて出荷されたか確認
 /gsd-complete-milestone     # アーカイブ、タグ付け、完了
-/gsd-session-report         # セッションサマリーを生成
+/gsd-pause-work --report         # セッションサマリーを生成
 ```
 
 ### 既存ドキュメントからの新規プロジェクト
@@ -703,7 +702,7 @@ cd ~/gsd-workspaces/feature-b
 
 ### プランが誤っている、または方向性がずれている
 
-プランニング前に `/gsd-discuss-phase [N]` を実行してください。プランの品質問題のほとんどは、CONTEXT.md があれば防げたはずの前提を Claude が置いてしまうことに起因します。`/gsd-list-phase-assumptions [N]` を使用して、プランにコミットする前に Claude の意図を確認することもできます。
+プランニング前に `/gsd-discuss-phase [N]` を実行してください。プランの品質問題のほとんどは、CONTEXT.md があれば防げたはずの前提を Claude が置いてしまうことに起因します。`/gsd-discuss-phase --assumptions [N]` を使用して、プランにコミットする前に Claude の意図を確認することもできます。
 
 ### 実行が失敗する、またはスタブが生成される
 
@@ -799,8 +798,8 @@ Windows でインストーラーが `EPERM: operation not permitted, scandir` �
 | プランがビジョンに合わない | `/gsd-discuss-phase [N]` で再プランニング |
 | コストが高い | `/gsd-config --profile budget` と `/gsd-settings` でエージェントをオフ |
 | アップデートがローカル変更を壊した | `/gsd-update --reapply` |
-| ステークホルダー向けセッションサマリーが欲しい | `/gsd-session-report` |
-| 次のステップがわからない | `/gsd-next` |
+| ステークホルダー向けセッションサマリーが欲しい | `/gsd-pause-work --report` |
+| 次のステップがわからない | `/gsd-progress --next` |
 | 並列実行でビルドエラー | GSD を更新するか `parallelization.enabled: false` を設定 |
 
 ---
@@ -819,7 +818,7 @@ Windows でインストーラーが `EPERM: operation not permitted, scandir` �
   MILESTONES.md           # 完了したマイルストーンのアーカイブ
   HANDOFF.json            # 構造化セッション引き継ぎ（/gsd-pause-work から）
   research/               # /gsd-new-project からのドメインリサーチ
-  reports/                # セッションレポート（/gsd-session-report から）
+  reports/                # セッションレポート（/gsd-pause-work --report から）
   todos/
     pending/              # 作業待ちのキャプチャされたアイデア
     done/                 # 完了した TODO

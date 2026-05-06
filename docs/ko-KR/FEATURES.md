@@ -471,7 +471,7 @@
 
 ### 14. Auto-Advance (Next)
 
-**명령어:** `/gsd-next`
+**명령어:** `/gsd-progress --next`
 
 **목적:** 현재 프로젝트 상태를 자동으로 감지하고 다음 논리적 워크플로우 단계로 진행합니다. 현재 어느 페이즈/단계에 있는지 기억할 필요가 없습니다.
 
@@ -641,7 +641,7 @@
 
 ### 24. Session Reporting
 
-**명령어:** `/gsd-session-report`
+**명령어:** `/gsd-pause-work --report`
 
 **목적:** 수행된 작업, 달성된 결과, 예상 리소스 사용량을 캡처하는 구조화된 세션 후 요약 문서를 생성합니다.
 
@@ -1725,7 +1725,7 @@ Claude가 GSD 워크플로우 컨텍스트 밖에서 파일 편집을 시도하�
 
 ### 77. 페이즈 의존성 분석
 
-**명령어:** `/gsd-analyze-dependencies`
+**명령어:** `/gsd-manager --analyze-deps`
 
 **목적:** 페이즈 의존성을 감지하고 `/gsd-manager` 실행 전 ROADMAP.md에 `Depends on` 항목을 제안합니다.
 
