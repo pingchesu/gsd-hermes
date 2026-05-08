@@ -4,9 +4,9 @@
 
 ---
 
-## GSD Hermes v1.13.0 Release Note
+## GSD Hermes v1.14.0 Release Note
 
-`gsd-hermes@1.13.0` syncs the command surface with `upstream/main@3579a48d` while keeping the downstream Hermes-first guarantees: project-linked Hermes installs, `gsd-<command>` skill discovery, strict runtime model receipts, and provider-routed execution. This release also carries upstream command contract validation, executor worktree path safety, state/milestone hardening, SDK runtime bridge seams, and updated orchestration guidance.
+`gsd-hermes@1.14.0` syncs the command surface with `upstream/main@73f7ad33` while keeping the downstream Hermes-first guarantees: project-linked Hermes installs, `gsd-<command>` skill discovery, strict runtime model receipts, and provider-routed execution. This release carries upstream v1.41.0 command/workflow updates, MVP-phase material, canary stream documentation, archive-layout support, hook-build hardening, and expanded regression coverage.
 
 ---
 
@@ -1011,7 +1011,7 @@ Build, query, and inspect the project knowledge graph stored in `.planning/graph
 
 | Subcommand | Description |
 |------------|-------------|
-| `build` | Build or rebuild the knowledge graph (spawns the graphify-builder agent) |
+| `build` | Build or rebuild the knowledge graph (runs `graphify update .` inline and refreshes `.planning/graphs/`) |
 | `query <term>` | Search the graph for a term |
 | `status` | Show graph freshness and statistics |
 | `diff` | Show changes since the last build |

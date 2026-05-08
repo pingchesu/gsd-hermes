@@ -10,6 +10,27 @@ syncs from.
 
 ## [Unreleased]
 
+## 1.14.0 — 2026-05-08
+
+GSD Hermes package version: `1.14.0`
+Upstream GSD base: `upstream/main@73f7ad33` / upstream `get-shit-done-cc@1.50.0-canary.0` development line after the v1.41.0 release
+Previous downstream package version: `1.13.0`
+Previous upstream base: `upstream/main@3579a48d`
+
+### Synced
+- **Routine upstream sync to `upstream/main@73f7ad33`** — imports 72 upstream commits since `3579a48d`, including GSD v1.41.0 maintenance, atomic hook builds, Homebrew Node path hardening, milestone archive layout support, MVP/TDD workflow additions, canary stream documentation, workflow/docs updates, and expanded regression coverage.
+
+### Preserved
+- Kept downstream package identity as `gsd-hermes` and release workflows targeting `gsd-hermes`.
+- Preserved strict `model_overrides` routing: `hermes/*` remains Hermes-native with no `--provider` flag, direct `openai/*`/`anthropic/*` remain provider-CLI routed, and unavailable direct bindings fail fast instead of falling back to the wrong CLI.
+- Preserved Hermes project-linked install semantics: `./.gsd-hermes/skills` plus Hermes `skills.external_dirs`, not a false native per-project skills root.
+
+### Documentation
+- Added release notes: [`docs/releases/v1.14.0-upstream-73f7ad33-sync.md`](docs/releases/v1.14.0-upstream-73f7ad33-sync.md).
+
+### Verification
+- `node --test tests/hermes-install.test.cjs tests/hermes-provider-routing-regression.test.cjs tests/provider-cli-dispatch.test.cjs tests/agent-execution-router.test.cjs tests/runtime-model-parity.test.cjs`
+
 ## 1.13.0 — 2026-05-06
 
 GSD Hermes package version: `1.13.0`

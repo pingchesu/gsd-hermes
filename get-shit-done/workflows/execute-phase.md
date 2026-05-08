@@ -11,13 +11,13 @@ Orchestrator coordinates, not executes. Each subagent loads the full execute-pla
 <runtime_compatibility>
 **Subagent spawning is runtime-specific:**
 - **Provider-routed execution (gsd-hermes):** When `agent_execution_bindings.router == "provider-cli"`, consume the SDK binding first and dispatch via the selected driver (`hermes chat`, `codex exec`, or `claude -p`) with prompt-file/stdin delivery. `hermes/<model>` overrides auto-select Hermes chat/tool execution without requiring workflow `agent_execution_*` config. This branch is sequential on the current working tree in Phase 8.2 unless a later phase adds safe external worktree orchestration.
-- **Claude Code:** Uses `Task(subagent_type="gsd-executor", ...)` — blocks until complete, returns result
+- **Claude Code:** Uses `Agent(subagent_type="gsd-executor", ...)` — blocks until complete, returns result
 - **Copilot:** Subagent spawning does not reliably return completion signals. **Default to
   sequential inline execution**: read and follow execute-plan.md directly for each plan
   instead of spawning parallel agents. Only attempt parallel spawning if the user
   explicitly requests it — and in that case, rely on the spot-check fallback in step 3
   to detect completion.
-- **Other runtimes:** If `Task`/`task` tool is unavailable, use sequential inline execution as the
+- **Other runtimes:** If `Agent`/`agent` tool is unavailable, use sequential inline execution as the
   fallback. Check for tool availability at runtime rather than assuming based on runtime name.
 
 **Fallback rule:** If a spawned agent completes its work (commits visible, SUMMARY.md exists) but
@@ -62,7 +62,7 @@ AGENT_SKILLS=$(gsd-sdk query agent-skills gsd-executor)
 
 Parse JSON for: `executor_model`, `verifier_model`, `model_binding_receipts`, `agent_execution_bindings`, `commit_docs`, `parallelization`, `branching_strategy`, `branch_name`, `phase_found`, `phase_dir`, `phase_number`, `phase_name`, `phase_slug`, `plans`, `incomplete_plans`, `plan_count`, `incomplete_count`, `state_exists`, `roadmap_exists`, `phase_req_ids`, `response_language`.
 
-**Display runtime/model binding receipt before executor/verifier Task dispatch and before cross-AI fallback decisions.** Render `model_binding_receipts` concisely:
+**Display runtime/model binding receipt before executor/verifier Agent dispatch and before cross-AI fallback decisions.** Render `model_binding_receipts` concisely:
 
 ```text
 ## Runtime/model binding receipt — workflow={workflow} runtime={runtime}
@@ -78,15 +78,22 @@ Parse JSON for: `executor_model`, `verifier_model`, `model_binding_receipts`, `a
 ```
 Proof boundary: provider-routed execution proves deterministic driver selection and model argument passing (`hermes chat --model ...`, `codex exec --model ...`, or `claude -p --model ...`), not wire-level provider API proof. Unsupported/missing drivers fail before execution. Do not re-derive provider family from raw model strings and do not let legacy `cross_ai_execution` override valid provider-routed bindings.
 
-**Model resolution:** If `executor_model` is `"inherit"`, omit the `model=` parameter from all `Task()` calls — do NOT pass `model="inherit"` to Task. Omitting the `model=` parameter causes Claude Code to inherit the current orchestrator model automatically. Only set `model=` when `executor_model` is an explicit model name (e.g., `"claude-sonnet-4-6"`, `"claude-opus-4-7"`).
+**Model resolution:** If `executor_model` is `"inherit"`, omit the `model=` parameter from all `Agent()` calls — do NOT pass `model="inherit"` to Agent. Omitting the `model=` parameter causes Claude Code to inherit the current orchestrator model automatically. Only set `model=` when `executor_model` is an explicit model name (e.g., `"claude-sonnet-4-6"`, `"claude-opus-4-7"`).
 
 **If `response_language` is set:** Include `response_language: {value}` in all spawned subagent prompts so any user-facing output stays in the configured language.
 
-Read worktree config:
+Read worktree config and phase execution mode:
 
 ```bash
 USE_WORKTREES=$(gsd-sdk query config-get workflow.use_worktrees 2>/dev/null || echo "true")
+PHASE_MODE=$(gsd-sdk query roadmap.get-phase "${PHASE_NUMBER}" --pick mode 2>/dev/null || true)
+MVP_CONFIG=$(gsd-sdk query config-get workflow.mvp_mode 2>/dev/null || true)
+MVP_MODE=false
+if [ "$MVP_CONFIG" = "true" ] || [ "$PHASE_MODE" = "mvp" ]; then MVP_MODE=true; fi
+TDD_MODE=$(gsd-sdk query config-get workflow.tdd_mode 2>/dev/null || echo "false")
 ```
+
+**MVP+TDD gate:** When `MVP_MODE` and `TDD_MODE` are both `true`, execute the per-plan MVP-TDD gate before any behavior-adding task execution. The gate semantics live in `get-shit-done/references/execute-mvp-tdd.md` and require a failing-test commit / RED evidence before GREEN implementation work.
 
 If the project uses git submodules, worktree isolation is unsafe **only when a plan touches a submodule path** — the executor commit protocol cannot correctly handle submodule commits inside isolated worktrees. The previous behavior unconditionally disabled worktree isolation whenever `.gitmodules` existed, which penalised every plan in a submodule project even when the plan was nowhere near a submodule. Compute submodule paths once and intersect them per-plan with the plan's declared `files_modified` frontmatter.
 
@@ -129,7 +136,7 @@ When `parallelization` is false, plans within a wave execute sequentially.
 
 **Runtime detection for Copilot:**
 Check if the current runtime is Copilot by testing for the `@gsd-executor` agent pattern
-or absence of the `Task()` subagent API. If running under Copilot, force sequential inline
+or absence of the `Agent()` subagent API. If running under Copilot, force sequential inline
 execution regardless of the `parallelization` setting — Copilot's subagent completion
 signals are unreliable (see `<runtime_compatibility>`). Set `COPILOT_SEQUENTIAL=true`
 internally and skip the `execute_waves` step in favor of `check_interactive_mode`'s
@@ -452,16 +459,18 @@ increases monotonically across waves. `{status}` is `complete` (success),
    - Bad: "Executing terrain generation plan"
    - Good: "Procedural terrain generator using Perlin noise — creates height maps, biome zones, and collision meshes. Required before vehicle physics can interact with ground."
 
-2.5. **Per-plan worktree decision (run for each plan in this wave BEFORE its dispatch):**
+2.5. **Per-plan worktree decision and MVP+TDD gate (run for each plan in this wave BEFORE its dispatch):**
 
    Read and execute `get-shit-done/workflows/execute-phase/steps/per-plan-worktree-gate.md` for each plan. It extracts `PLAN_FILES` from the plan's JSON, intersects against `SUBMODULE_PATHS` (with normalization, bidirectional matching, and glob-prefix handling), and sets `USE_WORKTREES_FOR_PLAN` to `false` when the plan touches a submodule path. Append `plan_id` to a `WAVE_WORKTREE_PLANS` accumulator when `USE_WORKTREES_FOR_PLAN != false`.
+
+   **MVP+TDD gate:** If `MVP_MODE` and `TDD_MODE` are both `true`, read `get-shit-done/references/execute-mvp-tdd.md` and verify this plan's behavior-adding task execution has RED evidence first: a failing-test commit, a `test(...)` commit, or an explicit missing red commit exception recorded before implementation. If the gate fails, stop this plan before spawning `Agent()` or provider-routed execution and ask for the RED/failing-test commit to be created.
 
    The dispatch branches in step 3 below MUST gate on `USE_WORKTREES_FOR_PLAN` for the current plan, not on the project-level `USE_WORKTREES`.
 
 3. **Spawn executor agents:**
 
    **Emit a plan-start heartbeat (literal line, no tool call) immediately before
-   each `Task()` dispatch (#2410):**
+   each `Agent()` dispatch (#2410):**
 
    ```
    [checkpoint] phase {PHASE_NUMBER} wave {N}/{M} plan {plan_id} starting ({P}/{Q} plans done)
@@ -478,12 +487,12 @@ increases monotonically across waves. `{status}` is `complete` (success),
    EXPECTED_BASE=$(git rev-parse HEAD)
    ```
 
-   **Sequential dispatch for parallel execution (waves with 2+ agents):** Dispatch each `Task()` call one at a time with `run_in_background: true`; do not send multiple Task calls in one message. WRONG: multiple Task() calls in a single message. `git worktree add` locks `.git/config.lock`, so sequential dispatch avoids lock contention while agents still run in parallel after creation.
+   **Sequential dispatch for parallel execution (waves with 2+ agents):** Dispatch each `Agent()` call one at a time with `run_in_background: true`; do not send multiple Agent calls in one message. WRONG: multiple Agent() calls in a single message. `git worktree add` locks `.git/config.lock`, so sequential dispatch avoids lock contention while agents still run in parallel after creation.
 
-   **Provider-routed dispatch (gsd-hermes, highest-priority direct binding):** Before any `Task()`/delegate fallback, if `agent_execution_bindings.router == "provider-cli"`, select `agent_execution_bindings.agents.executor`; require `status=resolved` and `execution_driver in {claude-cli,codex-cli,hermes-chat,hermes-terminal-tool}` or fail fast with `configured_model`, `provider_family`, `diagnostic`, and `suggested_fix`. `hermes/<model>` overrides can produce `hermes-terminal-tool` here without any workflow `agent_execution_*` config. Emit the execution receipt, state that provider-routed shell execution is sequential on the current working tree (no `Task(isolation="worktree")` claim), write the full prompt to `.planning/tmp/provider-cli/{phase_number}-{plan_id}-executor.md`, preflight/render via `node get-shit-done/bin/gsd-provider-cli-dispatch.cjs`, then execute exactly the rendered command display from the helper. Direct provider CLI drivers use stdin: `codex-cli` → `codex exec --model {cli_model} --full-auto -C {workdir} < {prompt_path}`; `claude-cli` → `claude -p --model {cli_model} --agent gsd-executor --permission-mode acceptEdits < {prompt_path}`. Hermes-native drivers use `hermes chat` with a query loaded from the prompt file: `hermes-chat` → `cd {workdir} && hermes chat --quiet --source gsd-provider-cli --model {cli_model} --query "$(cat {prompt_path})"`; `hermes-terminal-tool` adds `--toolsets terminal,file`. Non-zero exit is plan failure; never silently fall back to `Task()` or a different CLI after provider-routed execution selected a driver. This branch consumes SDK binding fields only — no raw `configured_model` regexes.
+   **Provider-routed dispatch (gsd-hermes, highest-priority direct binding):** Before any `Agent()`/delegate fallback, if `agent_execution_bindings.router == "provider-cli"`, select `agent_execution_bindings.agents.executor`; require `status=resolved` and `execution_driver in {claude-cli,codex-cli,hermes-chat,hermes-terminal-tool}` or fail fast with `configured_model`, `provider_family`, `diagnostic`, and `suggested_fix`. `hermes/<model>` overrides can produce `hermes-terminal-tool` here without any workflow `agent_execution_*` config. Emit the execution receipt, state that provider-routed shell execution is sequential on the current working tree (no `Agent(isolation="worktree")` claim), write the full prompt to `.planning/tmp/provider-cli/{phase_number}-{plan_id}-executor.md`, preflight/render via `node get-shit-done/bin/gsd-provider-cli-dispatch.cjs`, then execute exactly the rendered command display from the helper. Direct provider CLI drivers use stdin: `codex-cli` → `codex exec --model {cli_model} --full-auto -C {workdir} < {prompt_path}`; `claude-cli` → `claude -p --model {cli_model} --agent gsd-executor --permission-mode acceptEdits < {prompt_path}`. Hermes-native drivers use `hermes chat` with a query loaded from the prompt file: `hermes-chat` → `cd {workdir} && hermes chat --quiet --source gsd-provider-cli --model {cli_model} --query "$(cat {prompt_path})"`; `hermes-terminal-tool` adds `--toolsets terminal,file`. Non-zero exit is plan failure; never silently fall back to `Agent()` or a different CLI after provider-routed execution selected a driver. This branch consumes SDK binding fields only — no raw `configured_model` regexes.
 
    ```
-   Task(
+   Agent(
      subagent_type="gsd-executor",
      description="Execute plan {plan_number} of phase {phase_number}",
      # Only include model= when executor_model is an explicit model name.
@@ -587,11 +596,11 @@ increases monotonically across waves. `{status}` is `complete` (success),
    )
    ```
 
-   > **ORCHESTRATOR RULE — CODEX RUNTIME**: After calling Task() above to spawn executor agent(s), stop working on this task immediately. Do not read more files, edit code, or run tests related to this task while the subagent is active. Wait for the subagent to return its result. This prevents duplicate work, conflicting edits, and wasted context. Only resume when the subagent result is available.
+   > **ORCHESTRATOR RULE — CODEX RUNTIME**: After calling Agent() above to spawn executor agent(s), stop working on this task immediately. Do not read more files, edit code, or run tests related to this task while the subagent is active. Wait for the subagent to return its result. This prevents duplicate work, conflicting edits, and wasted context. Only resume when the subagent result is available.
 
    **Sequential mode** (`USE_WORKTREES_FOR_PLAN` is `false` — either project-level `USE_WORKTREES=false`, or per-plan submodule intersection forced it false in step 2.5):
 
-   Omit `isolation="worktree"` from the Task call. Replace the `<parallel_execution>` block with:
+   Omit `isolation="worktree"` from the Agent call. Replace the `<parallel_execution>` block with:
 
    ```
        <sequential_execution>
@@ -601,7 +610,7 @@ increases monotonically across waves. `{status}` is `complete` (success),
        </sequential_execution>
    ```
 
-   The sequential mode Task prompt uses the same structure as worktree mode but with these differences in success_criteria — since there is only one agent writing at a time, there are no shared-file conflicts:
+   The sequential mode Agent prompt uses the same structure as worktree mode but with these differences in success_criteria — since there is only one agent writing at a time, there are no shared-file conflicts:
 
    ```
        <success_criteria>
@@ -627,7 +636,7 @@ increases monotonically across waves. `{status}` is `complete` (success),
    [checkpoint] phase {PHASE_NUMBER} wave {N}/{M} plan {plan_id} checkpoint ({P}/{Q} plans done)
    ```
 
-   **Completion signal fallback (Copilot and runtimes where Task() may not return):**
+   **Completion signal fallback (Copilot and runtimes where Agent() may not return):**
 
    If a spawned agent does not return a completion signal but appears to have finished
    its work, do NOT block indefinitely. Instead, verify completion via spot-checks:
@@ -646,7 +655,7 @@ increases monotonically across waves. `{status}` is `complete` (success),
    activity. If commits are still appearing, wait longer. If no activity, report
    the plan as failed and route to the failure handler in step 6.
 
-   **This fallback applies automatically to all runtimes.** Claude Code's Task() normally
+   **This fallback applies automatically to all runtimes.** Claude Code's Agent() normally
    returns synchronously, but the fallback ensures resilience if it doesn't.
 
 5. **Post-wave hook validation (parallel mode only):** Hooks run on every executor commit by default (#2924); this post-wave run only fires when `workflow.worktree_skip_hooks=true` opted out of per-commit hooks:
@@ -1071,7 +1080,7 @@ TDD_PLANS=$(grep -rl "^type: tdd" "${PHASE_DIR}"/*-PLAN.md 2>/dev/null | wc -l |
    | {id} |  ✓  |   ✗   |    —     | FAIL   |
    ```
 
-**Gate violations are advisory** — they do not block execution but are surfaced to the user for review. The verifier agent (step `verify_phase_goal`) will also check TDD discipline as part of its quality assessment.
+**Gate violations are advisory by default** — they do not block normal execution but are surfaced to the user for review. **When `MVP_MODE` and `TDD_MODE` are both `true`, any MVP+TDD gate violation is blocking**: stop advancement until RED/GREEN discipline is repaired. The verifier agent (step `verify_phase_goal`) will also check TDD discipline as part of its quality assessment.
 </step>
 
 <step name="handle_partial_wave_execution">
@@ -1345,10 +1354,10 @@ Verify phase achieved its GOAL, not just completed tasks.
 VERIFIER_SKILLS=$(gsd-sdk query agent-skills gsd-verifier)
 ```
 
-**Provider-routed verifier dispatch (gsd-hermes):** If `agent_execution_bindings.router == "provider-cli"`, select `agent_execution_bindings.agents.verifier` before `Task()` fallback, render/preflight with `get-shit-done/bin/gsd-provider-cli-dispatch.cjs`, write `.planning/tmp/provider-cli/{phase_number}-verifier.md`, and run the selected stdin command. Require `{phase_dir}/*-VERIFICATION.md`; CLI non-zero or missing verification fails with the binding diagnostic and must not retry through another runtime. `hermes/*` verifier → `hermes chat --toolsets terminal,file --model {cli_model}`; Anthropic verifier → `claude -p --model {cli_model}`; OpenAI verifier → `codex exec --model {cli_model}`. The `Task(subagent_type="gsd-verifier", model="{verifier_model}")` block is fallback only when provider-routed bindings are absent/disabled.
+**Provider-routed verifier dispatch (gsd-hermes):** If `agent_execution_bindings.router == "provider-cli"`, select `agent_execution_bindings.agents.verifier` before `Agent()` fallback, render/preflight with `get-shit-done/bin/gsd-provider-cli-dispatch.cjs`, write `.planning/tmp/provider-cli/{phase_number}-verifier.md`, and run the selected stdin command. Require `{phase_dir}/*-VERIFICATION.md`; CLI non-zero or missing verification fails with the binding diagnostic and must not retry through another runtime. `hermes/*` verifier → `hermes chat --toolsets terminal,file --model {cli_model}`; Anthropic verifier → `claude -p --model {cli_model}`; OpenAI verifier → `codex exec --model {cli_model}`. The `Agent(subagent_type="gsd-verifier", model="{verifier_model}")` block is fallback only when provider-routed bindings are absent/disabled.
 
 ```
-Task(
+Agent(
   description="Verify phase {phase_number} goal achievement",
   prompt="Verify phase {phase_number} goal achievement.
 Phase directory: {phase_dir}
@@ -1375,7 +1384,7 @@ ${VERIFIER_SKILLS}",
 )
 ```
 
-> **ORCHESTRATOR RULE — CODEX RUNTIME**: After calling Task() above, stop working on this task immediately. Do not read more files, edit code, or run tests related to this task while the subagent is active. Wait for the subagent to return its result. This prevents duplicate work, conflicting edits, and wasted context. Only resume when the subagent result is available.
+> **ORCHESTRATOR RULE — CODEX RUNTIME**: After calling Agent() above, stop working on this task immediately. Do not read more files, edit code, or run tests related to this task while the subagent is active. Wait for the subagent to return its result. This prevents duplicate work, conflicting edits, and wasted context. Only resume when the subagent result is available.
 
 Read status:
 ```bash
@@ -1626,7 +1635,7 @@ STOP. Do not proceed to auto-advance or transition.
 ╚══════════════════════════════════════════╝
 ```
 
-Execute the transition workflow inline (do NOT use Task — orchestrator context is ~10-15%, transition needs phase completion data already in context):
+Execute the transition workflow inline (do NOT use Agent — orchestrator context is ~10-15%, transition needs phase completion data already in context):
 
 Read and follow `~/.claude/get-shit-done/workflows/transition.md`, passing through the `--auto` flag so it propagates to the next phase invocation.
 
@@ -1671,7 +1680,7 @@ Only suggest the commands listed above. Do not invent or hallucinate command nam
 
 <context_efficiency>
 Orchestrator: ~10-15% context for 200k windows, can use more for 1M+ windows.
-Subagents: fresh context each (200k-1M depending on model). No polling (Task blocks). No context bleed.
+Subagents: fresh context each (200k-1M depending on model). No polling (Agent blocks). No context bleed.
 
 For 1M+ context models, consider:
 - Passing richer context (code snippets, dependency outputs) directly to executors instead of just file paths
