@@ -118,7 +118,7 @@ User-facing entry points. Each file contains YAML frontmatter (name, description
 - **Gemini CLI:** Slash commands under the `gsd:` namespace (colon form, `/gsd:command-name`) — Gemini namespaces all custom commands under their plugin id, so the install path rewrites every body-text reference to colon form
 - **Antigravity:** Skills
 
-**Total commands:** 65 (see [`docs/INVENTORY.md`](INVENTORY.md#commands) for the full roster).
+**Total commands:** 66 (see [`docs/INVENTORY.md`](INVENTORY.md#commands) for the full roster).
 
 #### Two-stage hierarchical routing (v1.40, [#2792](https://github.com/gsd-build/get-shit-done/issues/2792))
 
@@ -140,7 +140,7 @@ Orchestration logic that commands reference. Contains the step-by-step process i
 - State update patterns
 - Error handling and recovery
 
-**Total workflows:** 87 (see [`docs/INVENTORY.md`](INVENTORY.md#workflows) for the full roster).
+**Total workflows:** 88 (see [`docs/INVENTORY.md`](INVENTORY.md#workflows) for the full roster).
 
 #### Progressive disclosure for workflows
 
@@ -480,7 +480,7 @@ UI-SPEC.md (per phase) ───────────────────
 
 ```
 ~/.claude/                          # Claude Code (global install)
-├── commands/gsd/*.md               # 65 slash commands (authoritative roster: docs/INVENTORY.md)
+├── commands/gsd/*.md               # 66 slash commands (authoritative roster: docs/INVENTORY.md)
 ├── get-shit-done/
 │   ├── bin/gsd-tools.cjs           # CLI utility
 │   ├── bin/lib/*.cjs               # Domain modules (authoritative roster: docs/INVENTORY.md)

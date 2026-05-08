@@ -20,7 +20,7 @@ Language versions: [English](README.md) · [Português (pt-BR)](pt-BR/README.md)
 | [Discuss Mode](workflow-discuss-mode.md) | All users | Assumptions vs interview mode for discuss-phase |
 | [Hermes Install](hermes-install.md) | Hermes users | Hermes global and project-linked install modes, command discovery smoke, validation matrix and maintenance contract |
 | [Hermes Compatibility](hermes-compatibility.md) | Maintainers | Hermes support boundaries, known gaps, and runtime compatibility guardrails |
-| [Upstream Sync](upstream-sync.md) | Maintainers | Post-sync validation checklist and fork maintenance workflow |
+| [Upstream Sync](upstream-sync.md) | Maintainers | post-sync validation checklist and fork maintenance workflow |
 | [Canary Stream](CANARY.md) | Contributors, early adopters | `dev` → `@canary` dist-tag policy, when to install, rollback path |
 
 ## Quick Links

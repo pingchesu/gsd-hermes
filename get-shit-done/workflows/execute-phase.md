@@ -82,11 +82,18 @@ Proof boundary: provider-routed execution proves deterministic driver selection 
 
 **If `response_language` is set:** Include `response_language: {value}` in all spawned subagent prompts so any user-facing output stays in the configured language.
 
-Read worktree config:
+Read worktree config and phase execution mode:
 
 ```bash
 USE_WORKTREES=$(gsd-sdk query config-get workflow.use_worktrees 2>/dev/null || echo "true")
+PHASE_MODE=$(gsd-sdk query roadmap.get-phase "${PHASE_NUMBER}" --pick mode 2>/dev/null || true)
+MVP_CONFIG=$(gsd-sdk query config-get workflow.mvp_mode 2>/dev/null || true)
+MVP_MODE=false
+if [ "$MVP_CONFIG" = "true" ] || [ "$PHASE_MODE" = "mvp" ]; then MVP_MODE=true; fi
+TDD_MODE=$(gsd-sdk query config-get workflow.tdd_mode 2>/dev/null || echo "false")
 ```
+
+**MVP+TDD gate:** When `MVP_MODE` and `TDD_MODE` are both `true`, execute the per-plan MVP-TDD gate before any behavior-adding task execution. The gate semantics live in `get-shit-done/references/execute-mvp-tdd.md` and require a failing-test commit / RED evidence before GREEN implementation work.
 
 If the project uses git submodules, worktree isolation is unsafe **only when a plan touches a submodule path** — the executor commit protocol cannot correctly handle submodule commits inside isolated worktrees. The previous behavior unconditionally disabled worktree isolation whenever `.gitmodules` existed, which penalised every plan in a submodule project even when the plan was nowhere near a submodule. Compute submodule paths once and intersect them per-plan with the plan's declared `files_modified` frontmatter.
 
@@ -452,9 +459,11 @@ increases monotonically across waves. `{status}` is `complete` (success),
    - Bad: "Executing terrain generation plan"
    - Good: "Procedural terrain generator using Perlin noise — creates height maps, biome zones, and collision meshes. Required before vehicle physics can interact with ground."
 
-2.5. **Per-plan worktree decision (run for each plan in this wave BEFORE its dispatch):**
+2.5. **Per-plan worktree decision and MVP+TDD gate (run for each plan in this wave BEFORE its dispatch):**
 
    Read and execute `get-shit-done/workflows/execute-phase/steps/per-plan-worktree-gate.md` for each plan. It extracts `PLAN_FILES` from the plan's JSON, intersects against `SUBMODULE_PATHS` (with normalization, bidirectional matching, and glob-prefix handling), and sets `USE_WORKTREES_FOR_PLAN` to `false` when the plan touches a submodule path. Append `plan_id` to a `WAVE_WORKTREE_PLANS` accumulator when `USE_WORKTREES_FOR_PLAN != false`.
+
+   **MVP+TDD gate:** If `MVP_MODE` and `TDD_MODE` are both `true`, read `get-shit-done/references/execute-mvp-tdd.md` and verify this plan's behavior-adding task execution has RED evidence first: a failing-test commit, a `test(...)` commit, or an explicit missing red commit exception recorded before implementation. If the gate fails, stop this plan before spawning `Agent()` or provider-routed execution and ask for the RED/failing-test commit to be created.
 
    The dispatch branches in step 3 below MUST gate on `USE_WORKTREES_FOR_PLAN` for the current plan, not on the project-level `USE_WORKTREES`.
 
@@ -1071,7 +1080,7 @@ TDD_PLANS=$(grep -rl "^type: tdd" "${PHASE_DIR}"/*-PLAN.md 2>/dev/null | wc -l |
    | {id} |  ✓  |   ✗   |    —     | FAIL   |
    ```
 
-**Gate violations are advisory** — they do not block execution but are surfaced to the user for review. The verifier agent (step `verify_phase_goal`) will also check TDD discipline as part of its quality assessment.
+**Gate violations are advisory by default** — they do not block normal execution but are surfaced to the user for review. **When `MVP_MODE` and `TDD_MODE` are both `true`, any MVP+TDD gate violation is blocking**: stop advancement until RED/GREEN discipline is repaired. The verifier agent (step `verify_phase_goal`) will also check TDD discipline as part of its quality assessment.
 </step>
 
 <step name="handle_partial_wave_execution">
