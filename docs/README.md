@@ -20,11 +20,13 @@ Language versions: [English](README.md) · [Português (pt-BR)](pt-BR/README.md)
 | [Discuss Mode](workflow-discuss-mode.md) | All users | Assumptions vs interview mode for discuss-phase |
 | [Hermes Install](hermes-install.md) | Hermes users | Hermes global and project-linked install modes, command discovery smoke, validation matrix and maintenance contract |
 | [Hermes Compatibility](hermes-compatibility.md) | Maintainers | Hermes support boundaries, known gaps, and runtime compatibility guardrails |
-| [Upstream Sync](upstream-sync.md) | Maintainers | post-sync validation checklist and fork maintenance workflow |
+| [Upstream Sync](upstream-sync.md) | Maintainers | Post-sync validation checklist and fork maintenance workflow |
+| [Canary Stream](CANARY.md) | Contributors, early adopters | `dev` → `@canary` dist-tag policy, when to install, rollback path |
 
 ## Quick Links
 
 - **What's new:** see [CHANGELOG](../CHANGELOG.md) for current release notes, and upstream [README](../README.md) for release highlights
+- **Canary preview:** [`docs/CANARY.md`](CANARY.md) — opt into the early-preview stream from `dev`. Active cut: [`v1.50.0-canary.1`](RELEASE-v1.50.0-canary.1.md)
 - **Getting started:** [README](../README.md) → install → `/gsd-new-project`
 - **Full workflow walkthrough:** [User Guide](USER-GUIDE.md)
 - **All commands at a glance:** [Command Reference](COMMANDS.md)
