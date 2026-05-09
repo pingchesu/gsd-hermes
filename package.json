@@ -17,6 +17,7 @@
     "scripts",
     "CHANGELOG.md",
     "sdk/src",
+    "sdk/shared",
     "sdk/dist",
     "sdk/prompts",
     "sdk/package.json",

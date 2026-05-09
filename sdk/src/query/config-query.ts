@@ -159,7 +159,7 @@ export const resolveModel: QueryHandler = async (args, projectDir, workstream) =
   const legacy = toLegacyResolveModelResult(resolution);
   const workflow = (config.workflow ?? {}) as unknown as Record<string, unknown>;
 
-  return {
+return {
     data: {
       ...legacy,
       runtime_model: {

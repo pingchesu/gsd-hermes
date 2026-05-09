@@ -3,8 +3,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtemp, writeFile, mkdir, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdtemp, writeFile, mkdir, rm, readdir } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { GSDError } from '../errors.js';
 
@@ -344,6 +345,48 @@ describe('resolveModel', () => {
     expect((runtimeModel.binding as Record<string, unknown>).binding_kind).toBe('profile');
   });
 
+  it('resolves shipped-but-previously-missing agents with runtime-model contract coverage (#3229)', async () => {
+    const { resolveModel } = await import('./config-query.js');
+    await writeFile(
+      join(tmpDir, '.planning', 'config.json'),
+      JSON.stringify({ model_profile: 'quality' }),
+    );
+    const result = await resolveModel(['gsd-code-reviewer'], tmpDir);
+    const data = result.data as Record<string, unknown>;
+    expect(data).toHaveProperty('model', 'opus');
+    expect(data).toHaveProperty('profile', 'quality');
+    expect(data).not.toHaveProperty('unsupported');
+    expect((data.runtime_model as Record<string, unknown>).runtime).toBe('claude');
+    expect(((data.runtime_model as Record<string, unknown>).binding as Record<string, unknown>).known_agent).toBe(true);
+  });
+
+  it('returns unsupported for truly unknown agents instead of semantic fallback', async () => {
+    const { resolveModel } = await import('./config-query.js');
+    await writeFile(
+      join(tmpDir, '.planning', 'config.json'),
+      JSON.stringify({ model_profile: 'quality' }),
+    );
+    const quality = (await resolveModel(['unknown-agent'], tmpDir)).data as Record<string, unknown>;
+    expect(quality).toHaveProperty('model', '');
+    expect(quality).toHaveProperty('unsupported', true);
+    expect(quality).toHaveProperty('rejection_reason', 'unknown-agent');
+    expect(((quality.runtime_model as Record<string, unknown>).binding as Record<string, unknown>).known_agent).toBe(false);
+
+    await writeFile(
+      join(tmpDir, '.planning', 'config.json'),
+      JSON.stringify({ model_profile: 'budget' }),
+    );
+    const budget = (await resolveModel(['unknown-agent'], tmpDir)).data as Record<string, unknown>;
+    expect(budget).toHaveProperty('model', '');
+    expect(budget).toHaveProperty('unsupported', true);
+    expect(budget).toHaveProperty('rejection_reason', 'unknown-agent');
+  });
+
+  it('throws GSDError when no agent type provided', async () => {
+    const { resolveModel } = await import('./config-query.js');
+    await expect(resolveModel([], tmpDir)).rejects.toThrow(GSDError);
+  });
+
   it('respects explicit model_overrides before all other paths', async () => {
     const { resolveModel } = await import('./config-query.js');
     await writeFile(
@@ -520,12 +563,18 @@ describe('resolveModel', () => {
 });
 
 describe('MODEL_PROFILES', () => {
-  it('contains all 18 agent entries (sync with model-profiles.cjs)', async () => {
+  it('contains every shipped gsd agent file on disk (#3229)', async () => {
     const { MODEL_PROFILES } = await import('./config-query.js');
-    expect(Object.keys(MODEL_PROFILES)).toHaveLength(18);
+    // config-query.test.ts lives at sdk/src/query/ — three levels from repo root
+    const repoRoot = resolve(fileURLToPath(new URL('../../../', import.meta.url)));
+    const agentFiles = (await readdir(join(repoRoot, 'agents')))
+      .filter((f) => /^gsd-.*\.md$/.test(f))
+      .map((f) => f.replace(/\.md$/, ''))
+      .sort();
+    expect(Object.keys(MODEL_PROFILES).sort()).toEqual(agentFiles);
   });
 
-  it('has quality/balanced/budget/adaptive for each agent', async () => {
+  it('has quality/balanced/budget/adaptive for each shipped agent', async () => {
     const { MODEL_PROFILES } = await import('./config-query.js');
     for (const agent of Object.keys(MODEL_PROFILES)) {
       expect(MODEL_PROFILES[agent]).toHaveProperty('quality');
@@ -539,9 +588,9 @@ describe('MODEL_PROFILES', () => {
 // ─── VALID_PROFILES ─────────────────────────────────────────────────────────
 
 describe('VALID_PROFILES', () => {
-  it('contains tier profiles plus inherit compatibility profile', async () => {
+  it('contains quality, balanced, budget, adaptive, and inherit', async () => {
     const { VALID_PROFILES } = await import('./config-query.js');
-    expect(VALID_PROFILES).toEqual(['quality', 'balanced', 'budget', 'adaptive', 'inherit']);
+    expect([...VALID_PROFILES].sort()).toEqual(['adaptive', 'balanced', 'budget', 'inherit', 'quality']);
   });
 });
 
