@@ -1,6 +1,6 @@
 {
   "name": "gsd-hermes",
-  "version": "1.14.0",
+  "version": "1.15.0",
   "description": "Hermes-first Get Shit Done distribution with strict provider-routed agent execution.",
   "bin": {
     "gsd-hermes": "bin/install.js",
