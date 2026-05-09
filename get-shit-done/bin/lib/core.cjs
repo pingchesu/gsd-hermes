@@ -15,6 +15,14 @@ const {
   nextTier,
   resolveAgentBinding,
 } = require('./model-profiles.cjs');
+const { MODEL_ALIAS_MAP, RUNTIME_PROFILE_MAP, KNOWN_RUNTIMES, RUNTIMES_WITH_REASONING_EFFORT } = require('./model-catalog.cjs');
+const {
+  resolveWorktreeContext,
+  parseWorktreePorcelain: parseWorktreePorcelainPolicy,
+  planWorktreePrune,
+  executeWorktreePrunePlan,
+  inspectWorktreeHealth,
+} = require('./worktree-safety.cjs');
 // Compatibility shim: new imports should use planning-workspace.cjs directly.
 const {
   planningDir,
@@ -339,11 +347,14 @@ function _deepMergeConfig(base, overlay) {
   return result;
 }
 
-function loadConfig(cwd) {
+function loadConfig(cwd, options = {}) {
+  const activeWorkstream = Object.prototype.hasOwnProperty.call(options, 'workstream')
+    ? options.workstream
+    : (process.env.GSD_WORKSTREAM || null);
   // When GSD_WORKSTREAM is set, load root config first so workstream config
   // can inherit from it. This prevents users from duplicating model_overrides,
   // workflow.*, etc. across every workstream config (#2714).
-  const ws = process.env.GSD_WORKSTREAM || null;
+  const ws = activeWorkstream;
   let rootParsed = null;
   if (ws) {
     const rootConfigPath = path.join(planningRoot(cwd), 'config.json');
@@ -355,7 +366,7 @@ function loadConfig(cwd) {
     }
   }
 
-  const configPath = path.join(planningDir(cwd), 'config.json');
+  const configPath = path.join(planningDir(cwd, ws), 'config.json');
   const defaults = CONFIG_DEFAULTS;
 
   try {
@@ -545,18 +556,11 @@ function loadConfig(cwd) {
     // If .planning/ exists, the project is initialized — just missing config.json.
     // When GSD_WORKSTREAM is set and root config was loaded, the workstream config
     // doesn't exist — treat root config as the effective config for this workstream.
-    if (fs.existsSync(planningDir(cwd))) {
+    if (fs.existsSync(planningDir(cwd, ws))) {
       if (rootParsed) {
         // Workstream has no config.json: re-parse using root config as the sole source.
-        // Temporarily clear GSD_WORKSTREAM so planningDir() returns root .planning/,
-        // then reload. This is safe: rootParsed is already the root config object.
-        const savedWs = process.env.GSD_WORKSTREAM;
-        delete process.env.GSD_WORKSTREAM;
-        try {
-          return loadConfig(cwd);
-        } finally {
-          process.env.GSD_WORKSTREAM = savedWs;
-        }
+        // Keep env immutable by explicitly reloading with workstream context cleared.
+        return loadConfig(cwd, { workstream: null });
       }
       return defaults;
     }
@@ -729,16 +733,38 @@ function normalizeMd(content) {
   return text;
 }
 
-function execGit(cwd, args) {
+// Default timeout for worktree-related git subprocess calls (matches worktree-safety.cjs).
+// Prevents `git worktree list --porcelain` and similar calls from blocking the parent
+// process indefinitely when git is stalled (locked index, hung remote, NFS mount freeze).
+// Callers can override via an options bag if needed.
+const DEFAULT_GIT_TIMEOUT_MS = 10000;
+
+/**
+ * Execute a git command with a bounded timeout.
+ *
+ * Return shape: { exitCode, stdout, stderr, timedOut, error }
+ *   - timedOut: true when spawnSync reports SIGTERM + ETIMEDOUT — callers must
+ *               branch on this to surface a structured warning (PRED.k302).
+ *   - error:    spawnSync error object or null
+ *
+ * Backward-compatible: existing callers that only read exitCode/stdout/stderr
+ * continue to work unchanged.
+ */
+function execGit(cwd, args, options = {}) {
+  const timeout = options.timeout ?? DEFAULT_GIT_TIMEOUT_MS;
   const result = spawnSync('git', args, {
     cwd,
     stdio: 'pipe',
     encoding: 'utf-8',
+    timeout,
   });
+  const timedOut = result.signal === 'SIGTERM' && result.error?.code === 'ETIMEDOUT';
   return {
     exitCode: result.status ?? 1,
     stdout: (result.stdout ?? '').toString().trim(),
     stderr: (result.stderr ?? '').toString().trim(),
+    timedOut,
+    error: result.error ?? null,
   };
 }
 
@@ -750,30 +776,11 @@ function execGit(cwd, args) {
  * Returns the main worktree path, or cwd if not in a worktree.
  */
 function resolveWorktreeRoot(cwd) {
-  // If the current directory already has its own .planning/, respect it.
-  // This handles linked worktrees with independent planning state (e.g., Conductor workspaces).
-  if (fs.existsSync(path.join(cwd, '.planning'))) {
-    return cwd;
-  }
-
-  // Check if we're in a linked worktree
-  const gitDir = execGit(cwd, ['rev-parse', '--git-dir']);
-  const commonDir = execGit(cwd, ['rev-parse', '--git-common-dir']);
-
-  if (gitDir.exitCode !== 0 || commonDir.exitCode !== 0) return cwd;
-
-  // In a linked worktree, .git is a file pointing to .git/worktrees/<name>
-  // and git-common-dir points to the main repo's .git directory
-  const gitDirResolved = path.resolve(cwd, gitDir.stdout);
-  const commonDirResolved = path.resolve(cwd, commonDir.stdout);
-
-  if (gitDirResolved !== commonDirResolved) {
-    // We're in a linked worktree — resolve main worktree root
-    // The common dir is the main repo's .git, so its parent is the main worktree root
-    return path.dirname(commonDirResolved);
-  }
-
-  return cwd;
+  const context = resolveWorktreeContext(cwd, {
+    execGit,
+    existsSync: fs.existsSync,
+  });
+  return context.effectiveRoot;
 }
 
 /**
@@ -785,21 +792,7 @@ function resolveWorktreeRoot(cwd) {
  * @returns {{ path: string, branch: string }[]}
  */
 function parseWorktreePorcelain(porcelain) {
-  const entries = [];
-  let current = null;
-  for (const line of porcelain.split('\n')) {
-    if (line.startsWith('worktree ')) {
-      current = { path: line.slice('worktree '.length).trim(), branch: null };
-    } else if (line.startsWith('branch refs/heads/') && current) {
-      current.branch = line.slice('branch refs/heads/'.length).trim();
-    } else if (line === '' && current) {
-      if (current.branch) entries.push(current);
-      current = null;
-    }
-  }
-  // flush last entry if file doesn't end with blank line
-  if (current && current.branch) entries.push(current);
-  return entries;
+  return parseWorktreePorcelainPolicy(porcelain);
 }
 
 /**
@@ -812,31 +805,24 @@ function parseWorktreePorcelain(porcelain) {
  * @returns {string[]} list of worktree paths that were removed (always empty)
  */
 function pruneOrphanedWorktrees(repoRoot) {
-  const pruned = [];
-  const cwd = process.cwd();
-
   try {
-    // 1. Get all worktrees in porcelain format
-    const listResult = execGit(repoRoot, ['worktree', 'list', '--porcelain']);
-    if (listResult.exitCode !== 0) return pruned;
-
-    const worktrees = parseWorktreePorcelain(listResult.stdout);
-    if (worktrees.length === 0) {
-      execGit(repoRoot, ['worktree', 'prune']);
-      return pruned;
+    const plan = planWorktreePrune(
+      repoRoot,
+      { allowDestructive: false },
+      { execGit, parseWorktreePorcelain }
+    );
+    const pruneResult = executeWorktreePrunePlan(plan, { execGit });
+    if (pruneResult && pruneResult.timedOut) {
+      // AC2: surface structured warning instead of silently swallowing the timeout.
+      // Uses process.stderr.write to match the [gsd-tools] WARNING prefix style.
+      process.stderr.write(
+        '[gsd-tools] WARNING: worktree health check degraded' +
+        ' — git worktree prune timed out after 10s.' +
+        ' Orphaned worktree metadata may remain until the next successful run.\n'
+      );
     }
-
-    // Destructive removal of linked worktrees is intentionally disabled.
-    // Keep metadata cleanup only (git worktree prune), which clears stale refs
-    // for manually-deleted directories without removing active sibling worktrees.
-    void cwd;
-    void worktrees;
   } catch { /* never crash the caller */ }
-
-  // Always run prune to clear stale references (e.g. manually-deleted dirs)
-  execGit(repoRoot, ['worktree', 'prune']);
-
-  return pruned;
+  return [];
 }
 
 // ─── Planning workspace (pathing + active workstream + lock) moved to planning-workspace.cjs ───
@@ -1312,104 +1298,9 @@ function checkAgentsInstalled() {
 
 // ─── Model alias resolution ───────────────────────────────────────────────────
 
-/**
- * Map short model aliases to full model IDs.
- * Updated each release to match current model versions.
- * Users can override with model_overrides in config.json for custom/latest models.
- */
-const MODEL_ALIAS_MAP = {
-  'opus': 'claude-opus-4-7',
-  'sonnet': 'claude-sonnet-4-6',
-  'haiku': 'claude-haiku-4-5',
-};
-
-/**
- * #2517 — runtime-aware tier resolution.
- * Maps `model_profile` tiers (opus/sonnet/haiku) to runtime-native model IDs and
- * (where supported) reasoning_effort settings.
- *
- * Each entry: { model: <id>, reasoning_effort?: <level> }
- *
- * `claude` mirrors MODEL_ALIAS_MAP — present for symmetry so `runtime: "claude"`
- * resolves through the same code path. `codex` defaults are taken from the spec
- * in #2517. Unknown runtimes fall back to the Claude alias to avoid emitting
- * provider-specific IDs the runtime cannot accept.
- */
-const RUNTIME_PROFILE_MAP = {
-  claude: Object.fromEntries(
-    Object.entries(MODEL_ALIAS_MAP).map(([tier, model]) => [tier, { model }])
-  ),
-  codex: {
-    opus:   { model: 'gpt-5.4',        reasoning_effort: 'xhigh' },
-    sonnet: { model: 'gpt-5.3-codex',  reasoning_effort: 'medium' },
-    haiku:  { model: 'gpt-5.4-mini',   reasoning_effort: 'medium' },
-  },
-  gemini: {
-    opus:   { model: 'gemini-3-pro' },
-    sonnet: { model: 'gemini-3-flash' },
-    haiku:  { model: 'gemini-2.5-flash-lite' },
-  },
-  qwen: {
-    opus:   { model: 'qwen3-max-2026-01-23' },
-    sonnet: { model: 'qwen3-coder-plus' },
-    haiku:  { model: 'qwen3-coder-next' },
-  },
-  opencode: {
-    opus:   { model: 'anthropic/claude-opus-4-7' },
-    sonnet: { model: 'anthropic/claude-sonnet-4-6' },
-    haiku:  { model: 'anthropic/claude-haiku-4-5' },
-  },
-  copilot: {
-    opus:   { model: 'claude-opus-4-7' },
-    sonnet: { model: 'claude-sonnet-4-6' },
-    haiku:  { model: 'claude-haiku-4-5' },
-  },
-  hermes: {
-    // Hermes Agent is provider-agnostic; users pick any provider in ~/.hermes/config.yaml.
-    // Defaults use OpenRouter slugs because (a) OpenRouter is Hermes' default provider and
-    // (b) the same slugs resolve on OpenRouter, native Anthropic, and Copilot via Hermes'
-    // aggregator-aware resolver. Users on a different provider override per-tier via
-    // model_profile_overrides.hermes.{opus,sonnet,haiku} in .planning/config.json.
-    opus:   { model: 'anthropic/claude-opus-4-7' },
-    sonnet: { model: 'anthropic/claude-sonnet-4-6' },
-    haiku:  { model: 'anthropic/claude-haiku-4-5' },
-  },
-};
-
-const RUNTIMES_WITH_REASONING_EFFORT = new Set(['codex']);
-
-/**
- * Tier enum allowed under `model_profile_overrides[runtime][tier]`. Mirrors the
- * regex in `config-schema.cjs` (DYNAMIC_KEY_PATTERNS) so loadConfig surfaces the
- * same constraint at read time, not only at config-set time (review finding #10).
- */
 const RUNTIME_OVERRIDE_TIERS = new Set(['opus', 'sonnet', 'haiku']);
-
-/**
- * Allowlist of runtime names the install/runtime pipeline recognizes. Some
- * runtimes, including Hermes, may rely on explicit binding channels or runtime
- * defaults instead of built-in profile IDs. Synced with `getDirName` in
- * `bin/install.js` and the
- * runtime list in `docs/CONFIGURATION.md`. Free-string runtimes outside this
- * set are still accepted (#2517 deliberately leaves the runtime field open) —
- * a warning fires once at loadConfig so a typo like `runtime: "codx"` does not
- * silently fall back to Claude defaults (review findings #10, #13).
- */
-const KNOWN_RUNTIMES = new Set([
-  'claude', 'hermes', 'codex', 'opencode', 'kilo', 'gemini', 'qwen',
-  'copilot', 'cursor', 'windsurf', 'augment', 'trae', 'codebuddy',
-  'antigravity', 'cline', 'hermes',
-]);
-
 const _warnedConfigKeys = new Set();
-/**
- * Emit a one-time stderr warning for unknown runtime/tier keys in a parsed
- * config blob. Idempotent across calls — the same (file, key) pair only warns
- * once per process so loadConfig can be called repeatedly without spamming.
- *
- * Does NOT reject — preserves back-compat for users on a runtime not yet in the
- * allowlist (the new-runtime case must always be possible without code changes).
- */
+
 function _warnUnknownProfileOverrides(parsed, configLabel) {
   if (!parsed || typeof parsed !== 'object') return;
 
@@ -1599,7 +1490,7 @@ function resolveModelInternal(cwd, agentType, options = {}) {
   }
 
   // 5. Profile lookup (Claude-native default).
-  // Unknown agent: reject by returning an empty token rather than silently
+// Unknown agent: reject by returning an empty token rather than silently
   // defaulting to 'sonnet'. This matches the SDK runtime-model contract
   // (resolveAgentBinding returns kind:'unsupported' with modelToken:null for
   // unknown agents) and is enforced by tests/runtime-model-parity.test.cjs
@@ -2166,4 +2057,5 @@ module.exports = {
   atomicWriteFileSync,
   timeAgo,
   pruneOrphanedWorktrees,
+  inspectWorktreeHealth,
 };

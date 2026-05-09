@@ -94,6 +94,7 @@ describe('bug #1829: model_profile "inherit" — resolveModelInternal', () => {
     assert.strictEqual(resolveModelInternal(tmpDir, 'gsd-verifier'), 'inherit');
   });
 
+
   // Hermes contract (Phase 7 Plan 01 commit 9cf9f61d): unknown agents return
   // '' (kind: 'unsupported') instead of silently falling back to 'sonnet'.
   // Enforced by tests/runtime-model-parity.test.cjs:67 row "unknown agent is
@@ -102,6 +103,7 @@ describe('bug #1829: model_profile "inherit" — resolveModelInternal', () => {
   test('returns "" (unsupported) for unknown agent even with inherit profile', () => {
     writeConfig(tmpDir, { model_profile: 'inherit' });
     assert.strictEqual(resolveModelInternal(tmpDir, 'gsd-nonexistent'), '');
+
   });
 
   test('per-agent override takes precedence over inherit profile', () => {
