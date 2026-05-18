@@ -172,7 +172,7 @@
 const fs = require('fs');
 const path = require('path');
 const core = require('./lib/core.cjs');
-const { error, findProjectRoot } = core;
+const { error, findProjectRoot, ERROR_REASON } = core;
 const { getActiveWorkstream } = require('./lib/planning-workspace.cjs');
 const { resolveActiveWorkstream, applyResolvedWorkstreamEnv } = require('./lib/active-workstream-store.cjs');
 const state = require('./lib/state.cjs');
@@ -198,6 +198,82 @@ const { routePhaseCommand } = require('./lib/phase-command-router.cjs');
 const { routePhasesCommand } = require('./lib/phases-command-router.cjs');
 const { routeValidateCommand } = require('./lib/validate-command-router.cjs');
 const { routeRoadmapCommand } = require('./lib/roadmap-command-router.cjs');
+
+// ─── SDK bridge (Phase 6 inline family / non-family delegation) ───────────────
+// For inline case blocks that have SDK counterparts (frontmatter, config, and
+// non-family commands), we attempt to dispatch via executeForCjs (the sync
+// bridge). CJS handlers are retained as fallback when SDK is unavailable.
+//
+// NOTE: migrate-config, detect-custom-files, config-path, and find-phase
+// are CJS-native special cases; see comments inline.
+
+// Shared loader for the synchronous SDK runtime bridge; see
+// `bin/lib/cjs-sdk-bridge.cjs`. All canonical-command CJS dispatchers (the
+// per-family routers and the non-family helper below) consume the same loader
+// so a change to the SDK-load contract lands in one place.
+const { tryLoadSdk: _tryLoadSdkBridge, getExecuteForCjs } = require('./lib/cjs-sdk-bridge.cjs');
+
+/**
+ * Attempt SDK dispatch for a non-family command.
+ *
+ * Returns true when the SDK was available and handled the command (success or
+ * typed error). Returns false when the SDK is unavailable, signalling the
+ * caller to fall through to the CJS handler.
+ *
+ * @param {object} opts
+ * @param {string} opts.registryCommand - canonical command name in the SDK registry
+ * @param {string[]} opts.registryArgs - args to pass to the SDK handler
+ * @param {string} opts.legacyCommand - original gsd-tools command name (for error messages)
+ * @param {string[]} opts.legacyArgs - original args (for error messages)
+ * @param {string} opts.cwd - project dir
+ * @param {boolean} opts.raw - raw output mode
+ * @param {Function} opts.error - error reporter
+ * @param {Function} opts.output - output emitter (core.output)
+ */
+function _dispatchNonFamily({ registryCommand, registryArgs, legacyCommand, legacyArgs, cwd, raw, error, output }) {
+  if (!_tryLoadSdkBridge()) return false;
+  const result = getExecuteForCjs()({
+    registryCommand,
+    registryArgs,
+    legacyCommand,
+    legacyArgs,
+    // Always request typed JSON from the bridge; CJS `output(data, raw)` handles
+    // user-facing rendering. Passing `mode: 'raw'` would make the bridge
+    // pre-render result.data to a JSON string that the CJS output path then
+    // double-stringifies (returning a JSON string of a JSON string).
+    mode: 'json',
+    projectDir: cwd,
+    workstream: process.env.GSD_WORKSTREAM || undefined,
+  });
+  if (!result.ok) {
+    const message = (result.errorDetails && result.errorDetails.message)
+      || `${legacyCommand} (${registryCommand}) failed (${result.errorKind})`;
+    // Propagate the structured reason code through to CJS `error()` so the
+    // `--json-errors` JSON-shaped stderr carries the typed reason (e.g.
+    // 'config_key_not_found') instead of the generic 'unknown'.  Handlers
+    // tag the GSDError with `.reason` and the worker forwards it via
+    // errorDetails.reason. (Bugs #2943, #3086.)
+    const reason = result.errorDetails && result.errorDetails.reason;
+    if (reason) {
+      error(message, reason);
+    } else {
+      error(message);
+    }
+    return true; // handled (error reported)
+  }
+  // CJS parity for --raw output (config.cjs:525 `output(value, raw, String(value))`):
+  // when the caller asked for --raw and the SDK returned a scalar, pass that
+  // scalar through as `rawValue` so core.output() emits the bare string
+  // representation instead of JSON-stringifying it.  Non-scalar shapes fall
+  // through to the structured JSON path, matching `output(obj, raw)`.
+  const data = result.data;
+  if (raw && (typeof data === 'string' || typeof data === 'number' || typeof data === 'boolean')) {
+    output(data, raw, String(data));
+  } else {
+    output(data, raw);
+  }
+  return true;
+}
 
 // ─── Arg parsing helpers ──────────────────────────────────────────────────────
 
@@ -244,24 +320,42 @@ function parseMultiwordArg(args, flag) {
 async function main() {
   let args = process.argv.slice(2);
 
+  // --json-errors / GSD_JSON_ERRORS=1: when active, error() emits structured
+  // JSON ({ ok: false, reason: <ERROR_REASON code>, message }) to stderr
+  // instead of "Error: <text>". Lets test suites assert on typed reason codes
+  // per CONTRIBUTING.md "Prohibited: Raw Text Matching" (#2974).
+  //
+  // Detect early — before any flag parsing that can fire error() — so even
+  // --cwd and workstream-resolution failures emit structured stderr (#3310).
+  // The argv splice must happen here too, otherwise the dispatcher below sees
+  // "--json-errors" as an unknown command. Default off — human operators keep
+  // their plain-text diagnostic.
+  const jsonErrorsIdx = args.indexOf('--json-errors');
+  if (jsonErrorsIdx !== -1) {
+    core.setJsonErrorMode(true);
+    args.splice(jsonErrorsIdx, 1);
+  } else if (process.env.GSD_JSON_ERRORS === '1') {
+    core.setJsonErrorMode(true);
+  }
+
   // Optional cwd override for sandboxed subagents running outside project root.
   let cwd = process.cwd();
   const cwdEqArg = args.find(arg => arg.startsWith('--cwd='));
   const cwdIdx = args.indexOf('--cwd');
   if (cwdEqArg) {
     const value = cwdEqArg.slice('--cwd='.length).trim();
-    if (!value) error('Missing value for --cwd');
+    if (!value) error('Missing value for --cwd', ERROR_REASON.USAGE);
     args.splice(args.indexOf(cwdEqArg), 1);
     cwd = path.resolve(value);
   } else if (cwdIdx !== -1) {
     const value = args[cwdIdx + 1];
-    if (!value || value.startsWith('--')) error('Missing value for --cwd');
+    if (!value || value.startsWith('--')) error('Missing value for --cwd', ERROR_REASON.USAGE);
     args.splice(cwdIdx, 2);
     cwd = path.resolve(value);
   }
 
   if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) {
-    error(`Invalid --cwd: ${cwd}`);
+    error(`Invalid --cwd: ${cwd}`, ERROR_REASON.USAGE);
   }
 
   // Resolve worktree root: in a linked worktree, .planning/ lives in the main worktree.
@@ -294,18 +388,6 @@ async function main() {
   const raw = rawIndex !== -1;
   if (rawIndex !== -1) args.splice(rawIndex, 1);
 
-  // --json-errors: when present, error() emits structured JSON to stderr
-  // ({ ok: false, reason: <ERROR_REASON code>, message }) instead of plain
-  // "Error: <text>". Lets test suites assert on typed reason codes per the
-  // CONTRIBUTING.md "Prohibited: Raw Text Matching on Test Outputs" rule
-  // (#2974). Default off — human operators see the original plain-text
-  // diagnostic.
-  const jsonErrorsIdx = args.indexOf('--json-errors');
-  if (jsonErrorsIdx !== -1) {
-    core.setJsonErrorMode(true);
-    args.splice(jsonErrorsIdx, 1);
-  }
-
   // --pick <name>: extract a single field from JSON output (replaces jq dependency).
   // Supports dot-notation (e.g., --pick workflow.research) and bracket notation
   // for arrays (e.g., --pick directories[-1]).
@@ -313,7 +395,7 @@ async function main() {
   let pickField = null;
   if (pickIdx !== -1) {
     pickField = args[pickIdx + 1];
-    if (!pickField || pickField.startsWith('--')) error('Missing value for --pick');
+    if (!pickField || pickField.startsWith('--')) error('Missing value for --pick', ERROR_REASON.USAGE);
     args.splice(pickIdx, 2);
   }
 
@@ -359,15 +441,21 @@ async function main() {
   // supported by the dispatcher so `--help` is actually useful for
   // discovery; previously it was a partial subset that didn't include
   // phase / roadmap / milestone / progress / etc.
-  const TOP_LEVEL_USAGE = 'Usage: gsd-tools <command> [args] [--raw] [--pick <field>] [--cwd <path>] [--ws <name>]\n' +
+  const TOP_LEVEL_USAGE = 'Usage: gsd-tools <command> [args] [--raw] [--pick <field>] [--cwd <path>] [--ws <name>] [--json-errors]\n' +
     'Commands: agent-skills, audit-open, audit-uat, check-commit, commit, commit-to-subrepo, ' +
-    'config-ensure-section, config-get, config-new-project, config-path, config-set, ' +
+    'config-ensure-section, config-get, config-new-project, config-path, config-set, migrate-config, ' +
     'current-timestamp, detect-custom-files, docs-init, extract-messages, find-phase, ' +
     'from-gsd2, frontmatter, gap-analysis, generate-claude-md, generate-claude-profile, ' +
     'generate-dev-preferences, generate-slug, graphify, history-digest, init, intel, ' +
     'learnings, list-todos, milestone, phase, phase-plan-index, phases, profile-questionnaire, ' +
     'profile-sample, progress, requirements, resolve-model, roadmap, scaffold, state, ' +
-    'template, validate, verify, verify-path-exists, verify-summary, workstream\n\n' +
+    'template, validate, verify, verify-path-exists, verify-summary, workstream, worktree\n\n' +
+    'Global flags:\n' +
+    '  --raw              Emit raw output without post-processing\n' +
+    '  --pick <field>     Extract a single field from JSON output (dot/bracket notation)\n' +
+    '  --cwd <path>       Override working directory for project-root resolution\n' +
+    '  --ws <name>        Override active workstream (or set GSD_WORKSTREAM)\n' +
+    '  --json-errors      Emit structured JSON error objects on stderr (or set GSD_JSON_ERRORS=1)\n\n' +
     'For command-specific argument requirements, invoke the command without args ' +
     '(e.g. `gsd-tools phase add`) — the resulting error lists what is required.';
 
@@ -396,7 +484,7 @@ async function main() {
   const NEVER_VALID_FLAGS = new Set(['--version', '-v']);
   for (const arg of args) {
     if (NEVER_VALID_FLAGS.has(arg)) {
-      error(`Unknown flag: ${arg}\ngsd-tools does not accept version flags. Run "gsd-tools" with no arguments for usage.`);
+      error(`Unknown flag: ${arg}\ngsd-tools does not accept version flags. Run "gsd-tools" with no arguments for usage.`, ERROR_REASON.USAGE);
     }
   }
 
@@ -406,6 +494,7 @@ async function main() {
   const SKIP_ROOT_RESOLUTION = new Set([
     'generate-slug', 'current-timestamp', 'verify-path-exists',
     'verify-summary', 'template', 'frontmatter', 'detect-custom-files',
+    'worktree',
   ]);
   if (!SKIP_ROOT_RESOLUTION.has(command)) {
     cwd = findProjectRoot(cwd);
@@ -511,7 +600,19 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
     }
 
     case 'find-phase': {
-      phase.cmdFindPhase(cwd, args[1], raw);
+      // Phase 6 (#3575): dispatch via SDK executeForCjs when available.
+      // SDK handler: findPhase in sdk/src/query/phase.ts.
+      const handled = _dispatchNonFamily({
+        registryCommand: 'find-phase',
+        registryArgs: args.slice(1),
+        legacyCommand: 'find-phase',
+        legacyArgs: args.slice(1),
+        cwd,
+        raw,
+        error,
+        output: core.output,
+      });
+      if (!handled) phase.cmdFindPhase(cwd, args[1], raw);
       break;
     }
 
@@ -571,14 +672,37 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
           wave: wave || '1',
         }, raw);
       } else {
-        error('Unknown template subcommand. Available: select, fill');
+        error('Unknown template subcommand. Available: select, fill', ERROR_REASON.SDK_UNKNOWN_COMMAND);
       }
       break;
     }
 
     case 'frontmatter': {
+      // Phase 6 (#3575): dispatch via SDK executeForCjs when available.
+      // SDK handler: sdk/src/query/frontmatter.ts + frontmatter-mutation.ts.
+      // CJS fallback: frontmatter.cjs (cooperating sibling).
       const subcommand = args[1];
       const file = args[2];
+      const FRONTMATTER_SDK_MAP = {
+        get: 'frontmatter.get',
+        set: 'frontmatter.set',
+        merge: 'frontmatter.merge',
+        validate: 'frontmatter.validate',
+      };
+      if (subcommand in FRONTMATTER_SDK_MAP) {
+        const handled = _dispatchNonFamily({
+          registryCommand: FRONTMATTER_SDK_MAP[subcommand],
+          registryArgs: args.slice(2),
+          legacyCommand: 'frontmatter',
+          legacyArgs: args.slice(1),
+          cwd,
+          raw,
+          error,
+          output: core.output,
+        });
+        if (handled) break;
+      }
+      // CJS fallback (SDK unavailable or unknown subcommand)
       if (subcommand === 'get') {
         frontmatter.cmdFrontmatterGet(cwd, file, parseNamedArgs(args, ['field']).field, raw);
       } else if (subcommand === 'set') {
@@ -589,7 +713,7 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
       } else if (subcommand === 'validate') {
         frontmatter.cmdFrontmatterValidate(cwd, file, parseNamedArgs(args, ['schema']).schema, raw);
       } else {
-        error('Unknown frontmatter subcommand. Available: get, set, merge, validate');
+        error('Unknown frontmatter subcommand. Available: get, set, merge, validate', ERROR_REASON.SDK_UNKNOWN_COMMAND);
       }
       break;
     }
@@ -606,12 +730,36 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
     }
 
     case 'generate-slug': {
-      commands.cmdGenerateSlug(args[1], raw);
+      // Phase 6 (#3575): dispatch via SDK executeForCjs when available.
+      // SDK handler: generateSlug in sdk/src/query/utils.ts.
+      const handled = _dispatchNonFamily({
+        registryCommand: 'generate-slug',
+        registryArgs: args.slice(1),
+        legacyCommand: 'generate-slug',
+        legacyArgs: args.slice(1),
+        cwd,
+        raw,
+        error,
+        output: core.output,
+      });
+      if (!handled) commands.cmdGenerateSlug(args[1], raw);
       break;
     }
 
     case 'current-timestamp': {
-      commands.cmdCurrentTimestamp(args[1] || 'full', raw);
+      // Phase 6 (#3575): dispatch via SDK executeForCjs when available.
+      // SDK handler: currentTimestamp in sdk/src/query/utils.ts.
+      const handled = _dispatchNonFamily({
+        registryCommand: 'current-timestamp',
+        registryArgs: args.slice(1),
+        legacyCommand: 'current-timestamp',
+        legacyArgs: args.slice(1),
+        cwd,
+        raw,
+        error,
+        output: core.output,
+      });
+      if (!handled) commands.cmdCurrentTimestamp(args[1] || 'full', raw);
       break;
     }
 
@@ -626,32 +774,113 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
     }
 
     case 'config-ensure-section': {
-      config.cmdConfigEnsureSection(cwd, raw);
+      // Phase 6 (#3575): dispatch via SDK executeForCjs. The catalog rebinds
+      // 'config-ensure-section' to configNewProject in
+      // sdk/src/query/command-static-catalog-foundation.ts, restoring the
+      // legacy "no-arg full default init" contract on the SDK path
+      // (configEnsureSection itself stays available as an unbound single-
+      // section helper for future SDK callers).
+      const handled = _dispatchNonFamily({
+        registryCommand: 'config-ensure-section',
+        registryArgs: args.slice(1),
+        legacyCommand: 'config-ensure-section',
+        legacyArgs: args.slice(1),
+        cwd,
+        raw,
+        error,
+        output: core.output,
+      });
+      if (!handled) config.cmdConfigEnsureSection(cwd, raw);
       break;
     }
 
     case 'config-set': {
-      config.cmdConfigSet(cwd, args[1], args[2], raw);
+      // Phase 6 (#3575): dispatch via SDK executeForCjs when available.
+      const handled = _dispatchNonFamily({
+        registryCommand: 'config-set',
+        registryArgs: args.slice(1),
+        legacyCommand: 'config-set',
+        legacyArgs: args.slice(1),
+        cwd,
+        raw,
+        error,
+        output: core.output,
+      });
+      if (!handled) config.cmdConfigSet(cwd, args[1], args[2], raw);
       break;
     }
 
     case "config-set-model-profile": {
-      config.cmdConfigSetModelProfile(cwd, args[1], raw);
+      // Phase 6 (#3575): dispatch via SDK executeForCjs when available.
+      const handled = _dispatchNonFamily({
+        registryCommand: 'config-set-model-profile',
+        registryArgs: args.slice(1),
+        legacyCommand: 'config-set-model-profile',
+        legacyArgs: args.slice(1),
+        cwd,
+        raw,
+        error,
+        output: core.output,
+      });
+      if (!handled) config.cmdConfigSetModelProfile(cwd, args[1], raw);
       break;
     }
 
     case 'config-get': {
-      config.cmdConfigGet(cwd, args[1], raw, defaultValue);
+      // Phase 6 (#3575): dispatch via SDK executeForCjs when available.
+      // The SDK handler supports --default via the registry args (args.slice(1)
+      // contains the key; defaultValue is handled by the SDK via the --default
+      // flag which was already stripped from args and held in defaultValue).
+      // Pass the full original args.slice(1) so the SDK sees the key; the
+      // defaultValue from the flag is in the global defaultValue variable above.
+      // Since the SDK handler reads --default from registryArgs, re-inject it.
+      const configGetSdkArgs = defaultValue !== undefined
+        ? [args[1], '--default', defaultValue]
+        : args.slice(1);
+      const handled = _dispatchNonFamily({
+        registryCommand: 'config-get',
+        registryArgs: configGetSdkArgs,
+        legacyCommand: 'config-get',
+        legacyArgs: args.slice(1),
+        cwd,
+        raw,
+        error,
+        output: core.output,
+      });
+      if (!handled) config.cmdConfigGet(cwd, args[1], raw, defaultValue);
       break;
     }
 
     case 'config-new-project': {
-      config.cmdConfigNewProject(cwd, args[1], raw);
+      // Phase 6 (#3575): dispatch via SDK executeForCjs when available.
+      const handled = _dispatchNonFamily({
+        registryCommand: 'config-new-project',
+        registryArgs: args.slice(1),
+        legacyCommand: 'config-new-project',
+        legacyArgs: args.slice(1),
+        cwd,
+        raw,
+        error,
+        output: core.output,
+      });
+      if (!handled) config.cmdConfigNewProject(cwd, args[1], raw);
       break;
     }
 
     case 'config-path': {
+      // CJS-native: config-path returns the filesystem path to config.json.
+      // The SDK handler (configPath) also exists but requires a projectDir that
+      // is already resolved. Both produce identical output; keeping CJS here is
+      // simpler and avoids sync-bridge overhead for a trivial path lookup.
       config.cmdConfigPath(cwd, raw);
+      break;
+    }
+
+    case 'migrate-config': {
+      // CJS-native: migrate-config wraps the Configuration Module migrateOnDisk()
+      // which is async and mutates the filesystem. No SDK counterpart exists in
+      // the command registry (it's a one-shot migration utility). Must await.
+      await config.cmdMigrateConfig(cwd, raw);
       break;
     }
 
@@ -698,7 +927,7 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
       if (subcommand === 'mark-complete') {
         milestone.cmdRequirementsMarkComplete(cwd, args.slice(2), raw);
       } else {
-        error('Unknown requirements subcommand. Available: mark-complete');
+        error('Unknown requirements subcommand. Available: mark-complete', ERROR_REASON.SDK_UNKNOWN_COMMAND);
       }
       break;
     }
@@ -728,7 +957,7 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
         const archivePhases = args.includes('--archive-phases');
         milestone.cmdMilestoneComplete(cwd, args[2], { name: milestoneName, archivePhases }, raw);
       } else {
-        error('Unknown milestone subcommand. Available: complete');
+        error('Unknown milestone subcommand. Available: complete', ERROR_REASON.SDK_UNKNOWN_COMMAND);
       }
       break;
     }
@@ -780,7 +1009,7 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
         const options = parseNamedArgs(args, ['file']);
         uat.cmdRenderCheckpoint(cwd, options, raw);
       } else {
-        error('Unknown uat subcommand. Available: render-checkpoint');
+        error('Unknown uat subcommand. Available: render-checkpoint', ERROR_REASON.SDK_UNKNOWN_COMMAND);
       }
       break;
     }
@@ -798,7 +1027,7 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
       } else if (subcommand === 'match-phase') {
         commands.cmdTodoMatchPhase(cwd, args[2], raw);
       } else {
-        error('Unknown todo subcommand. Available: complete, match-phase');
+        error('Unknown todo subcommand. Available: complete, match-phase', ERROR_REASON.SDK_UNKNOWN_COMMAND);
       }
       break;
     }
@@ -874,7 +1103,7 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
       const sessionsPath = pathIdx !== -1 ? args[pathIdx + 1] : null;
       const projectArg = args[1];
       if (!projectArg || projectArg.startsWith('--')) {
-        error('Usage: gsd-tools extract-messages <project> [--session <id>] [--limit N] [--path <dir>]\nRun scan-sessions first to see available projects.');
+        error('Usage: gsd-tools extract-messages <project> [--session <id>] [--limit N] [--path <dir>]\nRun scan-sessions first to see available projects.', ERROR_REASON.USAGE);
       }
       await profilePipeline.cmdExtractMessages(projectArg, { sessionId, limit }, raw, sessionsPath);
       break;
@@ -898,7 +1127,7 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
     case 'write-profile': {
       const inputIdx = args.indexOf('--input');
       const inputPath = inputIdx !== -1 ? args[inputIdx + 1] : null;
-      if (!inputPath) error('--input <analysis-json-path> is required');
+      if (!inputPath) error('--input <analysis-json-path> is required', ERROR_REASON.USAGE);
       const outputIdx = args.indexOf('--output');
       const outputPath = outputIdx !== -1 ? args[outputIdx + 1] : null;
       profileOutput.cmdWriteProfile(cwd, { input: inputPath, output: outputPath }, raw);
@@ -964,7 +1193,18 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
       } else if (subcommand === 'progress') {
         workstream.cmdWorkstreamProgress(cwd, raw);
       } else {
-        error('Unknown workstream subcommand. Available: create, list, status, complete, set, get, progress');
+        error('Unknown workstream subcommand. Available: create, list, status, complete, set, get, progress', ERROR_REASON.SDK_UNKNOWN_COMMAND);
+      }
+      break;
+    }
+
+    case 'worktree': {
+      const subcommand = args[1];
+      const worktreeSafety = require('./lib/worktree-safety.cjs');
+      if (subcommand === 'cleanup-wave') {
+        worktreeSafety.cmdWorktreeCleanupWave(cwd, args.slice(2));
+      } else {
+        error('Unknown worktree subcommand. Available: cleanup-wave', ERROR_REASON.SDK_UNKNOWN_COMMAND);
       }
       break;
     }
@@ -976,7 +1216,7 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
       const subcommand = args[1];
       if (subcommand === 'query') {
         const term = args[2];
-        if (!term) error('Usage: gsd-tools intel query <term>');
+        if (!term) error('Usage: gsd-tools intel query <term>', ERROR_REASON.USAGE);
         const planningDir = path.join(cwd, '.planning');
         core.output(intel.intelQuery(term, planningDir), raw);
       } else if (subcommand === 'status') {
@@ -998,20 +1238,20 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
         core.output(intel.intelSnapshot(planningDir), raw);
       } else if (subcommand === 'patch-meta') {
         const filePath = args[2];
-        if (!filePath) error('Usage: gsd-tools intel patch-meta <file-path>');
+        if (!filePath) error('Usage: gsd-tools intel patch-meta <file-path>', ERROR_REASON.USAGE);
         core.output(intel.intelPatchMeta(path.resolve(cwd, filePath)), raw);
       } else if (subcommand === 'validate') {
         const planningDir = path.join(cwd, '.planning');
         core.output(intel.intelValidate(planningDir), raw);
       } else if (subcommand === 'extract-exports') {
         const filePath = args[2];
-        if (!filePath) error('Usage: gsd-tools intel extract-exports <file-path>');
+        if (!filePath) error('Usage: gsd-tools intel extract-exports <file-path>', ERROR_REASON.USAGE);
         core.output(intel.intelExtractExports(path.resolve(cwd, filePath)), raw);
       } else if (subcommand === 'update') {
         const planningDir = path.join(cwd, '.planning');
         core.output(intel.intelUpdate(planningDir), raw);
       } else {
-        error('Unknown intel subcommand. Available: query, status, update, diff, snapshot, patch-meta, validate, extract-exports');
+        error('Unknown intel subcommand. Available: query, status, update, diff, snapshot, patch-meta, validate, extract-exports', ERROR_REASON.SDK_UNKNOWN_COMMAND);
       }
       break;
     }
@@ -1023,7 +1263,7 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
       const subcommand = args[1];
       if (subcommand === 'query') {
         const term = args[2];
-        if (!term) error('Usage: gsd-tools graphify query <term>');
+        if (!term) error('Usage: gsd-tools graphify query <term>', ERROR_REASON.USAGE);
         const budgetIdx = args.indexOf('--budget');
         const budget = budgetIdx !== -1 ? parseInt(args[budgetIdx + 1], 10) : null;
         core.output(graphify.graphifyQuery(cwd, term, { budget }), raw);
@@ -1038,7 +1278,7 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
           core.output(graphify.graphifyBuild(cwd), raw);
         }
       } else {
-        error('Unknown graphify subcommand. Available: build, query, status, diff');
+        error('Unknown graphify subcommand. Available: build, query, status, diff', ERROR_REASON.SDK_UNKNOWN_COMMAND);
       }
       break;
     }
@@ -1046,7 +1286,19 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
     // ─── Documentation ────────────────────────────────────────────────────
 
     case 'docs-init': {
-      docs.cmdDocsInit(cwd, raw);
+      // Phase 6 (#3575): dispatch via SDK executeForCjs when available.
+      // SDK handler: docsInit in sdk/src/query/docs-init.ts.
+      const handled = _dispatchNonFamily({
+        registryCommand: 'docs-init',
+        registryArgs: args.slice(1),
+        legacyCommand: 'docs-init',
+        legacyArgs: args.slice(1),
+        cwd,
+        raw,
+        error,
+        output: core.output,
+      });
+      if (!handled) docs.cmdDocsInit(cwd, raw);
       break;
     }
 
@@ -1059,26 +1311,31 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
       } else if (subcommand === 'query') {
         const tagIdx = args.indexOf('--tag');
         const tag = tagIdx !== -1 ? args[tagIdx + 1] : null;
-        if (!tag) error('Usage: gsd-tools learnings query --tag <tag>');
+        if (!tag) error('Usage: gsd-tools learnings query --tag <tag>', ERROR_REASON.USAGE);
         learnings.cmdLearningsQuery(tag, raw);
       } else if (subcommand === 'copy') {
         learnings.cmdLearningsCopy(cwd, raw);
       } else if (subcommand === 'prune') {
         const olderIdx = args.indexOf('--older-than');
         const olderThan = olderIdx !== -1 ? args[olderIdx + 1] : null;
-        if (!olderThan) error('Usage: gsd-tools learnings prune --older-than <duration>');
+        if (!olderThan) error('Usage: gsd-tools learnings prune --older-than <duration>', ERROR_REASON.USAGE);
         learnings.cmdLearningsPrune(olderThan, raw);
       } else if (subcommand === 'delete') {
         const id = args[2];
-        if (!id) error('Usage: gsd-tools learnings delete <id>');
+        if (!id) error('Usage: gsd-tools learnings delete <id>', ERROR_REASON.USAGE);
         learnings.cmdLearningsDelete(id, raw);
       } else {
-        error('Unknown learnings subcommand. Available: list, query, copy, prune, delete');
+        error('Unknown learnings subcommand. Available: list, query, copy, prune, delete', ERROR_REASON.SDK_UNKNOWN_COMMAND);
       }
       break;
     }
 
     // ─── detect-custom-files ───────────────────────────────────────────────
+    // CJS-native: no SDK counterpart exists in the command registry.
+    // detect-custom-files reads a gsd-file-manifest.json against the
+    // live filesystem to identify user-added files. It is installer-specific
+    // logic that has no async query equivalent in the SDK.
+    //
     // Detect user-added files inside GSD-managed directories that are not
     // tracked in gsd-file-manifest.json. Used by the update workflow to back
     // up custom files before the installer wipes those directories.
@@ -1093,11 +1350,11 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
       const configDirIdx = args.indexOf('--config-dir');
       const configDir = configDirIdx !== -1 ? args[configDirIdx + 1] : null;
       if (!configDir) {
-        error('Usage: gsd-tools detect-custom-files --config-dir <path>');
+        error('Usage: gsd-tools detect-custom-files --config-dir <path>', ERROR_REASON.USAGE);
       }
       const resolvedConfigDir = path.resolve(configDir);
       if (!fs.existsSync(resolvedConfigDir)) {
-        error(`Config directory not found: ${resolvedConfigDir}`);
+        error(`Config directory not found: ${resolvedConfigDir}`, ERROR_REASON.USAGE);
       }
 
       const manifestPath = path.join(resolvedConfigDir, 'gsd-file-manifest.json');
@@ -1192,7 +1449,7 @@ async function runCommand(command, args, cwd, raw, defaultValue, originalCommand
         const rest = originalCommand.slice(dotIdx + 1);
         suggestion = ` — did you mean: "${head} ${rest}"?`;
       }
-      error(`Unknown command: ${command}${suggestion}`);
+      error(`Unknown command: ${command}${suggestion}`, ERROR_REASON.SDK_UNKNOWN_COMMAND);
     }
   }
 }

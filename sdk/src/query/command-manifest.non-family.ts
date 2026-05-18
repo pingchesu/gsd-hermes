@@ -8,6 +8,10 @@ export interface NonFamilyCommandManifestEntry {
 }
 
 export const NON_FAMILY_COMMAND_MANIFEST: readonly NonFamilyCommandManifestEntry[] = [
+  { canonical: 'check.decision-coverage-plan', aliases: ['check decision-coverage-plan'], mutation: false, outputMode: 'json' },
+  { canonical: 'check.decision-coverage-verify', aliases: ['check decision-coverage-verify'], mutation: false, outputMode: 'json' },
+
+  { canonical: 'frontmatter.get', aliases: [], mutation: false, outputMode: 'json' },
   { canonical: 'frontmatter.set', aliases: [], mutation: true, outputMode: 'json' },
   { canonical: 'frontmatter.merge', aliases: [], mutation: true, outputMode: 'json' },
   { canonical: 'frontmatter.validate', aliases: ['frontmatter validate'], mutation: true, outputMode: 'json' },
@@ -28,12 +32,25 @@ export const NON_FAMILY_COMMAND_MANIFEST: readonly NonFamilyCommandManifestEntry
   { canonical: 'todo.complete', aliases: ['todo complete'], mutation: true, outputMode: 'json' },
   { canonical: 'milestone.complete', aliases: ['milestone complete'], mutation: true, outputMode: 'json' },
 
+  { canonical: 'phase.mvp-mode', aliases: ['phase mvp-mode'], mutation: false, outputMode: 'json' },
+
+  { canonical: 'progress.bar', aliases: ['progress bar'], mutation: false, outputMode: 'json' },
+
+  { canonical: 'stats.json', aliases: ['stats json'], mutation: false, outputMode: 'json' },
+
+  { canonical: 'task.is-behavior-adding', aliases: ['task is-behavior-adding'], mutation: false, outputMode: 'json' },
+
+  { canonical: 'todo.match-phase', aliases: ['todo match-phase'], mutation: false, outputMode: 'json' },
+
+  { canonical: 'uat.render-checkpoint', aliases: ['uat render-checkpoint'], mutation: false, outputMode: 'json' },
+
   {
     canonical: 'workstream.create',
     aliases: ['workstream create'],
     mutation: true,
     outputMode: 'json',
   },
+  { canonical: 'workstream.list', aliases: ['workstream list'], mutation: false, outputMode: 'json' },
   { canonical: 'workstream.set', aliases: ['workstream set'], mutation: true, outputMode: 'json' },
   {
     canonical: 'workstream.complete',
@@ -54,8 +71,9 @@ export const NON_FAMILY_COMMAND_MANIFEST: readonly NonFamilyCommandManifestEntry
   { canonical: 'learnings.prune', aliases: ['learnings prune'], mutation: true, outputMode: 'json' },
   { canonical: 'learnings.delete', aliases: ['learnings delete'], mutation: true, outputMode: 'json' },
 
-  { canonical: 'intel.snapshot', aliases: ['intel snapshot'], mutation: true, outputMode: 'json' },
-  { canonical: 'intel.patch-meta', aliases: ['intel patch-meta'], mutation: true, outputMode: 'json' },
+  // intel.* entries intentionally NOT in this manifest — intel is out-of-seam
+  // (CJS-only) per ADR/PRD 3524 §3 / L160. Dispatch is direct from
+  // get-shit-done/bin/gsd-tools.cjs `case 'intel':` to bin/lib/intel.cjs.
 
   { canonical: 'write-profile', aliases: [], mutation: true, outputMode: 'json' },
   { canonical: 'generate-claude-profile', aliases: [], mutation: true, outputMode: 'json' },
@@ -63,4 +81,6 @@ export const NON_FAMILY_COMMAND_MANIFEST: readonly NonFamilyCommandManifestEntry
   { canonical: 'generate-claude-md', aliases: [], mutation: true, outputMode: 'json' },
 
   { canonical: 'verify-summary', aliases: ['verify.summary', 'verify summary'], mutation: false, outputMode: 'raw' },
+
+  { canonical: 'agent.classify-failure', aliases: ['agent classify-failure'], mutation: false, outputMode: 'json' },
 ] as const;

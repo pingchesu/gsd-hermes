@@ -31,7 +31,6 @@ import {
 } from './runtime-model-contract.js';
 import { maskIfSecret } from './secrets.js';
 import type { QueryHandler } from './utils.js';
-
 export {
   ACCEPTED_MODEL_PROFILES,
   MODEL_PROFILES,
@@ -45,6 +44,19 @@ export {
   validateAgentBindings,
   validateResolvedAgentBinding,
 } from './runtime-model-validation.js';
+
+/**
+ * Schema-level defaults for well-known config keys.
+ *
+ * Mirrors the CJS table at get-shit-done/bin/lib/config.cjs so SDK config-get
+ * returns documented defaults before throwing CONFIG_KEY_NOT_FOUND.
+ */
+const SCHEMA_DEFAULTS: Readonly<Record<string, string | number | boolean>> = Object.freeze({
+  context_window: 200000,
+  'executor.stall_detect_interval_minutes': 5,
+  'executor.stall_threshold_minutes': 10,
+  'git.create_tag': true,
+});
 
 // ─── configGet ──────────────────────────────────────────────────────────────
 
@@ -83,14 +95,29 @@ export const configGet: QueryHandler = async (args, projectDir, workstream) => {
   try {
     raw = await readFile(paths.config, 'utf-8');
   } catch {
-    throw new GSDError(`No config.json found at ${paths.config}`, ErrorClassification.Validation);
+    // config.json missing — CJS parity (config.cjs:524-533):
+    //   1. --default beats everything
+    //   2. else SCHEMA_DEFAULTS supply a documented value (#2943)
+    //   3. else CONFIG_NO_FILE error
+    if (defaultValue !== undefined) return { data: defaultValue };
+    if (Object.prototype.hasOwnProperty.call(SCHEMA_DEFAULTS, keyPath)) {
+      return { data: SCHEMA_DEFAULTS[keyPath] };
+    }
+    const err = new GSDError(`No config.json found at ${paths.config}`, ErrorClassification.Validation);
+    (err as GSDError & { reason?: string }).reason = 'config_no_file';
+    throw err;
   }
 
   let config: Record<string, unknown>;
   try {
     config = JSON.parse(raw) as Record<string, unknown>;
   } catch {
-    throw new GSDError(`Malformed config.json at ${paths.config}`, ErrorClassification.Validation);
+    // Lead the message with "Failed to read config.json" — matches the CJS
+    // `cmdConfigGet` / `setConfigValue` error vocabulary so tests written
+    // against the legacy contract keep matching.
+    const err = new GSDError(`Failed to read config.json: malformed JSON at ${paths.config}`, ErrorClassification.Validation);
+    (err as GSDError & { reason?: string }).reason = 'config_parse_failed';
+    throw err;
   }
 
   const keys = keyPath.split('.');
@@ -99,14 +126,26 @@ export const configGet: QueryHandler = async (args, projectDir, workstream) => {
     if (current === undefined || current === null || typeof current !== 'object') {
       // UNIX convention (cf. `git config --get`): missing key exits 1, not 10.
       // See issue #2544 — callers use `if ! gsd-sdk query config-get k; then` patterns.
+      // CJS parity ordering (config.cjs:543-551): --default first, then
+      // SCHEMA_DEFAULTS, then CONFIG_KEY_NOT_FOUND.
       if (defaultValue !== undefined) return { data: defaultValue };
-      throw new GSDError(`Key not found: ${keyPath}`, ErrorClassification.Execution);
+      if (Object.prototype.hasOwnProperty.call(SCHEMA_DEFAULTS, keyPath)) {
+        return { data: SCHEMA_DEFAULTS[keyPath] };
+      }
+      const err = new GSDError(`Key not found: ${keyPath}`, ErrorClassification.Execution);
+      (err as GSDError & { reason?: string }).reason = 'config_key_not_found';
+      throw err;
     }
     current = (current as Record<string, unknown>)[key];
   }
   if (current === undefined) {
     if (defaultValue !== undefined) return { data: defaultValue };
-    throw new GSDError(`Key not found: ${keyPath}`, ErrorClassification.Execution);
+    if (Object.prototype.hasOwnProperty.call(SCHEMA_DEFAULTS, keyPath)) {
+      return { data: SCHEMA_DEFAULTS[keyPath] };
+    }
+    const err = new GSDError(`Key not found: ${keyPath}`, ErrorClassification.Execution);
+    (err as GSDError & { reason?: string }).reason = 'config_key_not_found';
+    throw err;
   }
 
   // Mask plaintext for keys in SECRET_CONFIG_KEYS to match CJS behavior at
@@ -159,7 +198,7 @@ export const resolveModel: QueryHandler = async (args, projectDir, workstream) =
   const legacy = toLegacyResolveModelResult(resolution);
   const workflow = (config.workflow ?? {}) as unknown as Record<string, unknown>;
 
-return {
+  return {
     data: {
       ...legacy,
       runtime_model: {

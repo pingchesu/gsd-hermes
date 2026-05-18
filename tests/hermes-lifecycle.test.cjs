@@ -11,6 +11,7 @@ process.env.GSD_TEST_MODE = '1';
 const { test, describe, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { createTempDir, cleanup } = require('./helpers.cjs');
@@ -30,6 +31,7 @@ function runInstaller(args, options = {}) {
   const env = {
     ...process.env,
     HOME: options.home || process.env.HOME,
+    USERPROFILE: options.home || process.env.USERPROFILE,
   };
   delete env.GSD_TEST_MODE;
 
@@ -38,6 +40,14 @@ function runInstaller(args, options = {}) {
     env,
     encoding: 'utf8',
   });
+}
+
+function hermesHelpSkillPath(rootDir) {
+  return path.join(rootDir, 'skills', 'gsd', 'help', 'SKILL.md');
+}
+
+function hermesHelpSkillDir(rootDir) {
+  return path.dirname(hermesHelpSkillPath(rootDir));
 }
 
 describe('Hermes external_dirs cleanup', () => {
@@ -89,8 +99,9 @@ describe('Hermes external_dirs cleanup', () => {
   test('returns removed false when the external dir is absent', () => {
     const configPath = path.join(tmpDir, '.hermes', 'config.yaml');
     const missingDir = path.join(tmpDir, 'project', '.gsd-hermes', 'skills');
+    const otherDir = normalizeHermesExternalDir(path.join(os.tmpdir(), 'gsd-hermes-other'));
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
-    fs.writeFileSync(configPath, 'model:\n  provider: test\nskills:\n  external_dirs:\n    - "/tmp/other"\n');
+    fs.writeFileSync(configPath, `model:\n  provider: test\nskills:\n  external_dirs:\n    - "${otherDir}"\n`);
 
     const result = removeHermesExternalDir(configPath, missingDir);
     const content = fs.readFileSync(configPath, 'utf8');
@@ -100,7 +111,7 @@ describe('Hermes external_dirs cleanup', () => {
       path: normalizeHermesExternalDir(missingDir),
     });
     assert.match(content, /provider: test/);
-    assert.match(content, /\/tmp\/other/);
+    assert.match(content, new RegExp(otherDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   });
 });
 
@@ -123,18 +134,19 @@ describe('Hermes lifecycle update and uninstall', () => {
     const first = runInstaller(args, { home: tmpHome, cwd: tmpProject });
     assert.strictEqual(first.status, 0, first.stdout + first.stderr);
 
-    const skillPath = path.join(tmpProject, '.gsd-hermes', 'skills', 'gsd-help', 'SKILL.md');
+    const projectRoot = path.join(tmpProject, '.gsd-hermes');
+    const skillPath = hermesHelpSkillPath(projectRoot);
     fs.appendFileSync(skillPath, '\n<!-- user edit -->\n');
 
     const second = runInstaller(args, { home: tmpHome, cwd: tmpProject });
     assert.strictEqual(second.status, 0, second.stdout + second.stderr);
 
     const patchPath = path.join(
-      tmpProject,
-      '.gsd-hermes',
+      projectRoot,
       'gsd-local-patches',
       'skills',
-      'gsd-help',
+      'gsd',
+      'help',
       'SKILL.md'
     );
     assert.ok(fs.existsSync(patchPath), 'project-linked patch backup exists');
@@ -146,18 +158,19 @@ describe('Hermes lifecycle update and uninstall', () => {
     const first = runInstaller(args, { home: tmpHome, cwd: tmpProject });
     assert.strictEqual(first.status, 0, first.stdout + first.stderr);
 
-    const skillPath = path.join(tmpHome, '.hermes', 'skills', 'gsd-help', 'SKILL.md');
+    const hermesRoot = path.join(tmpHome, '.hermes');
+    const skillPath = hermesHelpSkillPath(hermesRoot);
     fs.appendFileSync(skillPath, '\n<!-- user edit -->\n');
 
     const second = runInstaller(args, { home: tmpHome, cwd: tmpProject });
     assert.strictEqual(second.status, 0, second.stdout + second.stderr);
 
     const patchPath = path.join(
-      tmpHome,
-      '.hermes',
+      hermesRoot,
       'gsd-local-patches',
       'skills',
-      'gsd-help',
+      'gsd',
+      'help',
       'SKILL.md'
     );
     assert.ok(fs.existsSync(patchPath), 'global patch backup exists');
@@ -186,7 +199,7 @@ describe('Hermes lifecycle update and uninstall', () => {
     assert.match(result.stdout, /Removed \d+ Hermes skills/);
     assert.match(result.stdout, /Removed project-linked Hermes skills\.external_dirs entry/);
 
-    assert.ok(!fs.existsSync(path.join(skillsDir, 'gsd-help')), 'gsd-help skill removed');
+    assert.ok(!fs.existsSync(hermesHelpSkillDir(path.join(tmpProject, '.gsd-hermes'))), 'gsd/help skill removed');
     const config = fs.readFileSync(configPath, 'utf8');
     assert.strictEqual(countOccurrences(config, normalizedSkillsDir), 0);
     assert.strictEqual(countOccurrences(config, normalizedUnrelatedDir), 1);
@@ -200,7 +213,8 @@ describe('Hermes lifecycle update and uninstall', () => {
     assert.strictEqual(install.status, 0, install.stdout + install.stderr);
 
     const configPath = path.join(tmpHome, '.hermes', 'config.yaml');
-    fs.writeFileSync(configPath, 'skills:\n  external_dirs:\n    - "/tmp/external-skills"\n');
+    const externalSkillsDir = path.join(os.tmpdir(), 'external-skills');
+    fs.writeFileSync(configPath, `skills:\n  external_dirs:\n    - "${externalSkillsDir}"\n`);
 
     const result = runInstaller(['--hermes', '--global', '--uninstall'], {
       home: tmpHome,
@@ -209,8 +223,11 @@ describe('Hermes lifecycle update and uninstall', () => {
     assert.strictEqual(result.status, 0, result.stdout + result.stderr);
     assert.match(result.stdout, /Removed \d+ Hermes skills/);
 
-    assert.ok(!fs.existsSync(path.join(tmpHome, '.hermes', 'skills', 'gsd-help')));
-    assert.match(fs.readFileSync(configPath, 'utf8'), /\/tmp\/external-skills/);
+    assert.ok(!fs.existsSync(hermesHelpSkillDir(path.join(tmpHome, '.hermes'))));
+    assert.match(
+      fs.readFileSync(configPath, 'utf8'),
+      new RegExp(externalSkillsDir.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    );
   });
 });
 
@@ -336,7 +353,7 @@ describe('Hermes lifecycle end-to-end', () => {
     assert.strictEqual(install.status, 0, install.stdout + install.stderr);
 
     const hermesRoot = path.join(tmpHome, '.hermes');
-    const skillPath = path.join(hermesRoot, 'skills', 'gsd-help', 'SKILL.md');
+    const skillPath = hermesHelpSkillPath(hermesRoot);
     assert.ok(fs.existsSync(skillPath), 'global gsd-help skill exists');
 
     const doctor = runInstaller(['--hermes', '--global', '--doctor', '--no-sdk'], {
@@ -353,7 +370,7 @@ describe('Hermes lifecycle end-to-end', () => {
     });
     assert.strictEqual(update.status, 0, update.stdout + update.stderr);
     assert.ok(
-      fs.existsSync(path.join(hermesRoot, 'gsd-local-patches', 'skills', 'gsd-help', 'SKILL.md')),
+      fs.existsSync(path.join(hermesRoot, 'gsd-local-patches', 'skills', 'gsd', 'help', 'SKILL.md')),
       'global update patch backup exists'
     );
 
@@ -362,7 +379,7 @@ describe('Hermes lifecycle end-to-end', () => {
       cwd: tmpProject,
     });
     assert.strictEqual(uninstall.status, 0, uninstall.stdout + uninstall.stderr);
-    assert.ok(!fs.existsSync(path.join(hermesRoot, 'skills', 'gsd-help')));
+    assert.ok(!fs.existsSync(hermesHelpSkillDir(hermesRoot)));
     assert.ok(!fs.existsSync(path.join(hermesRoot, 'gsd-file-manifest.json')));
   });
 
@@ -375,7 +392,7 @@ describe('Hermes lifecycle end-to-end', () => {
 
     const projectRoot = path.join(tmpProject, '.gsd-hermes');
     const skillsDir = path.join(projectRoot, 'skills');
-    const skillPath = path.join(skillsDir, 'gsd-help', 'SKILL.md');
+    const skillPath = hermesHelpSkillPath(projectRoot);
     const configPath = path.join(tmpHome, '.hermes', 'config.yaml');
     const normalizedSkillsDir = normalizeHermesExternalDir(skillsDir);
     const unrelatedExternalDir = path.join(tmpProject, 'unrelated external dir');
@@ -401,7 +418,7 @@ describe('Hermes lifecycle end-to-end', () => {
     });
     assert.strictEqual(update.status, 0, update.stdout + update.stderr);
     assert.ok(
-      fs.existsSync(path.join(projectRoot, 'gsd-local-patches', 'skills', 'gsd-help', 'SKILL.md')),
+      fs.existsSync(path.join(projectRoot, 'gsd-local-patches', 'skills', 'gsd', 'help', 'SKILL.md')),
       'project-linked update patch backup exists'
     );
 
@@ -410,7 +427,7 @@ describe('Hermes lifecycle end-to-end', () => {
       cwd: tmpProject,
     });
     assert.strictEqual(uninstall.status, 0, uninstall.stdout + uninstall.stderr);
-    assert.ok(!fs.existsSync(path.join(skillsDir, 'gsd-help')));
+    assert.ok(!fs.existsSync(hermesHelpSkillDir(projectRoot)));
     assert.ok(!fs.existsSync(path.join(projectRoot, 'gsd-file-manifest.json')));
 
     config = fs.readFileSync(configPath, 'utf8');

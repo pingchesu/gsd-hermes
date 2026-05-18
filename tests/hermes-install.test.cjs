@@ -19,6 +19,21 @@ const { createTempDir, cleanup } = require('./helpers.cjs');
 const installPath = path.join(__dirname, '..', 'bin', 'install.js');
 const installSrc = fs.readFileSync(installPath, 'utf8');
 
+function hermesHelpSkillPath(rootDir) {
+  return path.join(rootDir, 'skills', 'gsd', 'help', 'SKILL.md');
+}
+
+function canonicalExternalDirCandidates(projectDir) {
+  const skillRoot = path.resolve(projectDir, '.gsd-hermes', 'skills');
+  const candidates = new Set([skillRoot]);
+  try {
+    candidates.add(fs.realpathSync.native(skillRoot));
+  } catch {
+    // The resolved path remains useful for tests that create the directory later.
+  }
+  return [...candidates].map((candidate) => candidate.replace(/\\/g, '/'));
+}
+
 const {
   getDirName,
   getGlobalDir,
@@ -31,6 +46,7 @@ function runInstaller(args, options = {}) {
   const env = {
     ...process.env,
     HOME: options.home || process.env.HOME,
+    USERPROFILE: options.home || process.env.USERPROFILE,
   };
   delete env.GSD_TEST_MODE;
 
@@ -99,13 +115,13 @@ describe('Hermes installer source integration', () => {
     assert.ok(installSrc.includes('.gsd-hermes'), 'project-linked skills root exists');
     assert.ok(installSrc.includes('project-linked mode'), 'user-facing project-linked wording exists');
     assert.ok(installSrc.includes('skills.external_dirs'), 'external_dirs wording exists');
-    assert.ok(installSrc.includes('ensureHermesExternalDir(configPath, skillsDir)'));
+    assert.ok(installSrc.includes('ensureHermesExternalDir(configPath, hermesSkillsRoot)'));
   });
 
   test('Hermes install branch targets global and project-linked skill roots', () => {
     assert.ok(
-      /isGlobal[\s\S]{0,120}path\.join\(getGlobalDir\('hermes', explicitConfigDir\), 'skills'\)/.test(installSrc),
-      'Hermes branch installs under getGlobalDir("hermes")/skills'
+      installSrc.includes("const skillsDir = path.join(targetDir, 'skills')"),
+      'Hermes branch installs under the resolved target skills directory'
     );
     assert.ok(
       /!isGlobal[\s\S]{0,500}\.gsd-hermes/.test(installSrc),
@@ -156,7 +172,7 @@ describe('Hermes installer CLI behavior', () => {
 
     assert.strictEqual(result.status, 0, result.stdout + result.stderr);
     assert.match(result.stdout, /project-linked mode/);
-    assert.ok(fs.existsSync(path.join(tmpProject, '.gsd-hermes', 'skills', 'gsd-help', 'SKILL.md')));
+    assert.ok(fs.existsSync(hermesHelpSkillPath(path.join(tmpProject, '.gsd-hermes'))));
     assert.match(
       fs.readFileSync(path.join(tmpHome, '.hermes', 'config.yaml'), 'utf8'),
       /external_dirs:/
@@ -174,14 +190,14 @@ describe('Hermes installer CLI behavior', () => {
 
     const hermesRoot = path.join(tmpHome, '.hermes');
     const skillsDir = path.join(hermesRoot, 'skills');
-    const gsdSkillDirs = fs.readdirSync(skillsDir, { withFileTypes: true })
-      .filter(entry => entry.isDirectory() && entry.name.startsWith('gsd-'));
+    const gsdSkillDirs = fs.readdirSync(path.join(skillsDir, 'gsd'), { withFileTypes: true })
+      .filter(entry => entry.isDirectory());
 
-    assert.ok(gsdSkillDirs.length > 0, 'GSD skills installed under ~/.hermes/skills');
-    const helpSkillPath = path.join(skillsDir, 'gsd-help', 'SKILL.md');
+    assert.ok(gsdSkillDirs.length > 0, 'GSD skills installed under ~/.hermes/skills/gsd');
+    const helpSkillPath = hermesHelpSkillPath(hermesRoot);
     assert.ok(fs.existsSync(helpSkillPath), 'gsd-help skill exists');
     const helpSkill = fs.readFileSync(helpSkillPath, 'utf8');
-    assert.match(helpSkill, /^name:\s+gsd-help$/m, 'gsd-help uses command-discoverable frontmatter');
+    assert.match(helpSkill, /^name:\s+help$/m, 'Hermes nested gsd/help skill uses bare command frontmatter');
     assert.ok(!helpSkill.includes('~/.claude/'), 'no tilde Claude path in Hermes skill');
     assert.ok(!helpSkill.includes('$HOME/.claude/'), 'no HOME Claude path in Hermes skill');
     assert.ok(!helpSkill.includes('./.claude/'), 'no project Claude path in Hermes skill');
@@ -287,28 +303,26 @@ describe('HERM-01/02 install modes end-to-end', () => {
     cleanup(tmpProject);
   });
 
-  test('HERM-01: --hermes --global writes ~/.hermes/skills/gsd-help/SKILL.md', () => {
+  test('HERM-01: --hermes --global writes ~/.hermes/skills/gsd/help/SKILL.md', () => {
     const result = runInstaller(['--hermes', '--global', '--no-sdk'], { home: tmpHome, cwd: tmpProject });
     assert.strictEqual(result.status, 0, `installer exit != 0:\n${result.stdout}\n${result.stderr}`);
-    const skillPath = path.join(tmpHome, '.hermes', 'skills', 'gsd-help', 'SKILL.md');
+    const skillPath = hermesHelpSkillPath(path.join(tmpHome, '.hermes'));
     assert.ok(fs.existsSync(skillPath), `missing ${skillPath}`);
     const skill = fs.readFileSync(skillPath, 'utf8');
-    assert.match(skill, /name:\s*gsd-help/, 'SKILL.md must declare name: gsd-help frontmatter');
+    assert.match(skill, /name:\s*help/, 'SKILL.md must declare name: help frontmatter');
   });
 
   test('HERM-02: --hermes --local writes .gsd-hermes/skills + registers external_dirs', () => {
     const result = runInstaller(['--hermes', '--local', '--no-sdk'], { home: tmpHome, cwd: tmpProject });
     assert.strictEqual(result.status, 0, `installer exit != 0:\n${result.stdout}\n${result.stderr}`);
-    const localSkill = path.join(tmpProject, '.gsd-hermes', 'skills', 'gsd-help', 'SKILL.md');
+    const localSkill = hermesHelpSkillPath(path.join(tmpProject, '.gsd-hermes'));
     assert.ok(fs.existsSync(localSkill), `missing ${localSkill}`);
     const configYamlPath = path.join(tmpHome, '.hermes', 'config.yaml');
     assert.ok(fs.existsSync(configYamlPath), 'config.yaml must be written');
     const yaml = fs.readFileSync(configYamlPath, 'utf8');
     assert.match(yaml, /external_dirs:/, 'config.yaml must declare skills.external_dirs block');
-    // The registered path may be either tmpProject or its canonical form on macOS — accept both
-    const escaped = tmpProject.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const canonicalAlt = escaped.replace('/var/', '(?:/private)?/var/');
-    assert.match(yaml, new RegExp(canonicalAlt + '/\\.gsd-hermes/skills'),
+    const candidates = canonicalExternalDirCandidates(tmpProject);
+    assert.ok(candidates.some((candidate) => yaml.includes(candidate)),
       `external_dirs must contain registered project skills path (accepting canonical form)`);
   });
 

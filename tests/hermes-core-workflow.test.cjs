@@ -18,18 +18,29 @@ const { createTempDir, cleanup } = require('./helpers.cjs');
 const installPath = path.join(__dirname, '..', 'bin', 'install.js');
 
 const CORE_WORKFLOW_SKILLS = [
-  'gsd-new-project',
-  'gsd-discuss-phase',
-  'gsd-plan-phase',
-  'gsd-execute-phase',
-  'gsd-verify-work',
-  'gsd-progress',
-  'gsd-settings',
-  'gsd-update',
+  'new-project',
+  'discuss-phase',
+  'plan-phase',
+  'execute-phase',
+  'verify-work',
+  'progress',
+  'settings',
+  'update',
 ];
 
 function countOccurrences(haystack, needle) {
   return haystack.split(needle).length - 1;
+}
+
+function canonicalSkillRoot(projectDir) {
+  const skillRoot = path.resolve(projectDir, '.gsd-hermes', 'skills');
+  const candidates = new Set([skillRoot]);
+  try {
+    candidates.add(fs.realpathSync.native(skillRoot));
+  } catch {
+    // Directory existence is asserted separately; keep the resolved path as the fallback.
+  }
+  return [...candidates].map((candidate) => candidate.replace(/\\/g, '/'));
 }
 
 function assertNoExecutableClaudePathLeaks(rootDir) {
@@ -71,6 +82,7 @@ function runInstaller(args, options = {}) {
   const env = {
     ...process.env,
     HOME: options.home || process.env.HOME,
+    USERPROFILE: options.home || process.env.USERPROFILE,
   };
   delete env.GSD_TEST_MODE;
 
@@ -103,10 +115,10 @@ describe('Hermes core workflow skill installation', () => {
 
     assert.strictEqual(result.status, 0, result.stdout + result.stderr);
 
-    const skillsDir = path.join(tmpHome, '.hermes', 'skills');
+    const skillsDir = path.join(tmpHome, '.hermes', 'skills', 'gsd');
     for (const skillName of CORE_WORKFLOW_SKILLS) {
       const skillPath = path.join(skillsDir, skillName, 'SKILL.md');
-      assert.ok(fs.existsSync(skillPath), `${skillName} skill exists`);
+      assert.ok(fs.existsSync(skillPath), `gsd/${skillName} skill exists`);
       const content = fs.readFileSync(skillPath, 'utf8');
       assert.match(
         content,
@@ -124,16 +136,16 @@ describe('Hermes core workflow skill installation', () => {
 
     assert.strictEqual(result.status, 0, result.stdout + result.stderr);
 
-    const skillsDir = path.join(tmpProject, '.gsd-hermes', 'skills');
+    const skillsDir = path.join(tmpProject, '.gsd-hermes', 'skills', 'gsd');
     for (const skillName of CORE_WORKFLOW_SKILLS) {
       const skillPath = path.join(skillsDir, skillName, 'SKILL.md');
-      assert.ok(fs.existsSync(skillPath), `${skillName} project-linked skill exists`);
+      assert.ok(fs.existsSync(skillPath), `gsd/${skillName} project-linked skill exists`);
     }
 
     const configPath = path.join(tmpHome, '.hermes', 'config.yaml');
     const config = fs.readFileSync(configPath, 'utf8');
-    const absoluteSkillsDir = path.resolve(skillsDir).replace(/\\/g, '/');
-    assert.strictEqual(countOccurrences(config, absoluteSkillsDir), 1);
+    const counts = canonicalSkillRoot(tmpProject).map((candidate) => countOccurrences(config, candidate));
+    assert.ok(counts.some((count) => count === 1), 'config.yaml registers the project skills root exactly once');
   });
 
   test('global Hermes install has no executable Claude path leaks in workflows', () => {
@@ -164,7 +176,7 @@ describe('Hermes core workflow skill installation', () => {
 
     assert.strictEqual(result.status, 0, result.stdout + result.stderr);
 
-    const skillPath = path.join(tmpHome, '.hermes', 'skills', 'gsd-plan-phase', 'SKILL.md');
+    const skillPath = path.join(tmpHome, '.hermes', 'skills', 'gsd', 'plan-phase', 'SKILL.md');
     const content = fs.readFileSync(skillPath, 'utf8');
     assert.match(content, /## Hermes runtime compatibility/);
     assert.match(content, /Use text-mode fallback when AskUserQuestion is unavailable/);
