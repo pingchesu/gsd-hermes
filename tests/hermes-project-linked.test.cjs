@@ -30,6 +30,7 @@ function runInstaller(args, options = {}) {
   const env = {
     ...process.env,
     HOME: options.home || process.env.HOME,
+    USERPROFILE: options.home || process.env.USERPROFILE,
   };
   delete env.GSD_TEST_MODE;
 
