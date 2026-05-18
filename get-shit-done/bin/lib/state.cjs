@@ -919,40 +919,52 @@ function syncStateFrontmatter(content, cwd) {
  */
 function acquireStateLock(statePath) {
   const lockPath = statePath + '.lock';
-  const maxRetries = 10;
+  const lockTimeout = 10000; // 10 seconds
   const retryDelay = 200; // ms
+  const staleAfter = 30000; // ms
+  const start = Date.now();
 
-  for (let i = 0; i < maxRetries; i++) {
+  function tryAcquire() {
+    const fd = fs.openSync(lockPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY);
     try {
-      const fd = fs.openSync(lockPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY);
       fs.writeSync(fd, String(process.pid));
+    } finally {
       fs.closeSync(fd);
-      // Register for exit-time cleanup so process.exit(1) inside a locked region
-      // cannot leave a stale lock file (#1916).
-      _heldStateLocks.add(lockPath);
-      return lockPath;
-    } catch (err) {
-      if (err.code === 'EEXIST') {
-        try {
-          const stat = fs.statSync(lockPath);
-          if (Date.now() - stat.mtimeMs > 10000) {
-            fs.unlinkSync(lockPath);
-            continue;
-          }
-        } catch { /* lock was released between check — retry */ }
+    }
+    // Register for exit-time cleanup so process.exit(1) inside a locked region
+    // cannot leave a stale lock file (#1916).
+    _heldStateLocks.add(lockPath);
+    return lockPath;
+  }
 
-        if (i === maxRetries - 1) {
-          try { fs.unlinkSync(lockPath); } catch {}
-          return lockPath;
+  while (Date.now() - start < lockTimeout) {
+    try {
+      return tryAcquire();
+    } catch (err) {
+      if (err.code !== 'EEXIST') {
+        throw err;
+      }
+
+      try {
+        const stat = fs.statSync(lockPath);
+        if (Date.now() - stat.mtimeMs > staleAfter) {
+          fs.unlinkSync(lockPath);
+          continue;
         }
-        const jitter = Math.floor(Math.random() * 50);
-        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, retryDelay + jitter);
+      } catch {
+        // Lock was released between the failed create and stat/unlink; retry.
         continue;
       }
-      return lockPath; // non-EEXIST error — proceed without lock
+
+      const jitter = Math.floor(Math.random() * 50);
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, retryDelay + jitter);
     }
   }
-  return statePath + '.lock';
+
+  // Timeout — stale-lock recovery, then acquire atomically before entering the
+  // critical section. Never return a lock path unless this process owns it.
+  try { fs.unlinkSync(lockPath); } catch { /* ok */ }
+  return tryAcquire();
 }
 
 function releaseStateLock(lockPath) {
