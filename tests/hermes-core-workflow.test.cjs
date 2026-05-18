@@ -32,6 +32,17 @@ function countOccurrences(haystack, needle) {
   return haystack.split(needle).length - 1;
 }
 
+function canonicalSkillRoot(projectDir) {
+  const skillRoot = path.resolve(projectDir, '.gsd-hermes', 'skills');
+  const candidates = new Set([skillRoot]);
+  try {
+    candidates.add(fs.realpathSync.native(skillRoot));
+  } catch {
+    // Directory existence is asserted separately; keep the resolved path as the fallback.
+  }
+  return [...candidates].map((candidate) => candidate.replace(/\\/g, '/'));
+}
+
 function assertNoExecutableClaudePathLeaks(rootDir) {
   const leaks = [];
 
@@ -133,8 +144,8 @@ describe('Hermes core workflow skill installation', () => {
 
     const configPath = path.join(tmpHome, '.hermes', 'config.yaml');
     const config = fs.readFileSync(configPath, 'utf8');
-    const absoluteSkillsRoot = path.resolve(tmpProject, '.gsd-hermes', 'skills').replace(/\\/g, '/');
-    assert.strictEqual(countOccurrences(config, absoluteSkillsRoot), 1);
+    const counts = canonicalSkillRoot(tmpProject).map((candidate) => countOccurrences(config, candidate));
+    assert.ok(counts.some((count) => count === 1), 'config.yaml registers the project skills root exactly once');
   });
 
   test('global Hermes install has no executable Claude path leaks in workflows', () => {

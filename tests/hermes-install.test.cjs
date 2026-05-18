@@ -23,6 +23,17 @@ function hermesHelpSkillPath(rootDir) {
   return path.join(rootDir, 'skills', 'gsd', 'help', 'SKILL.md');
 }
 
+function canonicalExternalDirCandidates(projectDir) {
+  const skillRoot = path.resolve(projectDir, '.gsd-hermes', 'skills');
+  const candidates = new Set([skillRoot]);
+  try {
+    candidates.add(fs.realpathSync.native(skillRoot));
+  } catch {
+    // The resolved path remains useful for tests that create the directory later.
+  }
+  return [...candidates].map((candidate) => candidate.replace(/\\/g, '/'));
+}
+
 const {
   getDirName,
   getGlobalDir,
@@ -310,10 +321,8 @@ describe('HERM-01/02 install modes end-to-end', () => {
     assert.ok(fs.existsSync(configYamlPath), 'config.yaml must be written');
     const yaml = fs.readFileSync(configYamlPath, 'utf8');
     assert.match(yaml, /external_dirs:/, 'config.yaml must declare skills.external_dirs block');
-    // The registered path may be either tmpProject or its canonical form on macOS — accept both
-    const escaped = tmpProject.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const canonicalAlt = escaped.replace('/var/', '(?:/private)?/var/');
-    assert.match(yaml, new RegExp(canonicalAlt + '/\\.gsd-hermes/skills'),
+    const candidates = canonicalExternalDirCandidates(tmpProject);
+    assert.ok(candidates.some((candidate) => yaml.includes(candidate)),
       `external_dirs must contain registered project skills path (accepting canonical form)`);
   });
 
