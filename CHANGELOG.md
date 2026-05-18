@@ -10,6 +10,24 @@ syncs from.
 
 ## [Unreleased]
 
+## 1.16.0 — 2026-05-18
+
+GSD Hermes package version: `1.16.0`
+Upstream GSD base: `upstream/main@cb154569` (post v1.42.1 development line)
+Previous downstream package version: `1.15.0`
+Previous upstream base: `upstream/main@d2412271`
+
+### Changed
+- Sync downstream `gsd-hermes` to upstream `gsd-build/get-shit-done@cb154569`. Adopts
+  upstream surface/layout module work (#3663, #3666), `/gsd:` → `/gsd-` normalization
+  (#3677, #3683), executor `commit_docs:false` honoring (#3678), Windows nested
+  worktree detection fixes, and assorted installer/surface fixes through v1.42.1.
+- Preserve Hermes-first routing semantics: model_overrides and Hermes-prefixed model
+  ids continue to route through the configured Hermes/provider surface, and
+  unknown-agent model resolution stays fail-fast (no silent Claude fallback).
+- Preserve Hermes project-linked install semantics — installer does not claim a
+  true native local Hermes skills install path.
+
 ## 1.14.0 — 2026-05-08
 
 GSD Hermes package version: `1.14.0`
@@ -1006,7 +1024,7 @@ artif
 - YOLO mode for autonomous execution
 - Interactive mode with checkpoints
 
-[Unreleased]: https://github.com/gsd-build/get-shit-done/compare/v1.37.1...HEAD
+[Unreleased]: https://github.com/pingchesu/gsd-hermes/compare/v1.16.0...HEAD
 [1.37.1]: https://github.com/gsd-build/get-shit-done/compare/v1.37.0...v1.37.1
 [1.37.0]: https://github.com/gsd-build/get-shit-done/compare/v1.36.0...v1.37.0
 [1.36.0]: https://github.com/gsd-build/get-shit-done/releases/tag/v1.36.0

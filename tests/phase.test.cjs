@@ -854,6 +854,35 @@ describe('phase add command', () => {
     assert.ok(roadmap.includes('**Requirements**: TBD'), 'new phase entry should include Requirements TBD');
   });
 
+  test('phase add ignores --raw instead of persisting it in the description', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'ROADMAP.md'),
+      `# Roadmap v1.0\n\n### Phase 1: Foundation\n**Goal:** Setup\n\n---\n`
+    );
+
+    const result = runGsdTools(['phase', 'add', '--raw', 'User', 'Dashboard'], tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const roadmap = fs.readFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), 'utf-8');
+    assert.ok(roadmap.includes('### Phase 2: User Dashboard'), 'description should exclude --raw');
+    assert.ok(!roadmap.includes('--raw'), 'raw flag must not be persisted into ROADMAP.md');
+  });
+
+  test('phase add rejects unsupported flags and dangling --id', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'ROADMAP.md'),
+      `# Roadmap v1.0\n\n### Phase 1: Foundation\n**Goal:** Setup\n\n---\n`
+    );
+
+    const unsupported = runGsdTools(['phase', 'add', '--unknown', 'Dashboard'], tmpDir);
+    assert.ok(!unsupported.success, 'unsupported flags should fail');
+    assert.match(unsupported.error, /phase add does not support --unknown/);
+
+    const dangling = runGsdTools(['phase', 'add', 'Dashboard', '--id'], tmpDir);
+    assert.ok(!dangling.success, 'dangling --id should fail');
+    assert.match(dangling.error, /--id requires a value/);
+  });
+
   test('skips 999.x backlog phases when calculating next phase number', () => {
     fs.writeFileSync(
       path.join(tmpDir, '.planning', 'ROADMAP.md'),
@@ -1176,6 +1205,22 @@ describe('phase add-batch command (#2165)', () => {
     const result = runGsdTools(['phase', 'add-batch', '--descriptions', '[]'], tmpDir);
     assert.ok(!result.success, 'should fail on empty array');
   });
+
+  test('returns error when --descriptions JSON is not an array', () => {
+    const result = runGsdTools(['phase', 'add-batch', '--descriptions', '{"one":"Alpha"}'], tmpDir);
+    assert.ok(!result.success, 'should fail on non-array JSON');
+    assert.match(result.error, /--descriptions must be a JSON array/);
+  });
+
+  test('returns error when --descriptions is missing its JSON value', () => {
+    const missing = runGsdTools(['phase', 'add-batch', '--descriptions'], tmpDir);
+    assert.ok(!missing.success, 'should fail on dangling --descriptions');
+    assert.match(missing.error, /--descriptions must be a JSON array/);
+
+    const flagValue = runGsdTools(['phase', 'add-batch', '--descriptions', '--raw'], tmpDir);
+    assert.ok(!flagValue.success, 'should fail when --descriptions value is another flag');
+    assert.match(flagValue.error, /--descriptions must be a JSON array/);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1446,6 +1491,30 @@ describe('phase remove command', () => {
     assert.ok(forceResult.success, `Force remove failed: ${forceResult.error}`);
   });
 
+  test('bug-3409: supports --force before phase id', () => {
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'ROADMAP.md'),
+      `# Roadmap\n### Phase 1: A\n**Goal:** A\n### Phase 2: B\n**Goal:** B\n`
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, '.planning', 'STATE.md'),
+      `# State\n\n**Current Phase:** 1\n**Total Phases:** 2\n`
+    );
+    fs.mkdirSync(path.join(tmpDir, '.planning', 'phases', '01-a'), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, '.planning', 'phases', '02-b'), { recursive: true });
+
+    const result = runGsdTools('phase remove --force 2', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const output = JSON.parse(result.output);
+    assert.strictEqual(output.removed, '2');
+    assert.strictEqual(output.directory_deleted, '02-b');
+    assert.ok(!fs.existsSync(path.join(tmpDir, '.planning', 'phases', '02-b')));
+
+    const state = fs.readFileSync(path.join(tmpDir, '.planning', 'STATE.md'), 'utf-8');
+    assert.ok(state.includes('**Total Phases:** 1'), 'total phases should be decremented after real removal');
+  });
+
   test('removes decimal phase and renumbers siblings', () => {
     fs.writeFileSync(
       path.join(tmpDir, '.planning', 'ROADMAP.md'),
@@ -1623,6 +1692,55 @@ describe('phase remove command', () => {
 
     // Phase 5 should be renumbered to 4
     assert.ok(roadmap.includes('Phase 4: Final'), 'Phase 5 should be renumbered to Phase 4');
+  });
+
+  test('bug-3355: integer phase remove renumbers roadmap once without collapsing later phases', () => {
+    const lines = ['# Roadmap', '', '## Progress', '', '| Phase | Plans | Status | Notes |', '|---|---:|---|---|'];
+    for (let n = 26; n <= 35; n++) {
+      lines.push(`| ${n}. Phase ${n} | 0/1 | Planned | - |`);
+    }
+    lines.push('');
+	    for (let n = 26; n <= 35; n++) {
+	      lines.push(`### Phase ${n}: Phase ${n}`);
+	      lines.push(`#### Phase ${n}.1: Phase ${n}.1 follow-up`);
+	      lines.push(`**Goal:** Build phase ${n}`);
+	      lines.push(n % 2 === 0 ? `**Depends on**: Phase ${n - 1}` : `**Depends on:** Phase ${n - 1}`);
+	      lines.push(`Plans: ${String(n).padStart(2, '0')}-01-PLAN.md`);
+	      lines.push('');
+
+      const phaseDir = path.join(tmpDir, '.planning', 'phases', `${String(n).padStart(2, '0')}-phase-${n}`);
+      fs.mkdirSync(phaseDir, { recursive: true });
+      fs.writeFileSync(path.join(phaseDir, `${String(n).padStart(2, '0')}-01-PLAN.md`), '# Plan');
+    }
+    fs.writeFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), lines.join('\n'));
+
+    const result = runGsdTools('phase remove 27 --force', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const roadmap = fs.readFileSync(path.join(tmpDir, '.planning', 'ROADMAP.md'), 'utf-8');
+    assert.equal((roadmap.match(/\|\s*27\.\s/g) || []).length, 1, 'progress row 27 appears once');
+    assert.equal((roadmap.match(/\|\s*28\.\s/g) || []).length, 1, 'progress row 28 appears once');
+    assert.equal((roadmap.match(/\|\s*34\.\s/g) || []).length, 1, 'progress row 34 appears once');
+    assert.equal((roadmap.match(/\|\s*35\.\s/g) || []).length, 0, 'old progress row 35 removed by renumber');
+	    assert.equal((roadmap.match(/^### Phase 27:/gm) || []).length, 1, 'heading 27 appears once');
+	    assert.equal((roadmap.match(/^### Phase 34:/gm) || []).length, 1, 'heading 34 appears once');
+	    assert.equal((roadmap.match(/^### Phase 35:/gm) || []).length, 0, 'old heading 35 removed by renumber');
+	    assert.equal((roadmap.match(/^#### Phase 27\.1:/gm) || []).length, 1, 'decimal heading 27.1 appears once');
+	    assert.equal((roadmap.match(/^#### Phase 34\.1:/gm) || []).length, 1, 'decimal heading 34.1 appears once');
+	    assert.equal((roadmap.match(/^#### Phase 35\.1:/gm) || []).length, 0, 'old decimal heading 35.1 removed by renumber');
+	    assert.equal((roadmap.match(/\*\*Depends on\*\*:\s*Phase\s+28\b/g) || []).length, 1, 'bold depends-on with outside colon is decremented');
+	    assert.equal((roadmap.match(/\*\*Depends on:\*\*\s*Phase\s+29\b/g) || []).length, 1, 'legacy bold depends-on with inside colon is decremented');
+	    assert.equal((roadmap.match(/\*\*Depends on:\*\*\s*Phase\s+35\b/g) || []).length, 0, 'old depends-on 35 removed by renumber');
+	    assert.equal((roadmap.match(/\b27-01-PLAN\.md\b/g) || []).length, 1, 'plan id 27-01 appears once');
+	    assert.equal((roadmap.match(/\b34-01-PLAN\.md\b/g) || []).length, 1, 'plan id 34-01 appears once');
+	    assert.equal((roadmap.match(/\b35-01-PLAN\.md\b/g) || []).length, 0, 'old plan id 35-01 removed by renumber');
+
+	    for (let n = 27; n <= 34; n++) {
+      assert.ok(
+        fs.existsSync(path.join(tmpDir, '.planning', 'phases', `${String(n).padStart(2, '0')}-phase-${n + 1}`)),
+        `phase directory ${n} should preserve original phase slug ${n + 1}`,
+      );
+    }
   });
 });
 
@@ -2855,4 +2973,3 @@ describe('phase complete excludes 999.x backlog from next-phase (#2129)', () => 
 // ─────────────────────────────────────────────────────────────────────────────
 // milestone complete command
 // ─────────────────────────────────────────────────────────────────────────────
-

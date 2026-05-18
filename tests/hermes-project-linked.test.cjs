@@ -18,6 +18,10 @@ const { createTempDir, cleanup } = require('./helpers.cjs');
 const installPath = path.join(__dirname, '..', 'bin', 'install.js');
 const { ensureHermesExternalDir, normalizeHermesExternalDir } = require('../bin/install.js');
 
+function hermesHelpSkillPath(rootDir) {
+  return path.join(rootDir, 'skills', 'gsd', 'help', 'SKILL.md');
+}
+
 function countOccurrences(haystack, needle) {
   return haystack.split(needle).length - 1;
 }
@@ -122,7 +126,7 @@ describe('Hermes project-linked installer behavior', () => {
     assert.match(first.stdout, /project-linked mode/);
 
     const skillsDir = path.join(tmpProject, '.gsd-hermes', 'skills');
-    const helpSkillPath = path.join(skillsDir, 'gsd-help', 'SKILL.md');
+    const helpSkillPath = hermesHelpSkillPath(path.join(tmpProject, '.gsd-hermes'));
     assert.ok(fs.existsSync(helpSkillPath), 'project-linked gsd-help skill exists');
 
     const configPath = path.join(tmpHome, '.hermes', 'config.yaml');

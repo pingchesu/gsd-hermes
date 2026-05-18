@@ -220,6 +220,7 @@ See [docs/COMMANDS.md](docs/COMMANDS.md) for the full command reference.
 | `/gsd-audit-uat` | Audit verification debt — find phases missing UAT |
 
 
+For the full configuration reference — all settings, git branching strategies, per-runtime model overrides, workstream config inheritance, agent skills injection — see **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)**.
 
 ---
 

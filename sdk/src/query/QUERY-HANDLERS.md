@@ -109,7 +109,7 @@ Handlers for `**state.signal-waiting`**, `**state.signal-resume**`, `**state.val
 - **`state.json`** / `state json` — port of **`cmdStateJson`** (`state.ts` `stateJson`): rebuilt STATE.md frontmatter JSON. Read-only golden: `read-only-parity.integration.test.ts` compares to CJS `state json` with **`last_updated`** stripped.
 - **`state.load`** / `state load` — port of **`cmdStateLoad`** (`state-project-load.ts` `stateProjectLoad`): `{ config, state_raw, state_exists, roadmap_exists, config_exists }`; **`config`** comes from **`get-shit-done/bin/lib/core.cjs`** `loadConfig`, but discovery now routes through the **SDK Package Seam Module** (`sdk-package-compatibility.ts`) so install-layout probing stays behind one compatibility Adapter. Read-only golden: full `toEqual` vs `state load`. If `core.cjs` cannot be resolved, dispatch throws **`GSDError`** with the checked probe list (document for minimal `@gsd-build/sdk`-only installs).
 
-`stateExtractField` in `helpers.ts` uses **horizontal whitespace only** after `Field:` so YAML keys such as lowercase `progress:` in frontmatter are not mistaken for the body `Progress:` line (see `get-shit-done/bin/lib/state.cjs` — same rule).
+`stateExtractField` in `state-document.ts` (re-exported by `helpers.ts`) uses **horizontal whitespace only** after `Field:` so YAML keys such as lowercase `progress:` in frontmatter are not mistaken for the body `Progress:` line (see `get-shit-done/bin/lib/state-document.cjs` — same rule).
 
 ## Golden parity: coverage and exceptions
 
@@ -155,7 +155,7 @@ From `read-only-parity.integration.test.ts` (full `toEqual` on this repo):
 
 | SDK dispatch (canonical) | Notes |
 | ------------------------ | ----- |
-| `resolve-model` | Args e.g. `gsd-planner`. |
+| `resolve-model` | Args e.g. `gsd-planner`; returns `reasoning_effort` when the selected runtime tier defines one. |
 | `phase-plan-index` | Phase number arg. |
 | `roadmap.get-phase` | Phase number arg. |
 | `list.todos` | No args. |
@@ -298,7 +298,7 @@ Disposition: **Registered** = handled in `createRegistry()` under the listed SDK
 | `state` (subcommands)                                                                                                                   | `state.load`, `state.json`, `state.get`, `state.update`, `state.patch`, … | Registered              | Dotted and `state …` space aliases in `index.ts`.                         |
 | `resolve-model`                                                                                                                         | `resolve-model`                                                           | Registered              |                                                                           |
 | `find-phase`                                                                                                                            | `find-phase`                                                              | Registered              | Golden: subset parity (see above).                                        |
-| `commit`, `check-commit`, `commit-to-subrepo`                                                                                           | `commit`, `check-commit`, `commit-to-subrepo`                             | Registered              |                                                                           |
+| `commit`, `check-commit`, `commit-to-subrepo`                                                                                           | `commit`, `check-commit`, `commit-to-subrepo`                             | Registered              | `commit`: `--files` re-stages full files by default; use `--respect-staged` to skip `git add` and commit only what is already staged within the pathspec (#3522). |
 | `verify-summary`                                                                                                                        | `verify-summary`, `verify.summary`, `verify summary`                      | Registered              |                                                                           |
 | `template`                                                                                                                              | `template.fill`, `template.select`, …                                     | Registered              |                                                                           |
 | `frontmatter`                                                                                                                           | `frontmatter.get`, `frontmatter.set`, …                                   | Registered              |                                                                           |
@@ -347,4 +347,3 @@ Disposition: **Registered** = handled in `createRegistry()` under the listed SDK
 
 - `**detect-custom-files`**: requires `--config-dir <path>`; scans installer manifest vs GSD-managed dirs (`detect-custom-files.ts`).
 - `**docs-init**`: docs-update workflow payload (`docs-init.ts`), aligned with `docs.cjs`. Golden tests omit `**agents_installed**` / `**missing_agents**` when comparing SDK vs CLI because the subprocess may resolve `~/.claude/...` differently than in-process checks.
-

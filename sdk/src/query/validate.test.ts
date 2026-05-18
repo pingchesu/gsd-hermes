@@ -593,6 +593,99 @@ describe('validateHealth', () => {
     expect(w002s).toEqual([]);
   });
 
+  // Regression: #3652 — after /gsd:complete-milestone, STATE.md body retains
+  // historical phase references across milestones while their `#### Phase N:`
+  // headings in ROADMAP.md are collapsed into <details> blocks and the phase
+  // dirs are moved to `milestones/vX.Y-phases/`. The heading-scan regex misses
+  // collapsed phases, so W002 used to fire for every archived phase mentioned
+  // in narrative prose. Cross-referencing the milestones archive suppresses it.
+  it('does not emit W002 for phase refs that live in milestones archive (#3652)', async () => {
+    const planning = join(tmpDir, '.planning');
+    await mkdir(join(planning, 'phases', '23-current'), { recursive: true });
+    await mkdir(join(planning, 'milestones', 'v1.3a-phases', '12-old-phase'), { recursive: true });
+    for (const n of ['19-alpha', '20-beta', '21-gamma', '22-delta']) {
+      await mkdir(join(planning, 'milestones', 'v1.3b-phases', n), { recursive: true });
+    }
+
+    await writeFile(join(planning, 'PROJECT.md'), '# Project\n\n## What This Is\n\nA project.\n\n## Core Value\n\nValue here.\n\n## Requirements\n\n- Req 1\n');
+    await writeFile(join(planning, 'ROADMAP.md'), [
+      '# Roadmap', '',
+      '<details><summary>v1.3a: Shipped</summary>', '',
+      '- Phase 12: archived', '',
+      '</details>', '',
+      '<details><summary>v1.3b: Shipped</summary>', '',
+      '- Phase 19, 20, 21, 22: archived', '',
+      '</details>', '',
+      '## v1.4: Current', '',
+      '### Phase 23: Current work', '**Goal:** stuff', '',
+    ].join('\n'));
+    await writeFile(join(planning, 'STATE.md'), [
+      '---', 'milestone: v1.4', 'milestone_name: Current', 'status: executing', '---', '',
+      '# State', '',
+      '**Current Phase:** 23', '',
+      '## Recent', '- Phase 19 shipped', '- Phase 20 shipped', '- Phase 21 shipped', '- Phase 22 shipped',
+      '', '## Decisions', '- Decision from Phase 12 still applies',
+      '', '## Deferred Items', '- Note from Phase 19',
+    ].join('\n'));
+    await writeFile(join(planning, 'config.json'), JSON.stringify({
+      model_profile: 'balanced',
+      workflow: { nyquist_validation: true },
+    }, null, 2));
+
+    const result = await validateHealth([], tmpDir);
+    const data = result.data as Record<string, unknown>;
+    const warnings = data.warnings as Array<Record<string, unknown>>;
+    const w002s = warnings.filter(w => w.code === 'W002');
+    expect(w002s).toEqual([]);
+  });
+
+  // Regression: #3652 — project-code-prefixed archive dirs (e.g. `CK-64-...`)
+  // must also be recognised as valid phase declarations. The shared
+  // PHASE_TOKEN_FROM_DIR_RE / MILESTONE_ARCHIVE_DIR_RE constants handle the
+  // prefix; an ad-hoc /^\d+/-style regex here would miss them.
+  it('recognises project-code-prefixed archive dirs as valid for W002 (#3652)', async () => {
+    const planning = join(tmpDir, '.planning');
+    await mkdir(join(planning, 'phases', 'CK-65-current'), { recursive: true });
+    await mkdir(join(planning, 'milestones', 'v2.0-phases', 'CK-64-prior-shipped'), { recursive: true });
+
+    await writeFile(join(planning, 'PROJECT.md'), '# Project\n\n## What This Is\n\nA project.\n\n## Core Value\n\nValue here.\n\n## Requirements\n\n- Req 1\n');
+    await writeFile(join(planning, 'ROADMAP.md'), [
+      '# Roadmap', '',
+      '<details><summary>v2.0: Shipped</summary>', '',
+      // `#### Phase 64:` lives inside <details> so the heading-scan
+      // picks it up but the on-disk active phases scan does NOT. The W006
+      // archive scan must recognise `CK-64-prior-shipped` to suppress the
+      // warning — proving the shared regex is in use.
+      '#### Phase 64: Prior shipped', '',
+      '</details>', '',
+      '## v2.1: Current', '',
+      '### Phase 65: Current', '**Goal:** stuff', '',
+    ].join('\n'));
+    await writeFile(join(planning, 'STATE.md'), [
+      '---', 'milestone: v2.1', 'milestone_name: Current', 'status: executing', '---', '',
+      '# State', '',
+      '**Current Phase:** 65', '',
+      '## Recent', '- Phase 64 shipped',
+    ].join('\n'));
+    await writeFile(join(planning, 'config.json'), JSON.stringify({
+      model_profile: 'balanced',
+      workflow: { nyquist_validation: true },
+    }, null, 2));
+
+    const result = await validateHealth([], tmpDir);
+    const data = result.data as Record<string, unknown>;
+    const warnings = data.warnings as Array<Record<string, unknown>>;
+    const w002s = warnings.filter(w => w.code === 'W002');
+    expect(w002s).toEqual([]);
+    // Same prefixed-archive recognition must also suppress W006 for any
+    // ROADMAP heading that points at the CK-prefixed archived phase, so the
+    // pre-existing W006 archive scan doesn't regress to the old ad-hoc regex.
+    const w006sForArchived = warnings.filter(
+      w => w.code === 'W006' && String(w.message).includes('Phase 64'),
+    );
+    expect(w006sForArchived).toEqual([]);
+  });
+
   it('returns warning W005 for bad phase directory naming', async () => {
     await createHealthyPlanning();
     await mkdir(join(tmpDir, '.planning', 'phases', 'bad_name'), { recursive: true });
@@ -601,6 +694,138 @@ describe('validateHealth', () => {
     const data = result.data as Record<string, unknown>;
     const warnings = data.warnings as Array<Record<string, unknown>>;
     expect(warnings.some(w => w.code === 'W005')).toBe(true);
+  });
+
+  it('does not emit W005 for 999.X backlog phase directory naming (#3473)', async () => {
+    await createHealthyPlanning();
+    await mkdir(join(tmpDir, '.planning', 'phases', '999.1-backlog-sweep'), { recursive: true });
+
+    const result = await validateHealth([], tmpDir);
+    const data = result.data as Record<string, unknown>;
+    const warnings = data.warnings as Array<Record<string, unknown>>;
+    const w005ForBacklog = warnings.find(
+      w => w.code === 'W005' && String(w.message).includes('999.1-backlog-sweep'),
+    );
+    expect(w005ForBacklog).toBeUndefined();
+  });
+
+  it('does not emit W006 when roadmap phase exists in milestones archive dir (#3473)', async () => {
+    await createHealthyPlanning();
+    await writeFile(join(tmpDir, '.planning', 'ROADMAP.md'), [
+      '# Roadmap',
+      '',
+      '## v1.0: Shipped ✅ SHIPPED',
+      '',
+      '### Phase 7: Old shipped phase',
+      '',
+      '## v1.1: Current',
+      '',
+      '### Phase 1: Foundation',
+      '',
+    ].join('\n'));
+    await mkdir(join(tmpDir, '.planning', 'milestones', 'v1.0-phases', '07-old-shipped-phase'), { recursive: true });
+    await writeFile(
+      join(tmpDir, '.planning', 'milestones', 'v1.0-phases', '07-old-shipped-phase', '07-01-PLAN.md'),
+      '# Plan\n',
+    );
+
+    const result = await validateHealth([], tmpDir);
+    const data = result.data as Record<string, unknown>;
+    const warnings = data.warnings as Array<Record<string, unknown>>;
+    const w006s = warnings.filter(w => w.code === 'W006');
+    expect(w006s.some(w => String(w.message).includes('Phase 7'))).toBe(false);
+  });
+
+  it('does not emit W007 for archived milestone-only phase dirs (#3560)', async () => {
+    await createHealthyPlanning();
+    await writeFile(join(tmpDir, '.planning', 'ROADMAP.md'), [
+      '# Roadmap',
+      '',
+      '## v1.1: Current',
+      '',
+      '### Phase 21: Active',
+      '',
+    ].join('\n'));
+    await mkdir(join(tmpDir, '.planning', 'phases', '21-active'), { recursive: true });
+    await mkdir(join(tmpDir, '.planning', 'milestones', 'v1.0-phases', '02-old-shipped-phase'), { recursive: true });
+
+    const result = await validateHealth([], tmpDir);
+    const data = result.data as Record<string, unknown>;
+    const warnings = data.warnings as Array<Record<string, unknown>>;
+    const w007s = warnings.filter(w => w.code === 'W007');
+    expect(w007s.some(w => String(w.message).includes('Phase 02'))).toBe(false);
+  });
+
+  it('does not emit W006 for unchecked future phases with no directory (#3559)', async () => {
+    await createHealthyPlanning();
+    await writeFile(join(tmpDir, '.planning', 'ROADMAP.md'), [
+      '# Roadmap',
+      '',
+      '## v1.1: Current',
+      '',
+      '- [x] **Phase 21: Active**',
+      '- [ ] **Phase 22: Future planned**',
+      '',
+      '### Phase 21: Active',
+      '',
+      '### Phase 22: Future planned',
+      '',
+    ].join('\n'));
+    await mkdir(join(tmpDir, '.planning', 'phases', '21-active'), { recursive: true });
+
+    const result = await validateHealth([], tmpDir);
+    const data = result.data as Record<string, unknown>;
+    const warnings = data.warnings as Array<Record<string, unknown>>;
+    const w006s = warnings.filter(w => w.code === 'W006');
+    expect(w006s.some(w => String(w.message).includes('Phase 22'))).toBe(false);
+  });
+
+  it('does not alias 22A to 22 when suppressing W006 (#3565)', async () => {
+    await createHealthyPlanning();
+    await writeFile(join(tmpDir, '.planning', 'ROADMAP.md'), [
+      '# Roadmap',
+      '',
+      '## v1.1: Current',
+      '',
+      '- [x] **Phase 22: Started phase**',
+      '- [ ] **Phase 22A: Future variant**',
+      '',
+      '### Phase 22: Started phase',
+      '',
+      '### Phase 22A: Future variant',
+      '',
+    ].join('\n'));
+
+    const result = await validateHealth([], tmpDir);
+    const data = result.data as Record<string, unknown>;
+    const warnings = data.warnings as Array<Record<string, unknown>>;
+    const w006s = warnings.filter(w => w.code === 'W006');
+    expect(w006s.some(w => String(w.message).includes('Phase 22 in ROADMAP.md'))).toBe(true);
+  });
+
+  it('does not emit I001 when plan file has descriptor but summary uses canonical stem (#3473)', async () => {
+    await createHealthyPlanning();
+    await mkdir(join(tmpDir, '.planning', 'phases', '68-bug-surface'), { recursive: true });
+    await writeFile(join(tmpDir, '.planning', 'phases', '68-bug-surface', '68-01-scaffolding-PLAN.md'), [
+      '---',
+      'phase: 68',
+      'plan: 01',
+      'wave: 1',
+      'depends_on: []',
+      'files_modified: []',
+      'autonomous: true',
+      '---',
+      '# Plan',
+    ].join('\n'));
+    await writeFile(join(tmpDir, '.planning', 'phases', '68-bug-surface', '68-01-SUMMARY.md'), '# Summary\n');
+
+    const result = await validateHealth([], tmpDir);
+    const data = result.data as Record<string, unknown>;
+    const info = data.info as Array<Record<string, unknown>>;
+    const i001ForPhase = info.find(
+      i => i.code === 'I001' && String(i.message).includes('68-bug-surface/68-01-scaffolding-PLAN.md'),
+    );
+    expect(i001ForPhase).toBeUndefined();
   });
 
   it('returns early with E010 when CWD equals home directory', async () => {

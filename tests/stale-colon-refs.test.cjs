@@ -31,12 +31,21 @@ const UPSTREAM_OWNED_PREFIXES = [
   'commands/gsd/',
   'agents/',
   'get-shit-done/',
+  '.changeset/',
+  'CONTEXT.md',
+  'QUICK-WINS-CONFIRMED-BUGS.md',
   'docs/AGENTS.md',
   'docs/ARCHITECTURE.md',
   'docs/FEATURES.md',
+  'docs/RELEASE-',
   'docs/USER-GUIDE.md',
+  'docs/adr/',
+  'docs/research/',
   'sdk/src/',
   'hooks/',
+  // Upstream syncs add regression tests with deliberate Gemini /gsd: inputs
+  // frequently; do not require downstream to maintain a per-file allowlist.
+  'tests/',
   // Upstream-carried tests asserting upstream /gsd: slash-namespace contract:
   'tests/bug-3010-reapply-patches-references.test.cjs',
   'tests/bug-2410-stream-checkpoint-heartbeats.test.cjs',

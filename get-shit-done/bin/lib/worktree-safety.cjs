@@ -6,7 +6,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { spawnSync } = require('child_process');
+const { execGit: execGitSeam } = require('./shell-command-projection.cjs');
 
 // Default timeout for worktree-related git subprocess calls.
 // 10 s is generous enough for normal git operations on large repos while still
@@ -15,37 +15,17 @@ const { spawnSync } = require('child_process');
 const DEFAULT_GIT_TIMEOUT_MS = 10000;
 
 /**
- * Execute a git command with a bounded timeout.
+ * Execute a git command via the shell-projection seam, with a derived
+ * `timedOut` field. Tests inject mocks via deps.execGit using the new
+ * (args, opts) shape — see worktree-safety-policy.test.cjs.
  *
- * Return shape: { exitCode, stdout, stderr, timedOut, error }
- *   - exitCode: process exit status (null when killed by signal)
- *   - timedOut: true when spawnSync reports SIGTERM + ETIMEDOUT — callers must
- *               branch on this to surface a structured warning instead of
- *               silently treating the empty output as success (PRED.k302)
- *   - error:    the Error object from spawnSync when the process could not start
- *               or was killed; null otherwise
- *
- * Backward-compatible: existing callers that only read exitCode/stdout/stderr
- * continue to work unchanged.
+ * Return shape: { exitCode, stdout, stderr, timedOut, error, signal }
+ *   - timedOut: true when spawnSync reports SIGTERM + ETIMEDOUT
  */
-function execGitDefault(cwd, args, options = {}) {
-  const timeout = options.timeout ?? DEFAULT_GIT_TIMEOUT_MS;
-  const result = spawnSync('git', args, {
-    cwd,
-    stdio: 'pipe',
-    encoding: 'utf-8',
-    timeout,
-  });
-  // spawnSync sets signal='SIGTERM' and error.code='ETIMEDOUT' when the timeout
-  // fires and the subprocess is killed.
+function execGitDefault(args, opts = {}) {
+  const result = execGitSeam(args, { ...opts, timeout: opts.timeout ?? DEFAULT_GIT_TIMEOUT_MS });
   const timedOut = result.signal === 'SIGTERM' && result.error?.code === 'ETIMEDOUT';
-  return {
-    exitCode: result.status ?? 1,
-    stdout: (result.stdout ?? '').toString().trim(),
-    stderr: (result.stderr ?? '').toString().trim(),
-    timedOut,
-    error: result.error ?? null,
-  };
+  return { ...result, timedOut };
 }
 
 function parseWorktreePorcelain(porcelain) {
@@ -77,7 +57,7 @@ function parseWorktreeListPaths(porcelain) {
 
 function readWorktreeList(repoRoot, deps = {}) {
   const execGit = deps.execGit || execGitDefault;
-  const listResult = execGit(repoRoot, ['worktree', 'list', '--porcelain']);
+  const listResult = execGit(['worktree', 'list', '--porcelain'], { cwd: repoRoot });
   if (listResult.timedOut) {
     // AC2 / AC4: surface timeout as a distinct reason so callers can emit a
     // structured warning rather than silently treating the failure as a generic
@@ -90,9 +70,12 @@ function readWorktreeList(repoRoot, deps = {}) {
     };
   }
   if (listResult.exitCode !== 0) {
+    const stderr = String(listResult.stderr || '');
     return {
       ok: false,
-      reason: 'git_list_failed',
+      reason: /not a git repository|not a git repo/i.test(stderr)
+        ? 'not_a_git_repo'
+        : 'git_list_failed',
       porcelain: '',
       entries: [],
     };
@@ -119,8 +102,8 @@ function resolveWorktreeContext(cwd, deps = {}) {
     };
   }
 
-  const gitDir = execGit(cwd, ['rev-parse', '--git-dir']);
-  const commonDir = execGit(cwd, ['rev-parse', '--git-common-dir']);
+  const gitDir = execGit(['rev-parse', '--git-dir'], { cwd });
+  const commonDir = execGit(['rev-parse', '--git-common-dir'], { cwd });
   if (gitDir.exitCode !== 0 || commonDir.exitCode !== 0) {
     return {
       effectiveRoot: cwd,
@@ -195,7 +178,7 @@ function executeWorktreePrunePlan(plan, deps = {}) {
     };
   }
 
-  const result = execGit(plan.repoRoot, ['worktree', 'prune']);
+  const result = execGit(['worktree', 'prune'], { cwd: plan.repoRoot });
   if (result.timedOut) {
     // AC4: surface timedOut as a first-class field so callers (e.g.
     // pruneOrphanedWorktrees in core.cjs) can log a structured WARNING rather
@@ -327,6 +310,244 @@ function snapshotWorktreeInventory(repoRoot, options = {}, deps = {}) {
   };
 }
 
+function normalizeCleanupManifestEntry(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const worktreePath = typeof entry.worktree_path === 'string'
+    ? entry.worktree_path
+    : (typeof entry.path === 'string' ? entry.path : '');
+  const branch = typeof entry.branch === 'string' ? entry.branch : '';
+  const expectedBase = typeof entry.expected_base === 'string' ? entry.expected_base : '';
+  if (!worktreePath || !branch || !expectedBase) return null;
+  if (!/^worktree-agent-[A-Za-z0-9._/-]+$/.test(branch)) return null;
+  return {
+    agent_id: typeof entry.agent_id === 'string' ? entry.agent_id : null,
+    worktree_path: worktreePath,
+    branch,
+    expected_base: expectedBase,
+  };
+}
+
+function normalizeCleanupManifest(manifest) {
+  let parsed = manifest;
+  if (typeof manifest === 'string') {
+    try {
+      parsed = JSON.parse(manifest);
+    } catch {
+      return { ok: false, reason: 'invalid_manifest_json', entries: [] };
+    }
+  }
+
+  const rawEntries = Array.isArray(parsed)
+    ? parsed
+    : (Array.isArray(parsed?.worktrees) ? parsed.worktrees : []);
+  const seen = new Set();
+  const entries = [];
+  for (const raw of rawEntries) {
+    const entry = normalizeCleanupManifestEntry(raw);
+    if (!entry) continue;
+    const key = `${entry.worktree_path}\0${entry.branch}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    entries.push(entry);
+  }
+
+  if (entries.length === 0) {
+    return { ok: false, reason: 'empty_manifest', entries: [] };
+  }
+
+  return { ok: true, reason: 'ok', entries };
+}
+
+function planWorktreeWaveCleanup(repoRoot, manifest) {
+  const normalized = normalizeCleanupManifest(manifest);
+  if (!normalized.ok) {
+    return {
+      ok: false,
+      repoRoot,
+      action: 'skip',
+      discovery: 'manifest',
+      reason: normalized.reason,
+      entries: [],
+    };
+  }
+
+  return {
+    ok: true,
+    repoRoot,
+    action: 'cleanup_wave',
+    discovery: 'manifest',
+    reason: 'manifest_entries_present',
+    entries: normalized.entries,
+  };
+}
+
+function gitResultOk(result) {
+  return result && result.exitCode === 0 && !result.timedOut;
+}
+
+function executeWorktreeWaveCleanupPlan(plan, deps = {}) {
+  const execGit = deps.execGit || execGitDefault;
+  const entries = Array.isArray(plan?.entries) ? plan.entries : [];
+  if (!plan || plan.action !== 'cleanup_wave' || entries.length === 0) {
+    return {
+      ok: false,
+      action: plan ? plan.action : 'skip',
+      reason: plan ? (plan.reason || 'missing_entries') : 'missing_plan',
+      entries: [],
+      pending: entries,
+    };
+  }
+
+  const results = [];
+  const pending = [];
+  let ok = true;
+
+  for (let i = 0; i < entries.length; i += 1) {
+    const entry = entries[i];
+    const result = {
+      ...entry,
+      status: 'pending',
+      reason: null,
+      stderr: '',
+    };
+
+    const branchCheck = execGit(['-C', entry.worktree_path, 'rev-parse', '--abbrev-ref', 'HEAD'], { cwd: plan.repoRoot });
+    if (!gitResultOk(branchCheck) || branchCheck.stdout.trim() !== entry.branch) {
+      result.status = 'blocked';
+      result.reason = 'branch_mismatch';
+      result.stderr = branchCheck?.stderr || '';
+      results.push(result);
+      pending.push(...entries.slice(i + 1));
+      ok = false;
+      break;
+    }
+
+    const mergeBase = execGit(['merge-base', 'HEAD', entry.branch], { cwd: plan.repoRoot });
+    if (!gitResultOk(mergeBase) || mergeBase.stdout.trim() !== entry.expected_base) {
+      result.status = 'blocked';
+      result.reason = 'base_mismatch';
+      result.stderr = mergeBase?.stderr || '';
+      results.push(result);
+      pending.push(...entries.slice(i + 1));
+      ok = false;
+      break;
+    }
+
+    const deletions = execGit(['diff', '--diff-filter=D', '--name-only', `HEAD...${entry.branch}`], { cwd: plan.repoRoot });
+    if (!gitResultOk(deletions)) {
+      result.status = 'blocked';
+      result.reason = 'deletion_check_failed';
+      result.stderr = deletions?.stderr || '';
+      results.push(result);
+      pending.push(...entries.slice(i + 1));
+      ok = false;
+      break;
+    }
+    if (deletions.stdout) {
+      result.status = 'blocked';
+      result.reason = 'branch_contains_deletions';
+      result.stderr = deletions.stdout;
+      results.push(result);
+      pending.push(...entries.slice(i + 1));
+      ok = false;
+      break;
+    }
+
+    const worktreeStatus = execGit(['-C', entry.worktree_path, 'status', '--porcelain', '--untracked-files=all'], { cwd: plan.repoRoot });
+    if (!gitResultOk(worktreeStatus) || worktreeStatus.stdout) {
+      result.status = 'blocked';
+      result.reason = 'worktree_dirty';
+      result.stderr = worktreeStatus?.stdout || worktreeStatus?.stderr || '';
+      results.push(result);
+      pending.push(...entries.slice(i + 1));
+      ok = false;
+      break;
+    }
+
+    const merge = execGit(['merge', entry.branch, '--no-ff', '--no-edit', '-m', `chore: merge executor worktree (${entry.branch})`], { cwd: plan.repoRoot });
+    if (!gitResultOk(merge)) {
+      result.status = 'blocked';
+      result.reason = 'merge_failed';
+      result.stderr = merge?.stderr || merge?.stdout || '';
+      results.push(result);
+      pending.push(...entries.slice(i + 1));
+      ok = false;
+      break;
+    }
+
+    const remove = execGit(['worktree', 'remove', entry.worktree_path, '--force'], { cwd: plan.repoRoot });
+    if (!gitResultOk(remove)) {
+      result.status = 'blocked';
+      result.reason = 'worktree_remove_failed';
+      result.stderr = remove?.stderr || '';
+      results.push(result);
+      pending.push(...entries.slice(i + 1));
+      ok = false;
+      break;
+    }
+
+    const branchDelete = execGit(['branch', '-D', entry.branch], { cwd: plan.repoRoot });
+    if (!gitResultOk(branchDelete)) {
+      result.status = 'warning';
+      result.reason = 'branch_delete_failed';
+      result.stderr = branchDelete?.stderr || '';
+      ok = false;
+    } else {
+      result.status = 'merged_removed';
+      result.reason = 'ok';
+    }
+    results.push(result);
+  }
+
+  return {
+    ok,
+    action: plan.action,
+    reason: ok ? 'ok' : 'cleanup_blocked',
+    entries: results,
+    pending,
+  };
+}
+
+function cmdWorktreeCleanupWave(cwd, args = []) {
+  const manifestFlagIndex = args.indexOf('--manifest');
+  const manifestPath = manifestFlagIndex >= 0 ? args[manifestFlagIndex + 1] : '';
+  if (!manifestPath) {
+    process.stderr.write('Usage: worktree cleanup-wave --manifest <path>\n');
+    process.exitCode = 2;
+    return;
+  }
+
+  let manifest;
+  try {
+    manifest = fs.readFileSync(path.resolve(cwd, manifestPath), 'utf8');
+  } catch (err) {
+    process.stdout.write(`${JSON.stringify({
+      ok: false,
+      reason: 'manifest_read_failed',
+      error: err.message,
+    }, null, 2)}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const plan = planWorktreeWaveCleanup(cwd, manifest);
+  const result = executeWorktreeWaveCleanupPlan(plan);
+  const response = {
+    ok: result.ok,
+    plan: {
+      action: plan.action,
+      discovery: plan.discovery,
+      reason: plan.reason,
+      entries: plan.entries.length,
+    },
+    result,
+  };
+  process.stdout.write(`${JSON.stringify(response, null, 2)}\n`);
+  if (!result.ok) {
+    process.exitCode = 1;
+  }
+}
+
 module.exports = {
   resolveWorktreeContext,
   parseWorktreePorcelain,
@@ -335,4 +556,8 @@ module.exports = {
   listLinkedWorktreePaths,
   inspectWorktreeHealth,
   snapshotWorktreeInventory,
+  normalizeCleanupManifest,
+  planWorktreeWaveCleanup,
+  executeWorktreeWaveCleanupPlan,
+  cmdWorktreeCleanupWave,
 };
