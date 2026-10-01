@@ -773,6 +773,46 @@ function computePathPrefix({ isGlobal, isOpencode, isWindowsHost: _isWindowsHost
 }
 
 /**
+ * Expand config-dir anchors to their installed targets in a SINGLE pass.
+ *
+ * A per-form `String.replace` chain is only safe while no replacement matches a
+ * later rule's pattern. That holds for a plain `~/.claude` install but NOT when
+ * the target itself contains an anchor (HERMES_HOME / profile mode, where
+ * pathPrefix is `$HOME/.hermes/profiles/<name>/`): the later `.hermes` rule
+ * re-expands the prefix an earlier `.claude` rule just wrote, producing
+ * `.../profiles/<name>/profiles/<name>/...` (#3691). Alternating with one
+ * `replace` call cannot revisit its own output.
+ *
+ * @param {string} content
+ * @param {Array<{pattern: RegExp, replacement: string}>} rules ordered; first match wins
+ * @returns {string}
+ */
+function rewritePaths(content, rules) {
+  if (rules.length === 0) return content;
+  // Match on the combined alternation (first alternative wins, matching the
+  // ordered chain it replaces), then attribute the match back to its rule.
+  // Non-capturing groups keep the helper safe for rules that use their own.
+  const compiled = rules.map((rule) => ({ ...rule, test: new RegExp(rule.pattern.source) }));
+  const combined = new RegExp(compiled.map((rule) => `(?:${rule.pattern.source})`).join('|'), 'g');
+  return content.replace(combined, (match) =>
+    compiled.find((rule) => rule.test.test(match)).replacement
+  );
+}
+
+/** Anchors that stand in for the runtime's global config dir in skill markdown. */
+function skillPathRules(pathPrefix, dirName) {
+  return [
+    { pattern: /~\/\.claude\//g, replacement: pathPrefix },
+    { pattern: /\$HOME\/\.claude\//g, replacement: pathPrefix },
+    { pattern: /~\/\.hermes\//g, replacement: pathPrefix },
+    { pattern: /\$HOME\/\.hermes\//g, replacement: pathPrefix },
+    { pattern: /\.\/\.claude\//g, replacement: `./${dirName}/` },
+    { pattern: /\.\/\.hermes\//g, replacement: `./${dirName}/` },
+    { pattern: /\.claude\//g, replacement: `.${dirName}/` }, // residual refs
+  ];
+}
+
+/**
  * Normalize a raw `process.execPath` to a stable, upgrade-safe node binary
  * path. On Homebrew installs, `process.execPath` resolves symlinks and returns
  * the versioned Cellar path (e.g.
@@ -6410,15 +6450,11 @@ function _applyRuntimeRewrites(content, runtime, pathPrefix) {
       // Branding rewrites run before path rewrites (same rationale as qwen)
       content = content.replace(/CLAUDE\.md/g, 'HERMES.md');
       content = content.replace(/\bClaude Code\b/g, 'Hermes Agent');
-      // Base path rewrites
-      content = content.replace(/~\/\.claude\//g, pathPrefix);
-      content = content.replace(/\$HOME\/\.claude\//g, pathPrefix);
-      content = content.replace(/~\/\.hermes\//g, pathPrefix);
-      content = content.replace(/\$HOME\/\.hermes\//g, pathPrefix);
-      // Bare relative .claude/ → .hermes/ (residual refs)
-      content = content.replace(/\.claude\//g, '.hermes/');
-      content = content.replace(/\.\/\.claude\//g, `./${dirName}/`);
-      content = content.replace(/\.\/\.hermes\//g, `./${dirName}/`);
+      // Base path rewrites. Paths are expanded in ONE pass: a per-form
+      // sequence re-matches the prefix a previous rule just wrote whenever
+      // pathPrefix itself contains `/.hermes/` (HERMES_HOME / profile mode),
+      // turning `~/.claude/x` into `<prefix>/profiles/<name>/x` (#3691).
+      content = rewritePaths(content, skillPathRules(pathPrefix, dirName));
       content = processAttribution(content, getCommitAttribution(runtime));
       break;
 
@@ -6828,18 +6864,23 @@ function copyWithPathReplacement(srcDir, destDir, pathPrefix, runtime, isCommand
         const bareGlobalClaudeHomeRegex = /\$HOME\/\.claude\b/g;
         const bareLocalClaudeRegex = /\.\/\.claude\b/g;
         const normalizedPathPrefix = pathPrefix.replace(/\/$/, '');
-        content = content.replace(globalClaudeRegex, pathPrefix);
-        content = content.replace(globalClaudeHomeRegex, pathPrefix);
-        content = content.replace(localClaudeRegex, `./${dirName}/`);
-        content = content.replace(bareGlobalClaudeRegex, normalizedPathPrefix);
-        content = content.replace(bareGlobalClaudeHomeRegex, normalizedPathPrefix);
-        content = content.replace(bareLocalClaudeRegex, `./${dirName}`);
-        content = content.replace(/~\/\.qwen\//g, pathPrefix);
-        content = content.replace(/\$HOME\/\.qwen\//g, pathPrefix);
-        content = content.replace(/\.\/\.qwen\//g, `./${dirName}/`);
-        content = content.replace(/~\/\.hermes\//g, pathPrefix);
-        content = content.replace(/\$HOME\/\.hermes\//g, pathPrefix);
-        content = content.replace(/\.\/\.hermes\//g, `./${dirName}/`);
+        // Single pass — see rewritePaths(). Chaining re-expands the prefix a
+        // previous rule wrote when it contains a later rule's anchor (#3691).
+        content = rewritePaths(content, [
+          { pattern: globalClaudeRegex, replacement: pathPrefix },
+          { pattern: globalClaudeHomeRegex, replacement: pathPrefix },
+          { pattern: localClaudeRegex, replacement: `./${dirName}/` },
+          // Bare `~/.claude` / `$HOME/.claude` — a directory ref, no trailing slash.
+          { pattern: bareGlobalClaudeRegex, replacement: normalizedPathPrefix },
+          { pattern: bareGlobalClaudeHomeRegex, replacement: normalizedPathPrefix },
+          { pattern: bareLocalClaudeRegex, replacement: `./${dirName}` },
+          { pattern: /~\/\.qwen\//g, replacement: pathPrefix },
+          { pattern: /\$HOME\/\.qwen\//g, replacement: pathPrefix },
+          { pattern: /\.\/\.qwen\//g, replacement: `./${dirName}/` },
+          { pattern: /~\/\.hermes\//g, replacement: pathPrefix },
+          { pattern: /\$HOME\/\.hermes\//g, replacement: pathPrefix },
+          { pattern: /\.\/\.hermes\//g, replacement: `./${dirName}/` },
+        ]);
       }
       content = processAttribution(content, getCommitAttribution(runtime));
 
